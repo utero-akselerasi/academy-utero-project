@@ -50,12 +50,16 @@ export async function submitRegistrationAction(
     });
 
     if (error) {
+      console.error("Gagal submit pendaftaran:", error);
+
       return {
         ok: false,
-        message: "Pendaftaran belum berhasil disimpan. Cek policy Supabase dan coba lagi.",
+        message: `Pendaftaran belum berhasil disimpan. Detail: ${error.message}`,
       };
     }
-  } catch {
+  } catch (error) {
+    console.error("Koneksi Supabase belum siap:", error);
+
     return {
       ok: false,
       message: "Koneksi Supabase belum siap. Isi env Supabase sebelum mencoba submit.",

@@ -1,16 +1,12 @@
 import { ProtectedDashboardLayout } from "@/features/auth/ProtectedDashboardLayout";
 
-export default async function AdminLayout({
+export default async function MentorLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <ProtectedDashboardLayout
-      allowedRoles={["super_admin", "admin_academy"]}
-      homeHref="/dashboard/admin/pendaftaran"
-      title="Dashboard Admin"
-    >
+    <ProtectedDashboardLayout allowedRoles={["mentor"]} homeHref="/dashboard/mentor" title="Dashboard Mentor">
       {children}
     </ProtectedDashboardLayout>
   );

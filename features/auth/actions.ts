@@ -3,6 +3,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { getPrimaryDashboardPath } from "./roles";
 
 const loginSchema = z.object({
   email: z.string().email("Email tidak valid."),
@@ -22,11 +23,13 @@ export async function loginAction(_: unknown, formData: FormData) {
     };
   }
 
+  let userId: string | undefined;
   let error;
 
   try {
     const supabase = await createSupabaseServerClient();
     const result = await supabase.auth.signInWithPassword(parsed.data);
+    userId = result.data.user?.id;
     error = result.error;
   } catch {
     return {
@@ -42,7 +45,23 @@ export async function loginAction(_: unknown, formData: FormData) {
     };
   }
 
-  redirect("/dashboard/admin/pendaftaran");
+  if (!userId) {
+    return {
+      ok: false,
+      message: "Login berhasil, tetapi data user tidak ditemukan.",
+    };
+  }
+
+  const dashboardPath = await getPrimaryDashboardPath(userId);
+
+  if (!dashboardPath) {
+    return {
+      ok: false,
+      message: "User belum memiliki role. Hubungi Super Admin.",
+    };
+  }
+
+  redirect(dashboardPath);
 }
 
 export async function logoutAction() {
