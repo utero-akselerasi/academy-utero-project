@@ -45,3 +45,57 @@ export async function updateApplicationStatusAction(formData: FormData) {
 
   revalidatePath("/dashboard/admin/pendaftaran");
 }
+
+export async function assignMentorAction(formData: FormData) {
+  const user = await getCurrentUser();
+
+  if (!user || !(await canAccessAdminDashboard(user.id))) {
+    redirect("/login");
+  }
+
+  const internId = formData.get("internId") as string;
+  const mentorId = formData.get("mentorId") as string;
+
+  if (!internId || !mentorId) {
+    throw new Error("Pilih peserta magang dan mentor.");
+  }
+
+  const db = await createUteroAcademyClient();
+  const { error } = await db.from("mentor_assignments").insert({
+    intern_id: internId,
+    mentor_id: mentorId,
+    assigned_by: user.id,
+    started_at: new Date().toISOString().slice(0, 10)
+  });
+
+  if (error) {
+    console.error("Gagal assign mentor:", error);
+    throw new Error("Gagal menyimpan penempatan magang.");
+  }
+
+  revalidatePath("/dashboard/admin/penempatan");
+}
+
+export async function removeMentorAssignmentAction(formData: FormData) {
+  const user = await getCurrentUser();
+
+  if (!user || !(await canAccessAdminDashboard(user.id))) {
+    redirect("/login");
+  }
+
+  const assignmentId = formData.get("assignmentId") as string;
+
+  if (!assignmentId) {
+    throw new Error("ID penempatan tidak valid.");
+  }
+
+  const db = await createUteroAcademyClient();
+  const { error } = await db.from("mentor_assignments").delete().eq("id", assignmentId);
+
+  if (error) {
+    console.error("Gagal hapus assignment:", error);
+    throw new Error("Gagal menghapus penempatan magang.");
+  }
+
+  revalidatePath("/dashboard/admin/penempatan");
+}
