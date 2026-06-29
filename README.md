@@ -49,3 +49,4 @@ Project ini dimulai dari fondasi dokumentasi agar arsitektur, database, role, da
 - Setiap modul punya batas tanggung jawab yang jelas.
 - File storage memakai bucket dan path yang konsisten.
 - Audit log dan histori status disiapkan untuk proses penting seperti pendaftaran, absensi, assessment, dan sertifikasi.
+
