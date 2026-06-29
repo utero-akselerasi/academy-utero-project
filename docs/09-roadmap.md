@@ -31,19 +31,19 @@
 
 ## Fase 4: Implementasi
 
-1. Setup Next.js, TypeScript, dan Tailwind CSS.
-2. Setup struktur Supabase Self-Hosted.
-3. Implementasi auth dan RBAC dasar.
-4. Implementasi halaman website publik.
-5. Implementasi model konten CMS.
-6. Implementasi pendaftaran magang dan review admin.
-7. Implementasi dashboard mentor dan peserta.
-8. Implementasi task management.
-9. Implementasi absensi.
-10. Implementasi daily report.
-11. Implementasi LMS.
-12. Implementasi assessment dan generate sertifikat.
-13. Implementasi school portal.
+1. [x] Setup Next.js, TypeScript, dan Tailwind CSS. (Selesai)
+2. [x] Setup struktur Supabase Self-Hosted. (Selesai)
+3. [x] Implementasi auth dan RBAC dasar. (Selesai & Diperbaiki)
+4. [x] Implementasi halaman website publik. (Selesai)
+5. [ ] Implementasi model konten CMS.
+6. [x] Implementasi pendaftaran magang dan review admin. (Selesai)
+7. [x] Implementasi dashboard mentor dan peserta. (Selesai & Diperbaiki)
+8. [x] Implementasi task management. (Selesai & Diperbaiki dengan Delete, Assign, & Otomatisasi Daily Report)
+9. [x] Implementasi absensi. (Selesai)
+10. [x] Implementasi daily report. (Selesai & Diperbaiki dengan Multi-Upload, Google Drive Fallback, Image Preview, & Edit Revisi)
+11. [ ] Implementasi LMS. (Fase Berikutnya)
+12. [ ] Implementasi assessment dan generate sertifikat. (Fase Berikutnya)
+13. [ ] Implementasi school portal. (Fase Berikutnya)
 
 ## Fase 5: Integrasi
 
