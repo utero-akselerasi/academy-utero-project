@@ -1,4 +1,4 @@
-# Project Vision
+# Visi Project
 
 ## Nama Internal
 
@@ -50,4 +50,3 @@ Platform ini tidak hanya menggantikan website WordPress, tetapi menjadi pusat op
 - Setiap approval dan revisi harus meninggalkan jejak audit.
 - CMS dibuat headless agar bisa melayani lebih dari satu frontend.
 - Struktur database harus stabil, mudah dikembangkan, dan siap untuk laporan manajemen.
-

@@ -26,7 +26,7 @@ Utero Academy membutuhkan platform terpusat untuk website publik, CMS, LKP, e-le
 | Admin Academy | Mengelola program, batch, peserta, konten, mentor, jadwal, dan sertifikat |
 | Super Admin | Mengelola tenant, konfigurasi sistem, role, permission, audit, dan seluruh data |
 
-## 4. Core Features
+## 4. Fitur Utama
 
 ### Website
 
@@ -130,7 +130,7 @@ Utero Academy membutuhkan platform terpusat untuk website publik, CMS, LKP, e-le
 - Digital signature
 - Sertifikat
 
-## 5. Non-Functional Requirements
+## 5. Kebutuhan Non-Fungsional
 
 - RBAC diterapkan sejak awal.
 - Semua file disimpan di Supabase Storage.
@@ -140,11 +140,10 @@ Utero Academy membutuhkan platform terpusat untuk website publik, CMS, LKP, e-le
 - Aplikasi harus responsif untuk desktop dan mobile.
 - Sistem harus siap self-hosted.
 
-## 6. Success Metrics
+## 6. Metrik Keberhasilan
 
 - Admin dapat mengelola konten website tanpa WordPress.
 - Mentor dapat memonitor seluruh peserta bimbingannya dari satu dashboard.
 - Peserta dapat absen, mengisi daily report, dan melihat task dengan mudah.
 - Sekolah dapat melihat progress peserta tanpa meminta laporan manual.
 - Sertifikat dan laporan PDF dapat digenerate dari data sistem.
-

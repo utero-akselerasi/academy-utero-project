@@ -29,23 +29,23 @@ Project ini dimulai dari fondasi dokumentasi agar arsitektur, database, role, da
 
 ## Dokumentasi
 
-- [Project Vision](docs/01-project-vision.md)
+- [Visi Project](docs/01-project-vision.md)
 - [PRD](docs/02-prd.md)
-- [Software Design Document](docs/03-sdd.md)
-- [Business Process](docs/04-business-process.md)
-- [RBAC Permission Matrix](docs/05-rbac-permission-matrix.md)
-- [Database ERD](docs/06-database-erd.md)
-- [API Contract](docs/07-api-contract.md)
-- [Repository Structure](docs/08-repository-structure.md)
-- [Implementation Roadmap](docs/09-roadmap.md)
-- [Coding Standard](docs/10-coding-standard.md)
-- [Supabase Setup](supabase/README.md)
+- [Dokumen Desain Software](docs/03-sdd.md)
+- [Proses Bisnis](docs/04-business-process.md)
+- [Matrix Permission RBAC](docs/05-rbac-permission-matrix.md)
+- [ERD Database](docs/06-database-erd.md)
+- [Kontrak API](docs/07-api-contract.md)
+- [Struktur Repository](docs/08-repository-structure.md)
+- [Roadmap Implementasi](docs/09-roadmap.md)
+- [Standar Coding](docs/10-coding-standard.md)
+- [Setup Supabase](supabase/README.md)
 
 ## Prinsip Arsitektur
 
 - Database dirancang sebelum fitur dibangun.
 - Semua modul menggunakan RBAC sejak awal.
 - CMS diposisikan sebagai headless CMS internal Utero, bukan hanya panel website Academy.
-- Setiap modul punya boundary yang jelas.
+- Setiap modul punya batas tanggung jawab yang jelas.
 - File storage memakai bucket dan path yang konsisten.
 - Audit log dan histori status disiapkan untuk proses penting seperti pendaftaran, absensi, assessment, dan sertifikasi.

@@ -1,6 +1,8 @@
-# Database ERD
+# ERD Database
 
-This ERD is an initial logical model. Table and column details should be refined before migration files are written.
+ERD ini adalah model logis awal. Detail tabel dan kolom perlu disempurnakan sebelum migration final digunakan untuk production.
+
+Semua tabel aplikasi berada di schema `utero_academy`. Tabel user Supabase tetap berada di schema bawaan `auth`.
 
 ```mermaid
 erDiagram
@@ -67,7 +69,7 @@ erDiagram
     users ||--o{ audit_logs : acts
 ```
 
-## Table Groups
+## Kelompok Tabel
 
 ### Identity
 
@@ -78,7 +80,7 @@ erDiagram
 - `user_roles`
 - `role_permissions`
 
-### Organization
+### Organisasi
 
 - `schools`
 - `school_contacts`
@@ -97,7 +99,7 @@ erDiagram
 - `testimonials`
 - `galleries`
 
-### LKP and Internship
+### LKP dan Internship
 
 - `programs`
 - `curriculums`
@@ -118,7 +120,7 @@ erDiagram
 - `assignments`
 - `assignment_submissions`
 
-### Operations
+### Operasional
 
 - `task_boards`
 - `task_lists`
@@ -133,4 +135,3 @@ erDiagram
 - `assessments`
 - `certificates`
 - `audit_logs`
-

@@ -1,6 +1,6 @@
-# RBAC Permission Matrix
+# Matrix Permission RBAC
 
-## Roles
+## Role
 
 - `super_admin`
 - `admin_academy`
@@ -11,39 +11,38 @@
 
 ## Matrix
 
-| Feature | Super Admin | Admin Academy | Mentor | School | Intern | Visitor |
+| Fitur | Super Admin | Admin Academy | Mentor | Sekolah | Peserta | Visitor |
 | --- | --- | --- | --- | --- | --- | --- |
-| Public website view | Yes | Yes | Yes | Yes | Yes | Yes |
-| Public registration | Yes | Yes | No | No | Yes | Yes |
-| CMS manage content | Yes | Yes | No | No | No | No |
-| CMS publish content | Yes | Yes | No | No | No | No |
-| Manage users | Yes | Yes | No | No | No | No |
-| Manage roles and permissions | Yes | No | No | No | No | No |
-| Manage programs | Yes | Yes | No | No | No | No |
-| Manage curriculum | Yes | Yes | No | No | No | No |
-| Manage batches | Yes | Yes | No | No | No | No |
-| Manage classes | Yes | Yes | No | No | No | No |
-| Manage mentor assignment | Yes | Yes | No | No | No | No |
-| View assigned interns | Yes | Yes | Yes | Scoped | Own | No |
-| Manage tasks | Yes | Yes | Scoped | Read | Scoped | No |
-| Submit task progress | No | No | No | No | Yes | No |
-| Submit attendance | No | No | No | No | Yes | No |
-| Review attendance | Yes | Yes | Scoped | Read | Own | No |
-| Submit daily report | No | No | No | No | Yes | No |
-| Review daily report | Yes | Yes | Scoped | Read | Own | No |
-| Manage LMS courses | Yes | Yes | Scoped | No | No | No |
-| Access LMS materials | Yes | Yes | Yes | No | Scoped | No |
-| Submit quiz and assignment | No | No | No | No | Yes | No |
-| View school dashboard | Yes | Yes | No | Scoped | No | No |
-| Input assessment | Yes | Yes | Scoped | No | No | No |
-| Finalize assessment | Yes | Yes | No | No | No | No |
-| Generate certificate | Yes | Yes | No | No | No | No |
-| View certificate | Yes | Yes | Scoped | Scoped | Own | No |
-| View audit log | Yes | Scoped | No | No | No | No |
+| Melihat website publik | Ya | Ya | Ya | Ya | Ya | Ya |
+| Pendaftaran publik | Ya | Ya | Tidak | Tidak | Ya | Ya |
+| Mengelola konten CMS | Ya | Ya | Tidak | Tidak | Tidak | Tidak |
+| Publish konten CMS | Ya | Ya | Tidak | Tidak | Tidak | Tidak |
+| Mengelola user | Ya | Ya | Tidak | Tidak | Tidak | Tidak |
+| Mengelola role dan permission | Ya | Tidak | Tidak | Tidak | Tidak | Tidak |
+| Mengelola program | Ya | Ya | Tidak | Tidak | Tidak | Tidak |
+| Mengelola kurikulum | Ya | Ya | Tidak | Tidak | Tidak | Tidak |
+| Mengelola batch | Ya | Ya | Tidak | Tidak | Tidak | Tidak |
+| Mengelola kelas | Ya | Ya | Tidak | Tidak | Tidak | Tidak |
+| Mengelola assignment mentor | Ya | Ya | Tidak | Tidak | Tidak | Tidak |
+| Melihat peserta terkait | Ya | Ya | Ya | Sesuai scope | Milik sendiri | Tidak |
+| Mengelola task | Ya | Ya | Sesuai scope | Baca | Sesuai scope | Tidak |
+| Submit progress task | Tidak | Tidak | Tidak | Tidak | Ya | Tidak |
+| Submit absensi | Tidak | Tidak | Tidak | Tidak | Ya | Tidak |
+| Review absensi | Ya | Ya | Sesuai scope | Baca | Milik sendiri | Tidak |
+| Submit daily report | Tidak | Tidak | Tidak | Tidak | Ya | Tidak |
+| Review daily report | Ya | Ya | Sesuai scope | Baca | Milik sendiri | Tidak |
+| Mengelola course LMS | Ya | Ya | Sesuai scope | Tidak | Tidak | Tidak |
+| Mengakses materi LMS | Ya | Ya | Ya | Tidak | Sesuai scope | Tidak |
+| Submit quiz dan assignment | Tidak | Tidak | Tidak | Tidak | Ya | Tidak |
+| Melihat dashboard sekolah | Ya | Ya | Tidak | Sesuai scope | Tidak | Tidak |
+| Input assessment | Ya | Ya | Sesuai scope | Tidak | Tidak | Tidak |
+| Finalisasi assessment | Ya | Ya | Tidak | Tidak | Tidak | Tidak |
+| Generate sertifikat | Ya | Ya | Tidak | Tidak | Tidak | Tidak |
+| Melihat sertifikat | Ya | Ya | Sesuai scope | Sesuai scope | Milik sendiri | Tidak |
+| Melihat audit log | Ya | Sesuai scope | Tidak | Tidak | Tidak | Tidak |
 
-## Scope Notes
+## Catatan Scope
 
-- `Scoped` for mentors means records related to assigned interns, assigned classes, assigned boards, or assigned courses.
-- `Scoped` for schools means records related to students from the school or campus.
-- `Own` means the authenticated user's own participant record.
-
+- `Sesuai scope` untuk mentor berarti data yang terkait dengan peserta, kelas, board, atau course yang ditugaskan.
+- `Sesuai scope` untuk sekolah berarti data peserta dari sekolah atau kampus terkait.
+- `Milik sendiri` berarti record peserta milik user yang sedang login.

@@ -1,60 +1,61 @@
-# Coding Standard
+# Standar Coding
 
-## General
+## Umum
 
-- Use TypeScript for all application code.
-- Keep feature-specific code inside `features/*`.
-- Keep shared primitives inside `components/ui`.
-- Keep server-only helpers inside `lib/*`.
-- Prefer explicit names over abbreviations.
-- Validate all external input before database writes.
+- Gunakan TypeScript untuk seluruh kode aplikasi.
+- Simpan kode spesifik fitur di `features/*`.
+- Simpan UI primitive bersama di `components/ui`.
+- Simpan helper server-only di `lib/*`.
+- Gunakan nama yang eksplisit.
+- Validasi semua input eksternal sebelum menulis ke database.
 
 ## TypeScript
 
-- Use strict TypeScript.
-- Avoid `any` unless wrapping untyped third-party APIs.
-- Prefer discriminated unions for workflow status.
-- Put shared domain types in `types/`.
-- Put feature-specific types in `features/*/types`.
+- Gunakan strict TypeScript.
+- Hindari `any` kecuali untuk membungkus API pihak ketiga yang belum punya type.
+- Gunakan discriminated union untuk workflow status jika relevan.
+- Simpan type domain bersama di `types/`.
+- Simpan type spesifik fitur di `features/*/types`.
 
-## React and Next.js
+## React dan Next.js
 
-- Use Server Components by default.
-- Use Client Components only for interactivity.
-- Use Server Actions or Route Handlers for mutations.
-- Keep dashboard routes grouped by role.
-- Do not put authorization only in UI. Enforce it in server code and database policy.
+- Gunakan Server Components secara default.
+- Gunakan Client Components hanya untuk interaktivitas.
+- Gunakan Server Actions atau Route Handlers untuk mutation.
+- Kelompokkan route dashboard berdasarkan role.
+- Jangan hanya mengandalkan authorization di UI. Authorization harus ditegakkan di server code dan database policy.
 
 ## Database
 
-- Use snake_case table and column names.
-- Use UUID primary keys.
-- Include `created_at` and `updated_at` on mutable tables.
-- Use explicit status fields for workflows.
-- Enable Row Level Security on sensitive tables.
-- Use audit logs for important changes.
+- Semua tabel aplikasi berada di schema `utero_academy`.
+- Schema bawaan Supabase seperti `auth` dan `storage` tetap dipakai sesuai fungsinya.
+- Tabel database menggunakan nama plural dengan format snake_case.
+- Primary key menggunakan UUID.
+- Tabel mutable memiliki `created_at` dan `updated_at`.
+- Workflow penting harus memiliki status eksplisit.
+- Aktifkan Row Level Security untuk tabel sensitif.
+- Gunakan audit log untuk perubahan penting.
 
 ## RBAC
 
-- Permissions should use `resource.action` naming.
-- Roles receive permissions through `role_permissions`.
-- User roles should be scoped when possible.
-- Super Admin is the only role that can manage permissions.
+- Permission menggunakan pola nama `resource.action`.
+- Role menerima permission melalui `role_permissions`.
+- Role user sebaiknya memiliki scope jika aksesnya terbatas.
+- Hanya Super Admin yang dapat mengelola permission.
 
-## Files and Storage
+## File dan Storage
 
-- Store files in Supabase Storage.
-- Save storage object metadata in database tables when files belong to workflows.
-- Use predictable paths:
+- Simpan file di Supabase Storage.
+- Simpan metadata object storage di tabel database jika file terkait workflow.
+- Gunakan path yang konsisten:
   - `avatars/{user_id}/...`
   - `daily-report/{report_id}/...`
   - `task/{card_id}/...`
   - `certificate/{certificate_id}/...`
   - `learning/{course_id}/...`
 
-## Testing
+## Pengujian
 
-- Unit test pure business logic.
-- Integration test important database workflows.
-- End-to-end test registration, login, admin review, attendance, daily report, and certificate generation.
-
+- Unit test untuk business logic murni.
+- Integration test untuk workflow database penting.
+- End-to-end test untuk pendaftaran, login, review admin, absensi, daily report, dan generate sertifikat.

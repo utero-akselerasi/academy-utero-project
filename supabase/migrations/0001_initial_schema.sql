@@ -1,5 +1,7 @@
 create extension if not exists "pgcrypto";
 
+create schema if not exists utero_academy;
+
 create type utero_academy.application_status as enum (
   'draft',
   'submitted',

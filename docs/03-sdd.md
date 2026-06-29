@@ -1,6 +1,6 @@
-# Software Design Document
+# Dokumen Desain Software
 
-## 1. Architecture Overview
+## 1. Gambaran Arsitektur
 
 UAP menggunakan arsitektur modular dengan Next.js sebagai frontend dan Supabase Self-Hosted sebagai backend utama.
 
@@ -29,36 +29,36 @@ flowchart TB
     SupabaseAuth --> Postgres
 ```
 
-## 2. Application Layers
+## 2. Lapisan Aplikasi
 
-| Layer | Responsibility |
+| Layer | Tanggung Jawab |
 | --- | --- |
-| App Router | Routing, layouts, role dashboard, public website |
-| UI Components | Shared UI primitives and feature components |
-| Server Actions/API Routes | Secure mutations, validation, integration boundary |
-| Supabase Client | Auth, data access, storage access |
-| PostgreSQL | Source of truth |
-| Storage | User files, reports, certificates, images, attachments |
-| Edge Functions | PDF generation, notification, scheduled jobs |
+| App Router | Routing, layout, dashboard berbasis role, dan website publik |
+| UI Components | Komponen UI bersama dan komponen fitur |
+| Server Actions/API Routes | Mutasi data yang aman, validasi, dan batas integrasi |
+| Supabase Client | Auth, akses data, dan akses storage |
+| PostgreSQL | Sumber data utama |
+| Storage | File user, laporan, sertifikat, gambar, dan lampiran |
+| Edge Functions | Generate PDF, notifikasi, dan job terjadwal |
 
-## 3. Module Boundaries
+## 3. Batas Modul
 
-| Module | Boundary |
+| Modul | Batas Tanggung Jawab |
 | --- | --- |
-| Website | Public pages and content rendering |
-| CMS | Content authoring and publication workflow |
-| LKP | Program, curriculum, batch, class, schedule |
-| Internship | Candidate and participant lifecycle |
-| LMS | Course, lesson, quiz, assignment, progress |
-| Task | Board, list, card, checklist, comments, attachments |
-| Attendance | Check-in, check-out, geolocation, validation |
-| Daily Report | Report submission, mentor approval, revision |
-| School Portal | Read-focused monitoring for school users |
-| Assessment | Score, finalization, certificate generation |
+| Website | Halaman publik dan rendering konten |
+| CMS | Penulisan konten dan workflow publikasi |
+| LKP | Program, kurikulum, batch, kelas, dan jadwal |
+| Internship | Lifecycle calon peserta dan peserta |
+| LMS | Course, lesson, quiz, assignment, dan progress |
+| Task | Board, list, card, checklist, komentar, dan lampiran |
+| Attendance | Check-in, check-out, geolocation, dan validasi |
+| Daily Report | Submit laporan, approval mentor, dan revisi |
+| School Portal | Monitoring berbasis akses baca untuk sekolah |
+| Assessment | Nilai, finalisasi, dan generate sertifikat |
 
-## 4. Auth and RBAC
+## 4. Auth dan RBAC
 
-Authentication uses Supabase Auth. Application authorization uses database-backed RBAC:
+Authentication menggunakan Supabase Auth. Authorization aplikasi menggunakan RBAC berbasis database di schema `utero_academy`:
 
 - `roles`
 - `permissions`
@@ -66,25 +66,25 @@ Authentication uses Supabase Auth. Application authorization uses database-backe
 - `user_profiles`
 - `user_roles`
 
-Row Level Security should be enabled for sensitive tables. Policies must be based on role, ownership, school relation, mentor relation, and admin scope.
+Row Level Security perlu aktif untuk tabel sensitif. Policy harus berbasis role, kepemilikan data, relasi sekolah, relasi mentor, dan scope admin.
 
-## 5. Storage Buckets
+## 5. Storage Bucket
 
-| Bucket | Usage |
+| Bucket | Penggunaan |
 | --- | --- |
-| avatars | User avatars |
-| daily-report | Daily report attachments |
-| task | Task card attachments |
-| certificate | Generated certificates |
-| learning | LMS files and videos |
-| gallery | Public gallery images |
-| article | Article images |
-| mentor | Mentor profile images |
-| school-logo | School logos |
+| avatars | Avatar user |
+| daily-report | Lampiran daily report |
+| task | Lampiran task card |
+| certificate | Sertifikat yang digenerate |
+| learning | File dan video LMS |
+| gallery | Gambar gallery publik |
+| article | Gambar artikel |
+| mentor | Gambar profil mentor |
+| school-logo | Logo sekolah |
 
-## 6. Status Model
+## 6. Model Status
 
-Important workflows should use explicit status values:
+Workflow penting harus menggunakan status eksplisit:
 
 - Application: `draft`, `submitted`, `reviewed`, `accepted`, `rejected`, `cancelled`
 - Internship: `pending`, `active`, `paused`, `completed`, `failed`, `alumni`
@@ -95,14 +95,13 @@ Important workflows should use explicit status values:
 
 ## 7. Audit Log
 
-Audit log records should include:
+Record audit log harus berisi:
 
-- actor user id
+- id user aktor
 - action
 - resource type
 - resource id
-- previous value
-- next value
+- nilai sebelumnya
+- nilai terbaru
 - metadata
 - timestamp
-

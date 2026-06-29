@@ -1,104 +1,103 @@
-# API Contract
+# Kontrak API
 
-This document defines the first API surface. Final implementation may use Server Actions, Route Handlers, Supabase RPC, or a combination of those patterns.
+Dokumen ini mendefinisikan permukaan API awal. Implementasi final dapat menggunakan Server Actions, Route Handlers, Supabase RPC, atau kombinasi dari pola tersebut.
 
-## Conventions
+## Konvensi
 
-- All protected endpoints require authenticated user context.
-- All mutations validate role permissions.
-- Response shape uses `data` and `error`.
-- List endpoints support pagination with `page`, `per_page`, `sort`, and `q` where relevant.
-- IDs use UUID.
+- Semua endpoint protected membutuhkan konteks user yang sudah login.
+- Semua mutation harus memvalidasi permission role.
+- Bentuk response menggunakan `data` dan `error`.
+- Endpoint list mendukung pagination dengan `page`, `per_page`, `sort`, dan `q` jika relevan.
+- Semua ID menggunakan UUID.
 
-## Public Website
+## Website Publik
 
-| Method | Path | Purpose |
+| Method | Path | Tujuan |
 | --- | --- | --- |
-| GET | `/api/public/site/:slug` | Get public site config |
-| GET | `/api/public/pages/:slug` | Get public page content |
-| GET | `/api/public/articles` | List published articles |
-| GET | `/api/public/articles/:slug` | Get article detail |
-| GET | `/api/public/faqs` | List published FAQ |
-| POST | `/api/public/registrations` | Submit internship or program registration |
+| GET | `/api/public/site/:slug` | Mengambil konfigurasi site publik |
+| GET | `/api/public/pages/:slug` | Mengambil konten halaman publik |
+| GET | `/api/public/articles` | Mengambil daftar artikel published |
+| GET | `/api/public/articles/:slug` | Mengambil detail artikel |
+| GET | `/api/public/faqs` | Mengambil FAQ published |
+| POST | `/api/public/registrations` | Submit pendaftaran magang atau program |
 
 ## CMS
 
-| Method | Path | Purpose |
+| Method | Path | Tujuan |
 | --- | --- | --- |
-| GET | `/api/cms/pages` | List pages |
-| POST | `/api/cms/pages` | Create page |
-| PATCH | `/api/cms/pages/:id` | Update page |
-| POST | `/api/cms/pages/:id/publish` | Publish page |
-| GET | `/api/cms/articles` | List articles |
-| POST | `/api/cms/articles` | Create article |
-| PATCH | `/api/cms/articles/:id` | Update article |
-| POST | `/api/cms/articles/:id/publish` | Publish article |
-| GET | `/api/cms/media` | List media |
-| POST | `/api/cms/media` | Upload media metadata |
+| GET | `/api/cms/pages` | Mengambil daftar halaman |
+| POST | `/api/cms/pages` | Membuat halaman |
+| PATCH | `/api/cms/pages/:id` | Mengubah halaman |
+| POST | `/api/cms/pages/:id/publish` | Publish halaman |
+| GET | `/api/cms/articles` | Mengambil daftar artikel |
+| POST | `/api/cms/articles` | Membuat artikel |
+| PATCH | `/api/cms/articles/:id` | Mengubah artikel |
+| POST | `/api/cms/articles/:id/publish` | Publish artikel |
+| GET | `/api/cms/media` | Mengambil daftar media |
+| POST | `/api/cms/media` | Upload metadata media |
 
 ## Internship
 
-| Method | Path | Purpose |
+| Method | Path | Tujuan |
 | --- | --- | --- |
-| GET | `/api/internship/applications` | List applications |
-| PATCH | `/api/internship/applications/:id/status` | Update application status |
-| POST | `/api/internship/mentor-assignments` | Assign mentor to intern |
-| GET | `/api/internship/interns` | List interns |
-| GET | `/api/internship/interns/:id` | Get intern profile |
-| PATCH | `/api/internship/interns/:id/status` | Update internship status |
+| GET | `/api/internship/applications` | Mengambil daftar pendaftaran |
+| PATCH | `/api/internship/applications/:id/status` | Mengubah status pendaftaran |
+| POST | `/api/internship/mentor-assignments` | Assign mentor ke peserta |
+| GET | `/api/internship/interns` | Mengambil daftar peserta |
+| GET | `/api/internship/interns/:id` | Mengambil detail peserta |
+| PATCH | `/api/internship/interns/:id/status` | Mengubah status magang |
 
 ## LMS
 
-| Method | Path | Purpose |
+| Method | Path | Tujuan |
 | --- | --- | --- |
-| GET | `/api/lms/courses` | List courses |
-| POST | `/api/lms/courses` | Create course |
-| GET | `/api/lms/courses/:id` | Get course detail |
-| POST | `/api/lms/courses/:id/enrollments` | Enroll intern |
-| POST | `/api/lms/lessons/:id/progress` | Update lesson progress |
-| POST | `/api/lms/quizzes/:id/attempts` | Submit quiz attempt |
+| GET | `/api/lms/courses` | Mengambil daftar course |
+| POST | `/api/lms/courses` | Membuat course |
+| GET | `/api/lms/courses/:id` | Mengambil detail course |
+| POST | `/api/lms/courses/:id/enrollments` | Enroll peserta ke course |
+| POST | `/api/lms/lessons/:id/progress` | Update progress lesson |
+| POST | `/api/lms/quizzes/:id/attempts` | Submit attempt quiz |
 | POST | `/api/lms/assignments/:id/submissions` | Submit assignment |
 
 ## Task Management
 
-| Method | Path | Purpose |
+| Method | Path | Tujuan |
 | --- | --- | --- |
-| GET | `/api/tasks/boards` | List boards |
-| POST | `/api/tasks/boards` | Create board |
-| POST | `/api/tasks/lists` | Create list |
-| PATCH | `/api/tasks/lists/:id` | Update list |
-| POST | `/api/tasks/cards` | Create card |
-| PATCH | `/api/tasks/cards/:id` | Update card |
-| POST | `/api/tasks/cards/:id/comments` | Add comment |
-| POST | `/api/tasks/cards/:id/attachments` | Add attachment |
+| GET | `/api/tasks/boards` | Mengambil daftar board |
+| POST | `/api/tasks/boards` | Membuat board |
+| POST | `/api/tasks/lists` | Membuat list |
+| PATCH | `/api/tasks/lists/:id` | Mengubah list |
+| POST | `/api/tasks/cards` | Membuat card |
+| PATCH | `/api/tasks/cards/:id` | Mengubah card |
+| POST | `/api/tasks/cards/:id/comments` | Menambahkan komentar |
+| POST | `/api/tasks/cards/:id/attachments` | Menambahkan lampiran |
 
 ## Attendance
 
-| Method | Path | Purpose |
+| Method | Path | Tujuan |
 | --- | --- | --- |
 | POST | `/api/attendance/check-in` | Submit check-in |
 | POST | `/api/attendance/check-out` | Submit check-out |
-| GET | `/api/attendance` | List attendance records |
-| PATCH | `/api/attendance/:id/review` | Review or correct attendance |
+| GET | `/api/attendance` | Mengambil daftar absensi |
+| PATCH | `/api/attendance/:id/review` | Review atau koreksi absensi |
 
 ## Daily Report
 
-| Method | Path | Purpose |
+| Method | Path | Tujuan |
 | --- | --- | --- |
-| GET | `/api/daily-reports` | List reports |
-| POST | `/api/daily-reports` | Submit report |
-| GET | `/api/daily-reports/:id` | Get report detail |
-| PATCH | `/api/daily-reports/:id` | Update report |
-| POST | `/api/daily-reports/:id/reviews` | Approve or request revision |
+| GET | `/api/daily-reports` | Mengambil daftar laporan |
+| POST | `/api/daily-reports` | Submit laporan |
+| GET | `/api/daily-reports/:id` | Mengambil detail laporan |
+| PATCH | `/api/daily-reports/:id` | Mengubah laporan |
+| POST | `/api/daily-reports/:id/reviews` | Approve atau request revisi |
 
-## Assessment and Certificate
+## Assessment dan Sertifikat
 
-| Method | Path | Purpose |
+| Method | Path | Tujuan |
 | --- | --- | --- |
-| POST | `/api/assessments` | Create assessment |
-| PATCH | `/api/assessments/:id` | Update assessment |
-| POST | `/api/assessments/:id/finalize` | Finalize assessment |
-| POST | `/api/certificates/generate` | Generate certificate PDF |
-| POST | `/api/certificates/:id/sign` | Apply digital signature |
-| GET | `/api/certificates/:id` | Get certificate metadata |
-
+| POST | `/api/assessments` | Membuat assessment |
+| PATCH | `/api/assessments/:id` | Mengubah assessment |
+| POST | `/api/assessments/:id/finalize` | Finalisasi assessment |
+| POST | `/api/certificates/generate` | Generate PDF sertifikat |
+| POST | `/api/certificates/:id/sign` | Menerapkan digital signature |
+| GET | `/api/certificates/:id` | Mengambil metadata sertifikat |

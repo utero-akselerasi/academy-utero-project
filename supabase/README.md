@@ -1,24 +1,25 @@
-# Supabase Setup
+# Setup Supabase
 
-This folder contains the initial database and seed plan for Utero Academy Platform.
+Folder ini berisi rancangan awal database dan seed untuk Utero Academy Platform.
 
-## Files
+## File
 
-- `migrations/0001_initial_schema.sql`: core tables, enums, triggers, and indexes.
-- `seed/0001_rbac_seed.sql`: initial roles and permissions.
-- `seed/0002_storage_buckets.sql`: initial storage buckets.
+- `migrations/0001_initial_schema.sql`: membuat schema `utero_academy`, enum, tabel, trigger, index, dan mengaktifkan RLS.
+- `seed/0001_rbac_seed.sql`: mengisi data awal role, permission, dan relasi role-permission. File ini tidak membuat tabel.
+- `seed/0002_storage_buckets.sql`: mengisi bucket awal di schema bawaan Supabase `storage`.
 
-## Recommended Order
+## Urutan Eksekusi
 
-1. Apply migrations.
-2. Apply RBAC seed.
-3. Apply storage bucket seed.
-4. Create the first Super Admin user in Supabase Auth.
-5. Insert the matching user profile and `super_admin` role assignment.
+1. Jalankan migration.
+2. Jalankan seed RBAC.
+3. Jalankan seed storage bucket.
+4. Buat user Super Admin pertama di Supabase Auth.
+5. Tambahkan profil user dan assignment role `super_admin` untuk user tersebut.
 
-## Notes
+## Catatan Schema
 
-- Sensitive tables should keep Row Level Security enabled.
-- Policies are intentionally not finalized in this first pass because they depend on the exact app access pattern.
-- The initial schema is broad enough to guide implementation, but migrations should still be reviewed before production use.
-
+- Semua tabel aplikasi berada di schema `utero_academy`.
+- Schema bawaan Supabase tetap digunakan sesuai fungsinya, misalnya `auth.users` dan `storage.buckets`.
+- Tabel sensitif sudah disiapkan dengan Row Level Security aktif.
+- Policy RLS belum difinalisasi pada tahap ini karena perlu mengikuti pola akses aplikasi yang akan dibangun.
+- Schema awal ini cukup luas untuk memandu implementasi, tetapi tetap perlu direview lagi sebelum production.

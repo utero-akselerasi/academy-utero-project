@@ -1,81 +1,80 @@
-# Repository Structure
+# Struktur Repository
 
-Recommended structure for the implementation phase.
+Struktur berikut direkomendasikan untuk fase implementasi.
 
 ```text
 .
-├── app/
-│   ├── (public)/
-│   ├── (auth)/
-│   ├── dashboard/
-│   │   ├── super-admin/
-│   │   ├── admin/
-│   │   ├── mentor/
-│   │   ├── school/
-│   │   └── intern/
-│   └── api/
-├── components/
-│   ├── ui/
-│   ├── layout/
-│   └── feature/
-├── config/
-├── docs/
-├── features/
-│   ├── cms/
-│   ├── website/
-│   ├── lkp/
-│   ├── internship/
-│   ├── lms/
-│   ├── tasks/
-│   ├── attendance/
-│   ├── daily-reports/
-│   ├── school-portal/
-│   └── assessments/
-├── lib/
-│   ├── auth/
-│   ├── rbac/
-│   ├── supabase/
-│   ├── validation/
-│   └── pdf/
-├── scripts/
-├── supabase/
-│   ├── migrations/
-│   ├── seed/
-│   └── functions/
-├── types/
-└── tests/
+|-- app/
+|   |-- (public)/
+|   |-- (auth)/
+|   |-- dashboard/
+|   |   |-- super-admin/
+|   |   |-- admin/
+|   |   |-- mentor/
+|   |   |-- school/
+|   |   `-- intern/
+|   `-- api/
+|-- components/
+|   |-- ui/
+|   |-- layout/
+|   `-- feature/
+|-- config/
+|-- docs/
+|-- features/
+|   |-- cms/
+|   |-- website/
+|   |-- lkp/
+|   |-- internship/
+|   |-- lms/
+|   |-- tasks/
+|   |-- attendance/
+|   |-- daily-reports/
+|   |-- school-portal/
+|   `-- assessments/
+|-- lib/
+|   |-- auth/
+|   |-- rbac/
+|   |-- supabase/
+|   |-- validation/
+|   `-- pdf/
+|-- scripts/
+|-- supabase/
+|   |-- migrations/
+|   |-- seed/
+|   `-- functions/
+|-- types/
+`-- tests/
 ```
 
-## Feature Module Pattern
+## Pola Modul Fitur
 
-Each feature folder should contain only the pieces owned by that feature.
+Setiap folder fitur hanya berisi bagian yang dimiliki oleh fitur tersebut.
 
 ```text
 features/tasks/
-├── actions/
-├── components/
-├── queries/
-├── schemas/
-├── types/
-└── utils/
+|-- actions/
+|-- components/
+|-- queries/
+|-- schemas/
+|-- types/
+`-- utils/
 ```
 
-## Naming Conventions
+## Konvensi Penamaan
 
-- Database tables use snake_case plural names.
-- TypeScript files use kebab-case.
-- React components use PascalCase.
-- Server-only utilities live under `lib/` or feature-level `queries` and `actions`.
-- Shared UI primitives live under `components/ui`.
-- Business-specific UI lives under `features/*/components`.
+- Tabel database menggunakan nama plural dengan format snake_case.
+- File TypeScript menggunakan kebab-case.
+- Komponen React menggunakan PascalCase.
+- Utility server-only berada di `lib/` atau di folder fitur seperti `queries` dan `actions`.
+- UI primitive bersama berada di `components/ui`.
+- UI yang spesifik ke proses bisnis berada di `features/*/components`.
 
-## Dashboard Routing
+## Routing Dashboard
 
-All users authenticate from one login page. After login, redirect by primary role:
+Semua user login dari satu halaman. Setelah login, redirect ditentukan oleh primary role:
 
 - `super_admin` -> `/dashboard/super-admin`
 - `admin_academy` -> `/dashboard/admin`
 - `mentor` -> `/dashboard/mentor`
 - `school` -> `/dashboard/school`
 - `intern` -> `/dashboard/intern`
-
