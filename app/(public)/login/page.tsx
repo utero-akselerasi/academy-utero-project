@@ -1,6 +1,19 @@
 import { LoginForm } from "@/features/auth/LoginForm";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getPrimaryDashboardPath } from "@/features/auth/roles";
+import { redirect } from "next/navigation";
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (user) {
+    const dashboardPath = await getPrimaryDashboardPath(user.id);
+    if (dashboardPath) {
+      redirect(dashboardPath);
+    }
+  }
+
   return (
     <main className="mx-auto grid min-h-[calc(100vh-73px)] max-w-md content-center px-4 py-12">
       <div className="mb-6">
@@ -14,4 +27,3 @@ export default function LoginPage() {
     </main>
   );
 }
-

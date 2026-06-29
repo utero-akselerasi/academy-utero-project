@@ -1,4 +1,4 @@
-import { createUteroAcademyClient } from "@/lib/supabase/server";
+import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
 export type RoleCode = "super_admin" | "admin_academy" | "mentor" | "school" | "intern";
 
@@ -27,7 +27,7 @@ function normalizeRoleCode(roles: RoleRelation) {
 }
 
 export async function getUserRoleCodes(userId: string): Promise<RoleCode[]> {
-  const db = await createUteroAcademyClient();
+  const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("user_roles")
     .select("roles(code)")

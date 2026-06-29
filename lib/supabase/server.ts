@@ -30,3 +30,22 @@ export async function createUteroAcademyClient() {
   return supabase.schema("utero_academy");
 }
 
+
+export function createSupabaseServiceRoleClient() {
+  const { supabaseUrl } = assertSupabaseEnv();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY is required.");
+  }
+  return createServerClient(supabaseUrl, serviceRoleKey, {
+    cookies: {
+      getAll() { return []; },
+      setAll() {}
+    }
+  });
+}
+
+export async function createUteroAcademyServiceRoleClient() {
+  const supabase = createSupabaseServiceRoleClient();
+  return supabase.schema("utero_academy");
+}
