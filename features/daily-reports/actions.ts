@@ -1,6 +1,6 @@
 "use server";
 
-import { createSupabaseServerClient, createUteroAcademyClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createUteroAcademyClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getInternProfileId, getMentorProfileId } from "./queries";
@@ -34,13 +34,9 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
   const files = formData.getAll("attachment") as File[];
   const reportId = formData.get("reportId") as string;
   
-  // Validasi ukuran file di server
-  const oversizedFile = files.find(f => f.size > 1024 * 1024);
-  if (oversizedFile && (!googleDriveLink || (!googleDriveLink.includes("google.com") && !googleDriveLink.includes("drive.google.com")))) {
-    return { ok: false, message: "File \"" + oversizedFile.name + "\" melebihi batas 1MB. Silakan sertakan link Google Drive." };
-  }
 
-  const db = await createUteroAcademyClient();
+
+  const db = await createUteroAcademyServiceRoleClient();
   let reportData;
   let error;
 
@@ -106,9 +102,9 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
     return { ok: false, message: "Laporan gagal disimpan." };
   }
 
-  // Upload file-file lampiran yang berukuran <= 1MB ke storage Supabase
+  // Upload file-file lampiran ke storage Supabase
   for (const file of files) {
-    if (file && file.size > 0 && file.size <= 1024 * 1024) {
+    if (file && file.size > 0) {
       const ext = file.name.split(".").pop() || "jpg";
       const filePath = finalReportId + "/" + Date.now() + "_" + Math.random().toString(36).substring(2, 8) + "." + ext;
       const arrayBuffer = await file.arrayBuffer();
@@ -274,7 +270,7 @@ export async function reviewDailyReportAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error("Data review tidak valid.");
   }
-  const db = await createUteroAcademyClient();
+  const db = await createUteroAcademyServiceRoleClient();
   const { error: reviewError } = await db.from("daily_report_reviews").insert({
     report_id: parsed.data.reportId,
     mentor_id: mentorProfileId,
@@ -293,5 +289,33 @@ export async function reviewDailyReportAction(formData: FormData) {
     console.error("Gagal update status report:", updateError);
     throw new Error("Status laporan belum berhasil diperbarui.");
   }
+
+  // Notifikasi revisi jika diminta
+  if (parsed.data.status === "revision_requested") {
+    try {
+      const { data: report } = await db
+        .from("daily_reports")
+        .select("report_date, intern_profiles(full_name, email, phone)")
+        .eq("id", parsed.data.reportId)
+        .maybeSingle();
+
+      if (report) {
+        const intern = Array.isArray(report.intern_profiles) ? report.intern_profiles[0] : report.intern_profiles;
+        if (intern) {
+          const { notifyDailyReportRevisionRequested } = require("@/lib/notification");
+          await notifyDailyReportRevisionRequested(
+            intern.email,
+            intern.phone,
+            intern.full_name,
+            report.report_date,
+            parsed.data.note || "Revisi diminta"
+          );
+        }
+      }
+    } catch (err) {
+      console.error("Gagal mengirim notifikasi revisi daily report:", err);
+    }
+  }
+
   revalidatePath("/dashboard/mentor/daily-reports");
 }

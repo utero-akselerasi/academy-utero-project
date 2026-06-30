@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { 
   Menu, X, LogOut, User, Settings, ChevronDown, 
   LayoutDashboard, Users, FileSpreadsheet, UserCheck, 
-  Kanban, Clock, FileText, CheckSquare, GraduationCap
+  Kanban, Clock, FileText, CheckSquare, GraduationCap, Award, Globe
 } from "lucide-react";
 
 type NavItem = {
@@ -34,7 +34,9 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   Clock,
   FileText,
   CheckSquare,
-  GraduationCap
+  GraduationCap,
+  Award,
+  Globe
 };
 
 export function DashboardShell({ 

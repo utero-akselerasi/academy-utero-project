@@ -1,6 +1,9 @@
+"use client";
+
 import { assignUserRoleAction, removeUserRoleAction, createUserManualAction } from "@/features/super-admin/actions";
 import { type Role, type UserProfile, type UserRole } from "@/features/super-admin/types";
-import { Plus, X, UserPlus } from "lucide-react";
+import { Plus, X, UserPlus, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 type Props = {
   profiles: UserProfile[];
@@ -15,8 +18,9 @@ function formatDate(value: string) {
 }
 
 export function UserRoleManager({ profiles, roles, userRoles }: Props) {
-  const rolesByUser = new Map<string, UserRole[]>();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
+  const rolesByUser = new Map<string, UserRole[]>();
   for (const userRole of userRoles) {
     const current = rolesByUser.get(userRole.user_id) ?? [];
     current.push(userRole);
@@ -24,129 +28,198 @@ export function UserRoleManager({ profiles, roles, userRoles }: Props) {
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1.5fr_1fr]">
-      {/* Kolom Kiri: Daftar User */}
-      <div>
-        <h2 className="mb-4 text-lg font-bold text-slate-950">Daftar Pengguna ({profiles.length})</h2>
-        <div className="grid gap-4">
-          {profiles.length === 0 ? (
-            <div className="surface p-8 text-center text-slate-600">
-              Belum ada user profile. Tambahkan data di sebelah kanan.
-            </div>
-          ) : null}
+    <div className="space-y-6">
+      {/* Tombol Add User */}
+      <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <span className="text-sm font-bold text-slate-500">Total Pengguna: {profiles.length}</span>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="button-primary text-xs py-2 min-h-0 flex items-center gap-1.5 font-bold"
+        >
+          <UserPlus size={15} />
+          <span>Add User</span>
+        </button>
+      </div>
 
-          {profiles.map((profile) => {
-            const assignedRoles = rolesByUser.get(profile.id) ?? [];
+      {/* Tabel Pengguna */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-xs">
+                <th className="p-4">Nama Pengguna</th>
+                <th className="p-4">WhatsApp / Telp</th>
+                <th className="p-4">Role Saat Ini</th>
+                <th className="p-4">Tambah Role</th>
+                <th className="p-4">Tanggal Dibuat</th>
+                <th className="p-4">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {profiles.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-slate-500">
+                    Belum ada data user profile.
+                  </td>
+                </tr>
+              ) : (
+                profiles.map((profile) => {
+                  const assignedRoles = rolesByUser.get(profile.id) ?? [];
 
-            return (
-              <article className="surface p-5" key={profile.id}>
-                <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h2 className="text-xl font-bold text-slate-950">{profile.full_name}</h2>
-                      <span className="status-pill">{profile.is_active ? "aktif" : "nonaktif"}</span>
-                    </div>
-                    <dl className="mt-4 grid gap-3 text-sm text-slate-700 md:grid-cols-2">
-                      <div>
-                        <dt className="font-bold text-slate-950">User ID</dt>
-                        <dd className="break-all">{profile.id}</dd>
-                      </div>
-                      <div>
-                        <dt className="font-bold text-slate-950">Telepon</dt>
-                        <dd>{profile.phone ?? "-"}</dd>
-                      </div>
-                      <div>
-                        <dt className="font-bold text-slate-950">Dibuat</dt>
-                        <dd>{formatDate(profile.created_at)}</dd>
-                      </div>
-                    </dl>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {assignedRoles.length === 0 ? <span className="status-pill text-amber-700 bg-amber-50 border-amber-300">belum ada role</span> : null}
-                      {assignedRoles.map((userRole) => (
-                        <form action={removeUserRoleAction} key={userRole.id}>
-                          <input name="id" type="hidden" value={userRole.id} />
-                          <button className="button-secondary text-sm" type="submit">
-                            {userRole.roles?.name ?? "Role"}
-                            <X size={14} />
+                  return (
+                    <tr key={profile.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-all">
+                      <td className="p-4">
+                        <div className="font-bold text-slate-900 leading-snug">{profile.full_name}</div>
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5 select-all">{profile.id}</div>
+                      </td>
+                      <td className="p-4 text-slate-600 font-semibold">{profile.phone || "-"}</td>
+                      <td className="p-4">
+                        <div className="flex flex-wrap gap-1">
+                          {assignedRoles.length === 0 ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 border border-amber-200 text-amber-800 uppercase">
+                              no role
+                            </span>
+                          ) : (
+                            assignedRoles.map((ur) => (
+                              <form action={removeUserRoleAction} key={ur.id} className="inline-block">
+                                <input name="id" type="hidden" value={ur.id} />
+                                <button 
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-teal-50 border border-teal-200 text-teal-800 hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition-all uppercase"
+                                  type="submit"
+                                  title="Hapus Role"
+                                >
+                                  <span>{ur.roles?.name || "Role"}</span>
+                                  <X size={10} className="shrink-0" />
+                                </button>
+                              </form>
+                            ))
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <form action={assignUserRoleAction} className="flex gap-1 max-w-[200px]">
+                          <input name="userId" type="hidden" value={profile.id} />
+                          <select 
+                            className="form-input text-xs py-1 px-2 h-8 w-full min-w-[130px] flex-1 bg-white" 
+                            name="roleId" 
+                            required
+                          >
+                            <option value="">Pilih...</option>
+                            {roles.map((role) => (
+                              <option key={role.id} value={role.id}>
+                                {role.name}
+                              </option>
+                            ))}
+                          </select>
+                          <button 
+                            className="button-primary text-xs h-8 py-0 px-2 min-h-0 flex items-center justify-center shrink-0" 
+                            type="submit"
+                          >
+                            <Plus size={14} />
                           </button>
                         </form>
-                      ))}
-                    </div>
-                  </div>
-
-                  <form action={assignUserRoleAction} className="grid content-start gap-2 rounded-lg border border-slate-200 p-3 bg-slate-50 w-full lg:w-64 mt-4 lg:mt-0">
-                    <input name="userId" type="hidden" value={profile.id} />
-                    <label className="form-field">
-                      <span className="form-label text-xs">Assign Role</span>
-                      <select className="form-input text-xs py-2" name="roleId" required>
-                        <option value="">Pilih role...</option>
-                        {roles.map((role) => (
-                          <option key={role.id} value={role.id}>
-                            {role.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button className="button-primary text-xs py-2 min-h-0" type="submit">
-                      <Plus size={14} />
-                      Tambah Role
-                    </button>
-                  </form>
-                </div>
-              </article>
-            );
-          })}
+                      </td>
+                      <td className="p-4 text-slate-500 text-xs font-semibold">{formatDate(profile.created_at)}</td>
+                      <td className="p-4">
+                        <span className={"px-2 py-0.5 rounded text-[10px] font-bold uppercase " + (
+                          profile.is_active 
+                            ? "bg-teal-50 border border-teal-200 text-teal-800" 
+                            : "bg-slate-100 border border-slate-300 text-slate-600"
+                        )}>
+                          {profile.is_active ? "aktif" : "nonaktif"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Kolom Kanan: Buat User Manual */}
-      <div>
-        <h2 className="mb-4 text-lg font-bold text-slate-950">Tambah User Baru Manual</h2>
-        <form action={createUserManualAction} className="surface grid gap-4 p-5">
-          <div className="flex items-center gap-2 text-teal-700 mb-2">
-            <UserPlus size={20} />
-            <span className="font-bold text-sm">Pembuatan Akun Tanpa Database</span>
-          </div>
+      {/* POPUP MODAL ADD USER */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header Modal */}
+            <div className="flex items-center justify-between bg-slate-50 px-6 py-4 border-b border-slate-200">
+              <div className="flex items-center gap-2 text-teal-700">
+                <UserPlus size={20} />
+                <h3 className="text-lg font-black text-slate-900">Tambah User Baru</h3>
+              </div>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
+              >
+                <X size={18} />
+              </button>
+            </div>
 
-          <div className="form-field">
-            <label className="form-label" htmlFor="manualName">Nama Lengkap *</label>
-            <input className="form-input" id="manualName" name="fullName" placeholder="Contoh: Budi Santoso" required />
-          </div>
+            {/* Form Modal */}
+            <form 
+              action={async (formData) => {
+                try {
+                  await createUserManualAction(formData);
+                  setIsModalOpen(false);
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : "Gagal membuat user.");
+                }
+              }}
+              className="p-6 space-y-4"
+            >
+              <div className="form-field">
+                <label className="form-label text-xs" htmlFor="manualName">Nama Lengkap *</label>
+                <input className="form-input text-sm" id="manualName" name="fullName" placeholder="Contoh: Budi Santoso" required />
+              </div>
 
-          <div className="form-field">
-            <label className="form-label" htmlFor="manualEmail">Email Address *</label>
-            <input className="form-input" id="manualEmail" name="email" type="email" placeholder="budi@example.com" required />
-          </div>
+              <div className="form-field">
+                <label className="form-label text-xs" htmlFor="manualEmail">Email Address *</label>
+                <input className="form-input text-sm" id="manualEmail" name="email" type="email" placeholder="budi@example.com" required />
+              </div>
 
-          <div className="form-field">
-            <label className="form-label" htmlFor="manualPassword">Password *</label>
-            <input className="form-input" id="manualPassword" name="password" type="password" placeholder="Minimal 6 karakter..." required />
-          </div>
+              <div className="form-field">
+                <label className="form-label text-xs" htmlFor="manualPassword">Password *</label>
+                <input className="form-input text-sm" id="manualPassword" name="password" type="password" placeholder="Minimal 6 karakter..." required />
+              </div>
 
-          <div className="form-field">
-            <label className="form-label" htmlFor="manualPhone">Nomor Telepon/WA</label>
-            <input className="form-input" id="manualPhone" name="phone" placeholder="Contoh: 08123456789" />
-          </div>
+              <div className="form-field">
+                <label className="form-label text-xs" htmlFor="manualPhone">Nomor Telepon/WA</label>
+                <input className="form-input text-sm" id="manualPhone" name="phone" placeholder="Contoh: 08123456789" />
+              </div>
 
-          <div className="form-field">
-            <label className="form-label" htmlFor="manualRole">Default Role</label>
-            <select className="form-input" id="manualRole" name="roleId">
-              <option value="">Tanpa Role (Bisa diset nanti)</option>
-              {roles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              <div className="form-field">
+                <label className="form-label text-xs" htmlFor="manualRole">Default Role</label>
+                <select className="form-input text-sm" id="manualRole" name="roleId">
+                  <option value="">Tanpa Role (Bisa diset nanti)</option>
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <button className="button-primary w-full" type="submit">
-            <Plus size={16} />
-            Buat Akun & Profil
-          </button>
-        </form>
-      </div>
+              <div className="flex gap-2 justify-end pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="button-secondary text-sm font-semibold"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit" 
+                  className="button-primary text-sm font-semibold flex items-center gap-1"
+                >
+                  <Plus size={16} />
+                  <span>Buat Akun</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { createUteroAcademyClient } from "@/lib/supabase/server";
+import { createUteroAcademyClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { type Attendance, type AttendanceWithIntern } from "./types";
 
 export async function getInternAttendances(internProfileId: string) {
@@ -48,4 +48,26 @@ export async function getMentorAttendances(mentorProfileId: string) {
     .returns<AttendanceWithIntern[]>();
 
   return { data: data ?? [], error };
+}
+
+export async function getAllAttendances() {
+  const db = await createUteroAcademyServiceRoleClient();
+  const { data, error } = await db
+    .from("attendances")
+    .select("id, intern_id, attendance_date, check_in_at, check_in_latitude, check_in_longitude, check_in_selfie_path, check_in_wifi_ssid, check_out_at, check_out_latitude, check_out_longitude, check_out_selfie_path, check_out_wifi_ssid, status, review_note, reviewed_by, reviewed_at, created_at, updated_at, intern_profiles(id, full_name)")
+    .order("attendance_date", { ascending: false })
+    .returns<any[]>();
+
+  const mapped = (data || []).map(d => {
+    const ip = Array.isArray(d.intern_profiles) ? d.intern_profiles[0] : d.intern_profiles;
+    return {
+      ...d,
+      intern_profiles: ip ? {
+        id: ip.id,
+        full_name: ip.full_name
+      } : null
+    };
+  });
+
+  return { data: mapped as AttendanceWithIntern[], error };
 }

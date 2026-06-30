@@ -11,5 +11,5 @@ export async function getCurrentUser() {
 }
 
 export async function canAccessAdminDashboard(userId: string) {
-  return userHasAnyRole(userId, ["super_admin", "admin_academy"]);
+  return userHasAnyRole(userId, ["admin"]);
 }

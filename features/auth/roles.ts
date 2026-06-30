@@ -1,13 +1,11 @@
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
-export type RoleCode = "super_admin" | "admin_academy" | "mentor" | "school" | "intern";
+export type RoleCode = "admin" | "school" | "intern";
 
-const rolePriority: RoleCode[] = ["super_admin", "admin_academy", "mentor", "school", "intern"];
+const rolePriority: RoleCode[] = ["admin", "school", "intern"];
 
 const dashboardByRole: Record<RoleCode, string> = {
-  super_admin: "/dashboard/super-admin",
-  admin_academy: "/dashboard/admin/pendaftaran",
-  mentor: "/dashboard/mentor",
+  admin: "/dashboard/admin/pendaftaran",
   school: "/dashboard/school",
   intern: "/dashboard/intern",
 };
@@ -55,4 +53,3 @@ export async function getPrimaryDashboardPath(userId: string) {
 
   return primaryRole ? dashboardByRole[primaryRole] : null;
 }
-

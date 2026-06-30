@@ -2,6 +2,7 @@
 
 import { userHasAnyRole } from "@/features/auth/roles";
 import { createSupabaseServerClient, createUteroAcademyClient, createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { writeAuditLog } from "./audit";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -21,7 +22,7 @@ async function requireSuperAdmin() {
     redirect("/login");
   }
 
-  const allowed = await userHasAnyRole(user.id, ["super_admin"]);
+  const allowed = await userHasAnyRole(user.id, ["admin"]);
 
   if (!allowed) {
     redirect("/login");
@@ -31,7 +32,7 @@ async function requireSuperAdmin() {
 }
 
 export async function assignUserRoleAction(formData: FormData) {
-  await requireSuperAdmin();
+  const user = await requireSuperAdmin();
 
   const parsed = assignRoleSchema.safeParse({
     userId: formData.get("userId"),
@@ -42,7 +43,7 @@ export async function assignUserRoleAction(formData: FormData) {
     throw new Error("Data role tidak valid.");
   }
 
-  const db = await createUteroAcademyClient();
+  const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db.from("user_roles").insert({
     user_id: parsed.data.userId,
     role_id: parsed.data.roleId,
@@ -52,26 +53,42 @@ export async function assignUserRoleAction(formData: FormData) {
     throw new Error(error.message);
   }
 
+  await writeAuditLog(
+    user.id,
+    "assign_role",
+    "user_roles",
+    parsed.data.userId,
+    null,
+    { roleId: parsed.data.roleId }
+  );
+
   revalidatePath("/dashboard/super-admin/users");
 }
 
 export async function removeUserRoleAction(formData: FormData) {
-  await requireSuperAdmin();
+  const user = await requireSuperAdmin();
 
   const id = z.string().uuid().parse(formData.get("id"));
-  const db = await createUteroAcademyClient();
+  const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db.from("user_roles").delete().eq("id", id);
 
   if (error) {
     throw new Error(error.message);
   }
 
+  await writeAuditLog(
+    user.id,
+    "remove_role",
+    "user_roles",
+    id
+  );
+
   revalidatePath("/dashboard/super-admin/users");
 }
 
 
 export async function createUserManualAction(formData: FormData) {
-  await requireSuperAdmin();
+  const user = await requireSuperAdmin();
 
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
@@ -129,6 +146,15 @@ export async function createUserManualAction(formData: FormData) {
       console.error("Gagal assign role:", roleError);
     }
 
+    await writeAuditLog(
+      user.id,
+      "create_user",
+      "user_profiles",
+      userId,
+      null,
+      { email, fullName, roleId }
+    );
+
     // Fetch role code to auto-provision profile
     const { data: roleData } = await db
       .from("roles")
@@ -145,7 +171,8 @@ export async function createUserManualAction(formData: FormData) {
           email: email,
           status: "active"
         });
-      } else if (roleData.code === "mentor") {
+      } else if (roleData.code === "mentor" || roleData.code === "admin") {
+        // Auto-create mentor_profile agar admin bisa ditugaskan membimbing siswa magang
         await db.from("mentor_profiles").insert({
           user_id: userId
         });

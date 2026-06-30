@@ -41,14 +41,14 @@
 8. [x] Implementasi task management. (Selesai & Diperbaiki dengan Delete, Assign, & Otomatisasi Daily Report)
 9. [x] Implementasi absensi. (Selesai)
 10. [x] Implementasi daily report. (Selesai & Diperbaiki dengan Multi-Upload, Google Drive Fallback, Image Preview, & Edit Revisi)
-11. [ ] Implementasi LMS. (Fase Berikutnya)
+11. [x] Implementasi LMS (Pelajaran, Kuis, Tugas, Penilaian, & Pembuatan Modul). (Selesai)
 12. [ ] Implementasi assessment dan generate sertifikat. (Fase Berikutnya)
 13. [ ] Implementasi school portal. (Fase Berikutnya)
 
 ## Fase 5: Integrasi
 
-- Notifikasi email
-- Notifikasi WhatsApp via WAHA
+- [x] Notifikasi email (SMTP) (Selesai)
+- [x] Notifikasi WhatsApp via WAHA API (Selesai)
 - Push notification
 - PDF generator
 - Digital signature

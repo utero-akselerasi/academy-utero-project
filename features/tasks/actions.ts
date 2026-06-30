@@ -9,10 +9,13 @@ import {
   createCardSchema,
   addChecklistSchema,
   toggleChecklistSchema,
+  addSubtaskSchema,
+  toggleSubtaskSchema,
+  updatePrioritySchema,
 } from "./schemas";
 
 async function requireUser() {
-  const supabase = createSupabaseServiceRoleClient(); // Use service role for storage
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -221,7 +224,7 @@ export async function addTaskAttachmentAction(formData: FormData) {
     throw new Error("File attachment wajib diunggah.");
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseServiceRoleClient(); // Gunakan service role untuk storage upload
   const ext = file.name.split(".").pop() || "jpg";
   const filePath = `${cardId}/${Date.now()}.${ext}`;
   
@@ -330,5 +333,161 @@ export async function assignCardToInternAction(formData: FormData) {
   }
 
   revalidatePath("/dashboard/mentor/tasks/" + boardId);
+  revalidatePath("/dashboard/intern/tasks");
+}
+
+export async function deleteListAction(formData: FormData) {
+  await requireUser();
+  const listId = formData.get("listId") as string;
+  const boardId = formData.get("boardId") as string;
+  if (!listId) throw new Error("List ID tidak valid.");
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { error } = await db.from("task_lists").delete().eq("id", listId);
+
+  if (error) {
+    console.error("Gagal menghapus list:", error);
+    throw new Error("Gagal menghapus list.");
+  }
+
+  revalidatePath("/dashboard/mentor/tasks/" + boardId);
+}
+
+export async function deleteChecklistItemAction(formData: FormData) {
+  await requireUser();
+  const checklistId = formData.get("checklistId") as string;
+  const boardId = formData.get("boardId") as string;
+  if (!checklistId) throw new Error("Checklist ID tidak valid.");
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { error } = await db.from("task_checklists").delete().eq("id", checklistId);
+
+  if (error) {
+    console.error("Gagal menghapus checklist item:", error);
+    throw new Error("Gagal menghapus checklist item.");
+  }
+
+  if (boardId) {
+    revalidatePath("/dashboard/mentor/tasks/" + boardId);
+  } else {
+    revalidatePath("/dashboard/mentor/tasks");
+  }
+  revalidatePath("/dashboard/intern/tasks");
+}
+
+export async function createSubtaskAction(formData: FormData) {
+  await requireUser();
+
+  const parsed = addSubtaskSchema.safeParse({
+    cardId: formData.get("cardId"),
+    title: formData.get("title"),
+  });
+
+  if (!parsed.success) {
+    throw new Error("Data subtask tidak valid.");
+  }
+
+  const db = await createUteroAcademyServiceRoleClient();
+
+  const { data: maxOrder } = await db
+    .from("task_subtasks")
+    .select("order_index")
+    .eq("card_id", parsed.data.cardId)
+    .order("order_index", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const nextOrder = (maxOrder?.order_index ?? -1) + 1;
+
+  const { error } = await db.from("task_subtasks").insert({
+    card_id: parsed.data.cardId,
+    title: parsed.data.title,
+    order_index: nextOrder,
+    is_done: false
+  });
+
+  if (error) {
+    console.error("Gagal tambah subtask:", error);
+    throw new Error("Gagal menambahkan sub-task.");
+  }
+
+  revalidatePath("/dashboard/mentor/tasks");
+  revalidatePath("/dashboard/intern/tasks");
+}
+
+export async function toggleSubtaskAction(formData: FormData) {
+  await requireUser();
+
+  const parsed = toggleSubtaskSchema.safeParse({
+    subtaskId: formData.get("subtaskId"),
+    isDone: formData.get("isDone"),
+  });
+
+  if (!parsed.success) {
+    throw new Error("Data subtask tidak valid.");
+  }
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { error } = await db
+    .from("task_subtasks")
+    .update({
+      is_done: parsed.data.isDone === "true",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsed.data.subtaskId);
+
+  if (error) {
+    console.error("Gagal toggle subtask:", error);
+    throw new Error("Gagal memperbarui status sub-task.");
+  }
+
+  revalidatePath("/dashboard/mentor/tasks");
+  revalidatePath("/dashboard/intern/tasks");
+}
+
+export async function deleteSubtaskAction(formData: FormData) {
+  await requireUser();
+  const subtaskId = formData.get("subtaskId") as string;
+  if (!subtaskId) throw new Error("Subtask ID tidak valid.");
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { error } = await db.from("task_subtasks").delete().eq("id", subtaskId);
+
+  if (error) {
+    console.error("Gagal menghapus subtask:", error);
+    throw new Error("Gagal menghapus sub-task.");
+  }
+
+  revalidatePath("/dashboard/mentor/tasks");
+  revalidatePath("/dashboard/intern/tasks");
+}
+
+export async function updateCardPriorityAction(formData: FormData) {
+  await requireUser();
+
+  const parsed = updatePrioritySchema.safeParse({
+    cardId: formData.get("cardId"),
+    priority: formData.get("priority"),
+  });
+
+  if (!parsed.success) {
+    throw new Error("Data prioritas tidak valid.");
+  }
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { error } = await db
+    .from("task_cards")
+    .update({
+      priority: parsed.data.priority,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", parsed.data.cardId);
+
+  if (error) {
+    console.error("Gagal update prioritas:", error);
+    throw new Error("Gagal memperbarui prioritas tugas.");
+  }
+
+  revalidatePath("/dashboard/mentor/tasks");
   revalidatePath("/dashboard/intern/tasks");
 }

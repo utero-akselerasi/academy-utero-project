@@ -1,8 +1,8 @@
-import { createUteroAcademyClient } from "@/lib/supabase/server";
+import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { type Role, type UserProfile, type UserRole } from "./types";
 
 export async function getSuperAdminUserManagementData() {
-  const db = await createUteroAcademyClient();
+  const db = await createUteroAcademyServiceRoleClient();
 
   const [profilesResult, rolesResult, userRolesResult] = await Promise.all([
     db
@@ -24,4 +24,3 @@ export async function getSuperAdminUserManagementData() {
     error: profilesResult.error ?? rolesResult.error ?? userRolesResult.error,
   };
 }
-

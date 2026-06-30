@@ -65,16 +65,16 @@ export async function getActiveInterns() {
 export async function getMentors() {
   const db = await createUteroAcademyServiceRoleClient();
   
-  // Fetch user_roles who have role code = mentor
+  // Fetch user_roles who have role code = admin
   const { data: userRoles } = await db
     .from("user_roles")
     .select("user_id, roles(code)")
     .returns<any[]>();
 
-  const mentorUsers = (userRoles || []).filter(ur => {
+  const adminUsers = (userRoles || []).filter(ur => {
     const r = ur.roles;
     const code = Array.isArray(r) ? r[0]?.code : r?.code;
-    return code === "mentor";
+    return code === "admin";
   });
 
   // Fetch all user_profiles for metadata
@@ -89,8 +89,8 @@ export async function getMentors() {
 
   const mentors = [];
 
-  for (const mu of mentorUsers) {
-    // Check if mentor profile exists
+  for (const mu of adminUsers) {
+    // Check if mentor/pembimbing profile exists
     let { data: profile } = await db
       .from("mentor_profiles")
       .select("id")
@@ -98,7 +98,7 @@ export async function getMentors() {
       .maybeSingle();
 
     if (!profile) {
-      // Auto-create mentor profile
+      // Auto-create mentor/pembimbing profile
       const { data: newProfile } = await db
         .from("mentor_profiles")
         .insert({ user_id: mu.user_id })
@@ -112,12 +112,13 @@ export async function getMentors() {
       const fullName = p?.full_name;
       mentors.push({
         id: profile.id,
-        full_name: fullName || "Mentor " + profile.id.slice(0, 4)
+        full_name: fullName || "Admin " + profile.id.slice(0, 4)
       });
     }
   }
 
-  return mentors;
+  // sort by name
+  return mentors.sort((a, b) => a.full_name.localeCompare(b.full_name));
 }
 
 export type MentorAssignmentDetail = {

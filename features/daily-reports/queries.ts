@@ -1,8 +1,8 @@
-import { createUteroAcademyClient } from "@/lib/supabase/server";
+import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { type DailyReport, type DailyReportWithDetails, type DailyReportReview, type DailyReportWithIntern } from "./types";
 
 export async function getInternProfileId(userId: string): Promise<string | null> {
-  const db = await createUteroAcademyClient();
+  const db = await createUteroAcademyServiceRoleClient();
   const { data } = await db
     .from("intern_profiles")
     .select("id")
@@ -38,7 +38,7 @@ export async function getInternProfileId(userId: string): Promise<string | null>
 }
 
 export async function getMentorProfileId(userId: string): Promise<string | null> {
-  const db = await createUteroAcademyClient();
+  const db = await createUteroAcademyServiceRoleClient();
   const { data } = await db
     .from("mentor_profiles")
     .select("id")
@@ -61,7 +61,7 @@ export async function getMentorProfileId(userId: string): Promise<string | null>
 }
 
 export async function getInternDailyReports(internProfileId: string) {
-  const db = await createUteroAcademyClient();
+  const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("daily_reports")
     .select("id, intern_id, report_date, today_work, progress, blockers, tomorrow_plan, status, created_at, updated_at, daily_report_attachments(id, report_id, file_path, file_name, mime_type, size_bytes, created_at)")
@@ -73,7 +73,7 @@ export async function getInternDailyReports(internProfileId: string) {
 }
 
 export async function getMentorDailyReports(mentorProfileId: string) {
-  const db = await createUteroAcademyClient();
+  const db = await createUteroAcademyServiceRoleClient();
 
   const { data: assignments } = await db
     .from("mentor_assignments")
@@ -132,7 +132,7 @@ export async function getMentorDailyReports(mentorProfileId: string) {
 }
 
 export async function getReportReviews(reportId: string) {
-  const db = await createUteroAcademyClient();
+  const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("daily_report_reviews")
     .select("id, report_id, mentor_id, status, note, created_at")

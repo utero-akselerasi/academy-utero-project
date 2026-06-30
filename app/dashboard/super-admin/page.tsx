@@ -24,12 +24,12 @@ export default function SuperAdminDashboardPage() {
             Lihat user profile dan assign role user tanpa membuka database langsung.
           </p>
         </Link>
-        <div className="surface p-5">
+        <Link className="surface block p-5 hover:border-teal-500" href="/dashboard/super-admin/audit-logs">
           <h2 className="font-bold text-slate-950">Audit Log</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Riwayat aksi penting akan ditampilkan di sini pada fase berikutnya.
+            Lihat riwayat log aktivitas penting dari admin, mentor, dan sistem untuk audit keamanan.
           </p>
-        </div>
+        </Link>
       </div>
     </main>
   );

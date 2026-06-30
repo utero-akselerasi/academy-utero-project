@@ -62,8 +62,8 @@ export default async function MentorTasksPage() {
                   {board.description ? (
                     <p className="mt-1 text-sm text-slate-600 truncate">{board.description}</p>
                   ) : null}
-                  <p className="mt-2 text-xs text-slate-400">
-                    Dibuat {formatDate(board.created_at)}
+                  <p className="mt-2 text-xs text-slate-400 font-semibold">
+                    Dibuat oleh: <span className="text-teal-700 font-bold">${(board as any).owner_name || "Admin"}</span> pada ${formatDate(board.created_at)}
                   </p>
                 </Link>
                 <form action={deleteBoardAction}>

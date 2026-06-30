@@ -71,7 +71,7 @@ export function DailyReportForm({ editReport }: Props) {
     }
   };
 
-  const hasOversizedFile = selectedFiles.some(file => file.size > 1024 * 1024);
+  const hasOversizedFile = false;
 
   const driveLinkRequired = hasOversizedFile;
   const isDriveLinkValid = !driveLink || driveLink.includes("google.com") || driveLink.includes("drive.google.com");
@@ -171,7 +171,7 @@ export function DailyReportForm({ editReport }: Props) {
 
       <div className="form-field">
         <label className="form-label">
-          File Lampiran (Maks 1MB per file, Bisa pilih banyak)
+          File Lampiran (Bisa pilih banyak)
         </label>
         <label className="flex items-center justify-center gap-2 border-2 border-dashed border-slate-300 rounded-lg p-3 cursor-pointer hover:border-teal-500 bg-slate-50">
           <Paperclip size={18} className="text-slate-500" />
@@ -215,14 +215,13 @@ export function DailyReportForm({ editReport }: Props) {
             </div>
             <ul className="text-xs text-slate-600 grid gap-1">
               {selectedFiles.map((file, idx) => {
-                const isTooLarge = file.size > 1024 * 1024;
                 return (
                   <li key={idx} className="flex justify-between items-center gap-2">
-                    <span className={"truncate " + (isTooLarge ? "text-red-600 font-semibold" : "")}>
-                      ?? {file.name}
+                    <span className="truncate">
+                      📄 {file.name}
                     </span>
-                    <span className={"shrink-0 " + (isTooLarge ? "text-red-600 font-bold" : "text-slate-400")}>
-                      {formatBytes(file.size)} {isTooLarge ? "(> 1MB)" : ""}
+                    <span className="shrink-0 text-slate-400">
+                      {formatBytes(file.size)}
                     </span>
                   </li>
                 );
@@ -252,7 +251,7 @@ export function DailyReportForm({ editReport }: Props) {
           />
         </div>
         <p className="text-xs text-slate-400 mt-1">
-          Gunakan kolom ini jika melampirkan file besar ({">"} 1MB) yang telah di-upload ke Google Drive.
+          Gunakan kolom ini jika melampirkan link dari Google Drive.
         </p>
         {driveLink && !isDriveLinkValid ? (
           <p className="text-xs text-red-600 mt-1 font-semibold">
@@ -261,14 +260,7 @@ export function DailyReportForm({ editReport }: Props) {
         ) : null}
       </div>
 
-      {hasOversizedFile && !driveLink ? (
-        <div className="flex gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs leading-5">
-          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-          <div>
-            Ada file yang melebihi <strong>1MB</strong>. Anda <strong>wajib</strong> mengisi Link Google Drive sebagai pengganti file besar tersebut atau menghapus file besar tersebut terlebih dahulu.
-          </div>
-        </div>
-      ) : null}
+
 
       {state.message ? (
         <p className={"text-sm font-semibold " + (state.ok ? "text-teal-700" : "text-red-700")}>

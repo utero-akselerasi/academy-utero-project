@@ -6,7 +6,7 @@ export default async function MentorLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ProtectedDashboardLayout allowedRoles={["mentor"]} homeHref="/dashboard/mentor" title="Dashboard Mentor">
+    <ProtectedDashboardLayout allowedRoles={["admin"]} homeHref="/dashboard/mentor" title="Dashboard Mentor">
       {children}
     </ProtectedDashboardLayout>
   );

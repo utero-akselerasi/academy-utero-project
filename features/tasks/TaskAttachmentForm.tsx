@@ -13,11 +13,12 @@ export function TaskAttachmentForm({ cardId }: Props) {
 
   const handleUpload = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget; // Simpan form reference secara lokal
     setIsUploading(true);
     try {
-      const formData = new FormData(e.currentTarget);
+      const formData = new FormData(form);
       await addTaskAttachmentAction(formData);
-      e.currentTarget.reset();
+      form.reset();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Gagal upload file.");
     } finally {

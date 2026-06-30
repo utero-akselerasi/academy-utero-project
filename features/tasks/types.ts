@@ -23,6 +23,7 @@ export type TaskCard = {
   mentor_id: string | null;
   title: string;
   description: string | null;
+  priority: "urgent" | "high" | "medium" | "low";
   due_at: string | null;
   order_index: number;
   created_by: string | null;
@@ -31,6 +32,16 @@ export type TaskCard = {
 };
 
 export type TaskChecklist = {
+  id: string;
+  card_id: string;
+  title: string;
+  is_done: boolean;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskSubtask = {
   id: string;
   card_id: string;
   title: string;
@@ -54,6 +65,7 @@ export type TaskAttachment = {
 export type TaskCardWithDetails = TaskCard & {
   task_checklists: TaskChecklist[];
   task_attachments: TaskAttachment[];
+  task_subtasks: TaskSubtask[];
 };
 
 export type TaskComment = {
