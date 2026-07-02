@@ -3,7 +3,7 @@ import { getSuperAdminUserManagementData } from "@/features/super-admin/queries"
 import Link from "next/link";
 
 export default async function SuperAdminUsersPage() {
-  const { profiles, roles, userRoles, error } = await getSuperAdminUserManagementData();
+  const { profiles, roles, userRoles, schools, error } = await getSuperAdminUserManagementData();
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
@@ -26,7 +26,7 @@ export default async function SuperAdminUsersPage() {
         </div>
       ) : null}
 
-      <UserRoleManager profiles={profiles} roles={roles} userRoles={userRoles} />
+      <UserRoleManager profiles={profiles} roles={roles} userRoles={userRoles} schools={schools} />
     </main>
   );
 }

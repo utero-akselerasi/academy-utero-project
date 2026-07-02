@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { X, ZoomIn } from "lucide-react";
 
 type Props = {
@@ -44,32 +45,33 @@ export function ImagePreview({ src, alt, className = "max-h-28 w-auto object-con
         </div>
       </div>
 
-      {isOpen && (
+      {isOpen && typeof document !== "undefined" && createPortal(
         <div 
           onClick={handleClose}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4 animate-in fade-in duration-200"
         >
           <div className="absolute inset-0" />
           <div 
-            onClick={(e) => e.stopPropagation()} // Mencegah modal tertutup saat mengklik gambar utama
+            onClick={(e) => e.stopPropagation()} 
             className="relative max-w-3xl max-h-[85vh] w-full flex flex-col items-center justify-center animate-in zoom-in-95 duration-200 z-10"
           >
             <button
               onClick={handleClose}
-              className="absolute -top-10 right-0 text-white/80 hover:text-white bg-slate-800/60 p-2 rounded-full hover:bg-slate-800 transition-all flex items-center justify-center shadow-lg"
+              className="absolute -top-10 right-0 text-white/85 hover:text-white bg-slate-800/80 p-2 rounded-full hover:bg-slate-800 transition-all flex items-center justify-center shadow-lg"
             >
               <X size={20} />
             </button>
             <img
               src={src}
               alt={alt}
-              className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl border border-white/10"
+              className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl border border-white/10 bg-black/40"
             />
             <p className="text-white text-xs font-semibold mt-3 bg-slate-900/60 px-3 py-1 rounded-full border border-white/5 truncate max-w-md">
               {alt}
             </p>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

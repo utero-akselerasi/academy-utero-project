@@ -1,5 +1,8 @@
-import { getInternsForAssessment } from "@/features/assessments/queries";
+import { getInternsForAssessment, getAttendanceSettings } from "@/features/assessments/queries";
+import { uploadCertificateTemplateAction } from "@/features/assessments/actions";
+import { Upload } from "lucide-react";
 import { AssessmentModal } from "@/features/assessments/AssessmentModal";
+import { UploadTemplateButton } from "@/features/assessments/UploadTemplateButton";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -17,6 +20,7 @@ export default async function MentorAssessmentsPage({ searchParams }: PageProps)
   if (!user) redirect("/login");
 
   const { data: interns, error } = await getInternsForAssessment();
+  const settings = await getAttendanceSettings();
 
   // Filter pencarian nama
   const filtered = interns.filter(i => 
@@ -45,6 +49,25 @@ export default async function MentorAssessmentsPage({ searchParams }: PageProps)
         </div>
       ) : null}
 
+      {/* Upload Template Sertifikat Kustom */}
+      <div className="surface p-5 bg-white border border-slate-200 rounded-xl shadow-sm mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h3 className="text-sm font-black text-slate-900">Custom Template Sertifikat Magang</h3>
+          <p className="text-xs text-slate-500 font-semibold leading-relaxed">
+            Unggah desain gambar sertifikat kosong (background template). Jika diunggah, sertifikat A4 cetak otomatis akan menggunakan background ini.
+          </p>
+          {settings?.certificate_template_path && (
+            <p className="text-[10px] text-teal-700 font-bold">
+              ✓ Template aktif saat ini: <a href={settings.certificate_template_path} target="_blank" rel="noopener noreferrer" className="underline hover:text-teal-950">Lihat Template</a>
+            </p>
+          )}
+        </div>
+
+        <form action={uploadCertificateTemplateAction} className="flex items-center gap-2 w-full md:w-auto">
+          <UploadTemplateButton />
+        </form>
+      </div>
+
       {/* Bar Pencarian */}
       <div className="mb-6 max-w-md">
         <form className="relative w-full">
@@ -52,7 +75,7 @@ export default async function MentorAssessmentsPage({ searchParams }: PageProps)
             <Search size={15} className="text-slate-400" />
           </div>
           <input
-            className="form-input pl-10"
+            className="form-input !pl-10"
             name="q"
             defaultValue={searchQuery}
             placeholder="Cari nama peserta magang..."
@@ -133,3 +156,4 @@ export default async function MentorAssessmentsPage({ searchParams }: PageProps)
     </main>
   );
 }
+

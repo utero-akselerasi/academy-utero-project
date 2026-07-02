@@ -15,6 +15,8 @@ export type InternshipApplication = {
   major: string | null;
   motivation: string | null;
   status: ApplicationStatus;
+  cv_path?: string | null;
+  portfolio_path?: string | null;
   created_at: string;
 };
 

@@ -386,3 +386,101 @@ export async function submitInternTestimonialAction(formData: FormData) {
   revalidatePath("/dashboard/intern/certificate");
   revalidatePath("/dashboard/admin/cms");
 }
+
+export async function updateLandingPageSettingsAction(formData: FormData) {
+  await requireAdminUser();
+  const heroTitle = formData.get("heroTitle") as string;
+  const heroDescription = formData.get("heroDescription") as string;
+  const heroImageUrl = formData.get("heroImageUrl") as string;
+  const skillsJson = formData.get("skillsJson") as string;
+  const expertisersJson = formData.get("expertisersJson") as string;
+  const aboutText = formData.get("aboutText") as string;
+  const contactEmail = formData.get("contactEmail") as string;
+  const contactPhone = formData.get("contactPhone") as string;
+  const contactAddress = formData.get("contactAddress") as string;
+  const termsContent = formData.get("termsContent") as string;
+  const partnershipsJson = formData.get("partnershipsJson") as string;
+
+  if (!heroTitle || !heroDescription) {
+    throw new Error("Hero Title dan Hero Description wajib diisi.");
+  }
+
+  let skills = [];
+  let expertisers = [];
+
+  try {
+    skills = JSON.parse(skillsJson || "[]");
+  } catch (e) {
+    throw new Error("Format data Skills Competencies tidak valid.");
+  }
+
+  try {
+    expertisers = JSON.parse(expertisersJson || "[]");
+  } catch (e) {
+    throw new Error("Format data Top Expertiser tidak valid.");
+  }
+
+  let partnerships = [];
+  try {
+    partnerships = JSON.parse(partnershipsJson || "[]");
+  } catch (e) {
+    throw new Error("Format data Partnerships tidak valid.");
+  }
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { error } = await db
+    .from("landing_page_settings")
+    .upsert({
+      id: "00000000-0000-0000-0000-000000000002",
+      hero_title: heroTitle,
+      hero_description: heroDescription,
+      hero_image_path: heroImageUrl || null,
+      skills,
+      expertisers,
+      about_text: aboutText || null,
+      contact_email: contactEmail || null,
+      contact_phone: contactPhone || null,
+      contact_address: contactAddress || null,
+      terms_content: termsContent || null,
+      partnerships,
+      updated_at: new Date().toISOString()
+    });
+
+  if (error) {
+    console.error("Gagal simpan landing page settings:", error);
+    throw new Error("Gagal menyimpan pengaturan Landing Page.");
+  }
+
+  revalidatePath("/");
+  revalidatePath("/dashboard/admin/cms");
+}
+
+export async function uploadCmsFileAction(formData: FormData): Promise<string> {
+  await requireAdminUser();
+  const file = formData.get("file") as File;
+  if (!file || file.size === 0) {
+    throw new Error("File tidak ditemukan.");
+  }
+
+  const supabase = createSupabaseServiceRoleClient();
+  const ext = file.name.split(".").pop() || "jpg";
+  const filePath = "expert/" + Date.now() + "_" + Math.random().toString(36).substring(2, 8) + "." + ext;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = new Uint8Array(arrayBuffer);
+
+  const { error: uploadError } = await supabase.storage
+    .from("gallery")
+    .upload(filePath, buffer, {
+      contentType: file.type,
+      upsert: true
+    });
+
+  if (uploadError) {
+    console.log("Gagal upload berkas CMS:", uploadError);
+    throw new Error("Gagal mengunggah foto.");
+  }
+
+  const { data: { publicUrl } } = supabase.storage.from("gallery").getPublicUrl(filePath);
+  return publicUrl;
+}

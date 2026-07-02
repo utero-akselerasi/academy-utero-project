@@ -1,9 +1,10 @@
 import { getMentorCourseDetails } from "@/features/lms/queries";
-import { createLessonAction, createAssignmentAction } from "@/features/lms/actions";
+import { createLessonAction, createAssignmentAction, toggleLessonPublishAction, toggleQuizPublishAction, toggleAssignmentPublishAction } from "@/features/lms/actions";
+import { QuizFormBuilder } from "@/features/lms/QuizFormBuilder";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, BookOpen, FileText, Plus, Calendar, HelpCircle } from "lucide-react";
+import { ArrowLeft, BookOpen, FileText, Plus, Calendar, HelpCircle, ChevronDown } from "lucide-react";
 
 type Props = {
   params: Promise<{ courseId: string }>;
@@ -29,23 +30,24 @@ export default async function MentorCourseDetailPage({ params }: Props) {
   const { course, lessons, quizzes, assignments } = data;
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
+    <main className="mx-auto max-w-6xl px-4 py-8 space-y-6">
       {/* Tombol Kembali */}
-      <div className="mb-6">
+      <div className="mb-4">
         <Link
           href="/dashboard/mentor/lms"
-          className="button-secondary text-sm flex items-center gap-1.5 w-fit"
+          className="text-slate-500 hover:text-slate-900 inline-flex items-center gap-1 text-sm font-semibold transition-all"
         >
-          <ArrowLeft size={16} /> Kembali ke LMS
+          <ArrowLeft size={16} />
+          <span>Kembali ke LMS</span>
         </Link>
       </div>
 
       {/* Header Detail Kelas */}
-      <section className="surface p-6 bg-white border border-slate-200 rounded-xl mb-8">
+      <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <p className="text-xs font-bold uppercase tracking-wider text-teal-700">Manajemen Kelas</p>
-        <h1 className="text-3xl font-black text-slate-950 mt-1">{course.title}</h1>
-        <p className="mt-2 text-sm text-slate-600 leading-relaxed max-w-3xl">
-          {course.description}
+        <h1 className="text-2xl font-black text-slate-950 mt-1">{course.title}</h1>
+        <p className="mt-2 text-sm text-slate-550 leading-relaxed max-w-3xl">
+          {course.description || "Tidak ada deskripsi untuk kelas ini."}
         </p>
       </section>
 
@@ -53,68 +55,88 @@ export default async function MentorCourseDetailPage({ params }: Props) {
         {/* KOLOM KIRI: MANAJEMEN MATERI */}
         <div className="space-y-6">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-xl font-bold text-slate-950 flex items-center gap-2">
+            <h2 className="text-lg font-black text-slate-950 flex items-center gap-2">
               <BookOpen size={20} className="text-teal-700" />
               <span>Materi Pelajaran ({lessons.length})</span>
             </h2>
           </div>
 
-          {/* Form Tambah Materi */}
-          <form action={createLessonAction} className="surface p-5 bg-slate-50/50 border border-slate-200 rounded-xl space-y-4">
-            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1">
-              <Plus size={16} className="text-teal-700" />
-              <span>Tambah Materi Baru</span>
-            </h3>
-            <input type="hidden" name="courseId" value={course.id} />
+          {/* Form Tambah Materi Collapsible Accordion */}
+          <details className="group bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden shadow-sm [&_summary::-webkit-details-marker]:hidden">
+            <summary className="flex justify-between items-center p-4 font-bold text-xs text-slate-700 uppercase tracking-wider cursor-pointer select-none hover:bg-slate-100/60 transition-all">
+              <span className="flex items-center gap-2">
+                <Plus size={16} className="text-teal-700 shrink-0" />
+                <span>Tambah Materi Baru</span>
+              </span>
+              <ChevronDown size={14} className="text-slate-400 group-open:rotate-180 transition-transform duration-200" />
+            </summary>
+            
+            <form action={createLessonAction} className="p-5 border-t border-slate-200 bg-white space-y-4">
+              <input type="hidden" name="courseId" value={course.id} />
 
-            <div className="form-field">
-              <label className="form-label text-xs" htmlFor="lessonTitle">Judul Materi *</label>
-              <input
-                className="form-input text-sm"
-                id="lessonTitle"
-                name="title"
-                placeholder="Contoh: Pengenalan UI/UX Dasar"
-                required
-              />
-            </div>
+              <div className="form-field">
+                <label className="form-label text-xs font-bold text-slate-700" htmlFor="lessonTitle">Judul Materi *</label>
+                <input
+                  className="form-input text-sm"
+                  id="lessonTitle"
+                  name="title"
+                  placeholder="Contoh: Pengenalan UI/UX Dasar"
+                  required
+                />
+              </div>
 
-            <div className="form-field">
-              <label className="form-label text-xs" htmlFor="lessonVideo">Link Video Youtube (Opsional)</label>
-              <input
-                className="form-input text-sm"
-                id="lessonVideo"
-                name="videoUrl"
-                placeholder="https://www.youtube.com/watch?v=..."
-              />
-            </div>
+              <div className="form-field">
+                <label className="form-label text-xs font-bold text-slate-700" htmlFor="lessonVideo">Link Video Youtube (Opsional)</label>
+                <input
+                  className="form-input text-sm"
+                  id="lessonVideo"
+                  name="videoUrl"
+                  placeholder="https://www.youtube.com/watch?v=..."
+                />
+              </div>
 
-            <div className="form-field">
-              <label className="form-label text-xs" htmlFor="lessonContent">Teks Konten Materi *</label>
-              <textarea
-                className="form-input text-xs"
-                id="lessonContent"
-                name="content"
-                rows={3}
-                placeholder="Tulis materi bacaan kelas di sini..."
-                required
-              />
-            </div>
+              <div className="form-field">
+                <label className="form-label text-xs font-bold text-slate-700" htmlFor="lessonContent">Teks Konten Materi *</label>
+                <textarea
+                  className="form-input text-xs min-h-[100px]"
+                  id="lessonContent"
+                  name="content"
+                  rows={4}
+                  placeholder="Tulis materi bacaan kelas di sini..."
+                  required
+                />
+              </div>
 
-            <button type="submit" className="button-primary text-xs py-2 w-full min-h-0">
-              Simpan Materi
-            </button>
-          </form>
+              <div className="pt-2">
+                <button type="submit" className="button-primary text-xs py-2 w-full min-h-0 font-bold">
+                  Simpan Materi
+                </button>
+              </div>
+            </form>
+          </details>
 
           {/* List Materi */}
-          <div className="grid gap-2">
+          <div className="grid gap-3">
             {lessons.length === 0 ? (
-              <p className="text-sm text-slate-500 italic p-3 text-center">Belum ada materi pelajaran.</p>
+              <p className="text-xs text-slate-400 italic p-6 text-center bg-slate-50 rounded-xl border border-slate-200/50">Belum ada materi pelajaran.</p>
             ) : (
               lessons.map((lesson) => (
-                <div key={lesson.id} className="surface p-3 bg-white flex items-center justify-between gap-3 text-sm">
+                <div key={lesson.id} className="surface p-4 bg-white border border-slate-200 rounded-xl hover:border-teal-500/30 transition-all flex items-center justify-between gap-3 text-xs">
                   <div>
-                    <h4 className="font-bold text-slate-900 leading-snug">{lesson.title}</h4>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Order Index: {lesson.order_index}</p>
+                    <h4 className="font-bold text-slate-850 leading-snug">{lesson.title}</h4>
+                    <p className="text-[10px] text-slate-400 mt-1 font-semibold">Tipe: Video / Bacaan | Index: {lesson.order_index}</p>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <form action={toggleLessonPublishAction} className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg shadow-sm hover:border-teal-500 transition-colors">
+                      <input type="hidden" name="lessonId" value={lesson.id} />
+                      <input type="hidden" name="courseId" value={course.id} />
+                      <input type="hidden" name="isPublished" value={lesson.is_published === false ? "true" : "false"} />
+                      <span className={"w-2 h-2 rounded-full " + (lesson.is_published !== false ? "bg-teal-500" : "bg-slate-300")} />
+                      <button type="submit" className={"text-[10px] font-bold " + (lesson.is_published !== false ? "text-teal-800" : "text-slate-600 hover:text-slate-900")}>
+                        {lesson.is_published !== false ? "Published" : "Draft"}
+                      </button>
+                    </form>
                   </div>
                 </div>
               ))
@@ -126,69 +148,91 @@ export default async function MentorCourseDetailPage({ params }: Props) {
         <div className="space-y-8">
           {/* Bagian Tugas */}
           <div className="space-y-6">
-            <h2 className="text-xl font-bold text-slate-950 flex items-center gap-2 border-b border-slate-200 pb-3">
+            <h2 className="text-lg font-black text-slate-950 flex items-center gap-2 border-b border-slate-200 pb-3">
               <FileText size={20} className="text-teal-700" />
               <span>Tugas Kelas ({assignments.length})</span>
             </h2>
 
-            {/* Form Tambah Tugas */}
-            <form action={createAssignmentAction} className="surface p-5 bg-slate-50/50 border border-slate-200 rounded-xl space-y-4">
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1">
-                <Plus size={16} className="text-teal-700" />
-                <span>Tambah Tugas Baru</span>
-              </h3>
-              <input type="hidden" name="courseId" value={course.id} />
+            {/* Form Tambah Tugas Collapsible Accordion */}
+            <details className="group bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden shadow-sm [&_summary::-webkit-details-marker]:hidden mb-4">
+              <summary className="flex justify-between items-center p-4 font-bold text-xs text-slate-700 uppercase tracking-wider cursor-pointer select-none hover:bg-slate-100/60 transition-all">
+                <span className="flex items-center gap-2">
+                  <Plus size={16} className="text-teal-700 shrink-0" />
+                  <span>Tambah Tugas Baru</span>
+                </span>
+                <ChevronDown size={14} className="text-slate-400 group-open:rotate-180 transition-transform duration-200" />
+              </summary>
 
-              <div className="form-field">
-                <label className="form-label text-xs" htmlFor="assTitle">Judul Tugas *</label>
-                <input
-                  className="form-input text-sm"
-                  id="assTitle"
-                  name="title"
-                  placeholder="Contoh: Praktek Wireframe Landing Page"
-                  required
-                />
-              </div>
+              <form action={createAssignmentAction} className="p-5 border-t border-slate-200 bg-white space-y-4">
+                <input type="hidden" name="courseId" value={course.id} />
 
-              <div className="form-field">
-                <label className="form-label text-xs" htmlFor="assDesc">Instruksi Tugas</label>
-                <textarea
-                  className="form-input text-xs"
-                  id="assDesc"
-                  name="description"
-                  rows={2}
-                  placeholder="Jelaskan instruksi tugas praktis..."
-                />
-              </div>
+                <div className="form-field">
+                  <label className="form-label text-xs font-bold text-slate-700" htmlFor="assTitle">Judul Tugas *</label>
+                  <input
+                    className="form-input text-sm"
+                    id="assTitle"
+                    name="title"
+                    placeholder="Contoh: Praktek Wireframe Landing Page"
+                    required
+                  />
+                </div>
 
-              <div className="form-field">
-                <label className="form-label text-xs" htmlFor="assDue">Batas Waktu Pengumpulan (Deadline)</label>
-                <input
-                  type="datetime-local"
-                  className="form-input text-sm"
-                  id="assDue"
-                  name="dueAt"
-                />
-              </div>
+                <div className="form-field">
+                  <label className="form-label text-xs font-bold text-slate-700" htmlFor="assDesc">Instruksi Tugas</label>
+                  <textarea
+                    className="form-input text-xs min-h-[80px]"
+                    id="assDesc"
+                    name="description"
+                    rows={3}
+                    placeholder="Jelaskan instruksi tugas praktis..."
+                  />
+                </div>
 
-              <button type="submit" className="button-primary text-xs py-2 w-full min-h-0">
-                Simpan Tugas
-              </button>
-            </form>
+                <div className="form-field">
+                  <label className="form-label text-xs font-bold text-slate-700" htmlFor="assDue">Batas Waktu Pengumpulan (Deadline)</label>
+                  <input
+                    type="datetime-local"
+                    className="form-input text-sm"
+                    id="assDue"
+                    name="dueAt"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button type="submit" className="button-primary text-xs py-2 w-full min-h-0 font-bold">
+                    Simpan Tugas
+                  </button>
+                </div>
+              </form>
+            </details>
 
             {/* List Tugas */}
-            <div className="grid gap-2">
+            <div className="grid gap-3">
               {assignments.length === 0 ? (
-                <p className="text-sm text-slate-500 italic p-3 text-center">Belum ada tugas kelas.</p>
+                <p className="text-xs text-slate-400 italic p-6 text-center bg-slate-50 rounded-xl border border-slate-200/50">Belum ada tugas kelas.</p>
               ) : (
                 assignments.map((ass) => (
-                  <div key={ass.id} className="surface p-3 bg-white flex flex-col gap-1 text-sm">
-                    <h4 className="font-bold text-slate-900 leading-snug">{ass.title}</h4>
-                    {ass.due_at && (
-                      <p className="text-[10px] text-red-500 font-bold">
-                        Deadline: {formatDate(ass.due_at)}
-                      </p>
-                    )}
+                  <div key={ass.id} className="surface p-4 bg-white border border-slate-200 rounded-xl hover:border-teal-500/30 transition-all flex items-center justify-between gap-3 text-xs">
+                    <div>
+                      <h4 className="font-bold text-slate-850 leading-snug">{ass.title}</h4>
+                      {ass.due_at && (
+                        <p className="text-[10px] text-red-500 font-bold flex items-center gap-1 mt-1">
+                          <Calendar size={11} />
+                          <span>Batas Waktu: {formatDate(ass.due_at)}</span>
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <form action={toggleAssignmentPublishAction} className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg shadow-sm hover:border-teal-500 transition-colors">
+                        <input type="hidden" name="assignmentId" value={ass.id} />
+                        <input type="hidden" name="courseId" value={course.id} />
+                        <input type="hidden" name="isPublished" value={ass.is_published === false ? "true" : "false"} />
+                        <span className={"w-2 h-2 rounded-full " + (ass.is_published !== false ? "bg-teal-500" : "bg-slate-300")} />
+                        <button type="submit" className={"text-[10px] font-bold " + (ass.is_published !== false ? "text-teal-800" : "text-slate-600 hover:text-slate-900")}>
+                          {ass.is_published !== false ? "Published" : "Draft"}
+                        </button>
+                      </form>
+                    </div>
                   </div>
                 ))
               )}
@@ -197,20 +241,47 @@ export default async function MentorCourseDetailPage({ params }: Props) {
 
           {/* Bagian Kuis */}
           <div className="space-y-6">
-            <h2 className="text-xl font-bold text-slate-950 flex items-center gap-2 border-b border-slate-200 pb-3">
+            <h2 className="text-lg font-black text-slate-950 flex items-center gap-2 border-b border-slate-200 pb-3">
               <HelpCircle size={20} className="text-teal-700" />
               <span>Kuis Evaluasi ({quizzes.length})</span>
             </h2>
 
-            <div className="grid gap-2">
+            {/* Form Tambah Kuis Collapsible Accordion dengan Visual Question Builder */}
+            <details className="group bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden shadow-sm [&_summary::-webkit-details-marker]:hidden mb-4">
+              <summary className="flex justify-between items-center p-4 font-bold text-xs text-slate-700 uppercase tracking-wider cursor-pointer select-none hover:bg-slate-100/60 transition-all">
+                <span className="flex items-center gap-2">
+                  <Plus size={16} className="text-teal-700 shrink-0" />
+                  <span>Tambah Kuis Baru</span>
+                </span>
+                <ChevronDown size={14} className="text-slate-400 group-open:rotate-180 transition-transform duration-200" />
+              </summary>
+
+              <div className="p-5 border-t border-slate-200 bg-white">
+                <QuizFormBuilder courseId={course.id} />
+              </div>
+            </details>
+
+            {/* List Kuis */}
+            <div className="grid gap-3">
               {quizzes.length === 0 ? (
-                <p className="text-sm text-slate-500 italic p-3 text-center">Belum ada kuis.</p>
+                <p className="text-xs text-slate-400 italic p-6 text-center bg-slate-50 rounded-xl border border-slate-200/50">Belum ada kuis.</p>
               ) : (
                 quizzes.map((quiz) => (
-                  <div key={quiz.id} className="surface p-3 bg-white flex items-center justify-between gap-3 text-sm">
+                  <div key={quiz.id} className="surface p-4 bg-white border border-slate-200 rounded-xl hover:border-teal-500/30 transition-all flex items-center justify-between gap-3 text-xs">
                     <div>
-                      <h4 className="font-bold text-slate-900 leading-snug">{quiz.title}</h4>
-                      <p className="text-[10px] text-slate-400 mt-0.5">KKM: {quiz.passing_score ?? 70}</p>
+                      <h4 className="font-bold text-slate-850 leading-snug">{quiz.title}</h4>
+                      <p className="text-[10px] text-slate-400 mt-1 font-semibold">KKM Kelulusan: {quiz.passing_score ?? 70}%</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <form action={toggleQuizPublishAction} className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg shadow-sm hover:border-teal-500 transition-colors">
+                        <input type="hidden" name="quizId" value={quiz.id} />
+                        <input type="hidden" name="courseId" value={course.id} />
+                        <input type="hidden" name="isPublished" value={quiz.is_published === false ? "true" : "false"} />
+                        <span className={"w-2 h-2 rounded-full " + (quiz.is_published !== false ? "bg-teal-500" : "bg-slate-300")} />
+                        <button type="submit" className={"text-[10px] font-bold " + (quiz.is_published !== false ? "text-teal-800" : "text-slate-600 hover:text-slate-900")}>
+                          {quiz.is_published !== false ? "Published" : "Draft"}
+                        </button>
+                      </form>
                     </div>
                   </div>
                 ))

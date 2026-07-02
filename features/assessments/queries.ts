@@ -3,11 +3,25 @@ import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 export async function getInternsForAssessment() {
   const db = await createUteroAcademyServiceRoleClient();
 
+  // Fetch user ids having role 'intern'
+  const { data: internRoleUsers } = await db
+    .from("user_roles")
+    .select("user_id, roles(code)")
+    .returns<any[]>();
+
+  const internUserIds = (internRoleUsers || [])
+    .filter(ur => {
+      const roleObj = Array.isArray(ur.roles) ? ur.roles[0] : ur.roles;
+      return roleObj?.code === "intern";
+    })
+    .map(ur => ur.user_id);
+
   // Ambil semua anak magang aktif
   const { data: interns, error: internErr } = await db
     .from("intern_profiles")
-    .select("id, full_name, email, major, status")
+    .select("id, full_name, email, major, status, user_id")
     .eq("status", "active")
+    .in("user_id", internUserIds.length > 0 ? internUserIds : ["00000000-0000-0000-0000-000000000000"])
     .order("full_name", { ascending: true });
 
   if (internErr || !interns) {
@@ -81,4 +95,16 @@ export async function getInternCertificate(internProfileId: string) {
     },
     error: null
   };
+}
+
+
+export async function getAttendanceSettings() {
+  const db = await createUteroAcademyServiceRoleClient();
+  const { data } = await db
+    .from("attendance_settings")
+    .select("certificate_template_path, check_in_time, check_out_time, late_tolerance_minutes, monthly_target_hours")
+    .eq("id", "00000000-0000-0000-0000-000000000001")
+    .maybeSingle();
+
+  return data;
 }

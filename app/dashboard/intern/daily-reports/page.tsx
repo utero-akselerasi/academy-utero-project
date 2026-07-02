@@ -5,7 +5,7 @@ import { ReportStatusBadge } from "@/features/daily-reports/ReportStatusBadge";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { FileText, Eye, Edit3, X } from "lucide-react";
+import { FileText, Eye, Edit3, X, PlusCircle, ArrowLeft } from "lucide-react";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date(value));
@@ -20,11 +20,11 @@ function isImageAttachment(att: { mime_type?: string | null; file_name: string }
 }
 
 type PageProps = {
-  searchParams: Promise<{ editReportId?: string; detailReportId?: string; status?: string }>;
+  searchParams: Promise<{ editReportId?: string; detailReportId?: string; status?: string; showForm?: string }>;
 };
 
 export default async function InternDailyReportsPage({ searchParams }: PageProps) {
-  const { editReportId, detailReportId, status: statusFilter } = await searchParams;
+  const { editReportId, detailReportId, status: statusFilter, showForm } = await searchParams;
   
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -54,99 +54,157 @@ export default async function InternDailyReportsPage({ searchParams }: PageProps
 
   const editReport = editReportId ? reports.find(r => r.id === editReportId) : undefined;
   const detailReport = detailReportId ? reports.find(r => r.id === detailReportId) : undefined;
+  const isFormOpen = showForm === "true" || !!editReportId;
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 relative">
-      <div className="mb-6">
-        <p className="text-sm font-bold uppercase text-teal-700">Peserta</p>
-        <h1 className="mt-2 text-3xl font-bold text-slate-950">Daily Report</h1>
-        <p className="mt-2 max-w-2xl leading-7 text-slate-600">
-          Isi laporan harian untuk mencatat pekerjaan, progress, kendala, dan rencana besok beserta lampiran file.
-        </p>
+    <main className="mx-auto max-w-6xl px-4 py-8 relative space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
+        <div>
+          <p className="text-sm font-bold uppercase text-teal-700">Peserta</p>
+          <h1 className="mt-2 text-3xl font-bold text-slate-950">Daily Report</h1>
+          <p className="mt-2 max-w-2xl leading-relaxed text-slate-600 text-sm">
+            Catat pekerjaan harian Anda, bagikan progress, kendala, rencana kerja, beserta tautan/lampiran file pendukung.
+          </p>
+        </div>
+        
+        {/* Kirim Laporan Baru Button */}
+        <Link
+          href={`/dashboard/intern/daily-reports?showForm=true&status=${currentFilter}`}
+          className="button-primary text-xs py-2 px-4 min-h-0 flex items-center gap-1.5 font-bold rounded-lg shrink-0 self-start md:self-center"
+        >
+          <PlusCircle size={15} />
+          <span>Kirim Laporan Baru</span>
+        </Link>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_1.8fr]">
-        {/* Kiri: Form Input/Edit */}
-        <div>
-          <h2 className="mb-4 text-lg font-bold text-slate-950">
-            {editReport ? "Edit Laporan" : "Kirim Laporan Baru"}
-          </h2>
-          <DailyReportForm editReport={editReport} />
+      {error ? (
+        <div className="surface p-4 text-sm font-semibold text-red-700 mb-6">
+          Gagal memuat task. Cek koneksi database.
+        </div>
+      ) : null}
+
+      {/* Filter and Content Table */}
+      <div className="space-y-4">
+        {/* Filter Status Tabs */}
+        <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-lg text-xs w-fit">
+          {[
+            { label: "Semua Laporan", value: "all" },
+            { label: "Submitted", value: "submitted" },
+            { label: "Approved", value: "approved" },
+            { label: "Revision", value: "revision_requested" }
+          ].map(tab => (
+            <Link
+              key={tab.value}
+              href={`/dashboard/intern/daily-reports?status=${tab.value}`}
+              className={`px-3 py-1.5 rounded-md font-bold transition-all ${
+                currentFilter === tab.value
+                  ? "bg-white text-teal-700 shadow-sm"
+                  : "text-slate-600 hover:text-slate-950"
+              }`}
+            >
+              {tab.label}
+            </Link>
+          ))}
         </div>
 
-        {/* Kanan: Riwayat Laporan Minimalis */}
-        <div>
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-lg font-bold text-slate-950">
-              Riwayat Laporan ({filteredReports.length})
-            </h2>
-            {/* Filter Status Tabs */}
-            <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-lg text-xs">
-              {[
-                { label: "Semua", value: "all" },
-                { label: "Submitted", value: "submitted" },
-                { label: "Approved", value: "approved" },
-                { label: "Revision", value: "revision_requested" }
-              ].map(tab => (
-                <Link
-                  key={tab.value}
-                  href={`/dashboard/intern/daily-reports?status=${tab.value}`}
-                  className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                    currentFilter === tab.value
-                      ? "bg-white text-teal-700 shadow-sm"
-                      : "text-slate-600 hover:text-slate-950"
-                  }`}
-                >
-                  {tab.label}
-                </Link>
-              ))}
+        {/* Tabel Pengguna */}
+        {filteredReports.length === 0 ? (
+          <div className="surface p-8 text-center text-slate-500 font-medium">
+            Tidak ada laporan bimbingan dengan status ini.
+          </div>
+        ) : (
+          <div className="surface overflow-hidden bg-white border border-slate-200 rounded-2xl shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                    <th className="p-4">Tanggal Laporan</th>
+                    <th className="p-4">Pekerjaan Hari Ini</th>
+                    <th className="p-4">Kendala</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredReports.map((report) => (
+                    <tr key={report.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-all">
+                      <td className="p-4 font-bold text-slate-900 whitespace-nowrap">
+                        {formatDate(report.report_date)}
+                      </td>
+                      <td className="p-4 text-slate-700 font-medium max-w-xs truncate" title={report.today_work}>
+                        {report.today_work}
+                      </td>
+                      <td className="p-4 text-slate-500">
+                        {report.blockers ? (
+                          <span className="text-[9px] bg-red-50 border border-red-200 text-red-700 px-1.5 py-0.5 rounded font-extrabold uppercase">
+                            Ada Kendala
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 font-semibold">Normal</span>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        <ReportStatusBadge status={report.status} />
+                      </td>
+                      <td className="p-4 text-center">
+                        <div className="inline-flex items-center gap-1.5">
+                          <Link
+                            href={`/dashboard/intern/daily-reports?detailReportId=${report.id}&status=${currentFilter}`}
+                            className="button-secondary p-1.5 min-h-0 text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center"
+                            title="Lihat Detail"
+                          >
+                            <Eye size={13} />
+                          </Link>
+
+                          {report.status === "revision_requested" && (
+                            <Link
+                              href={`/dashboard/intern/daily-reports?editReportId=${report.id}&status=${currentFilter}`}
+                              className="button-secondary py-1 px-2.5 min-h-0 text-teal-750 hover:bg-teal-50 border border-teal-200 rounded-lg flex items-center gap-1 font-bold text-[10px]"
+                              title="Edit / Revisi Laporan"
+                            >
+                              <Edit3 size={11} />
+                              <span>Revisi</span>
+                            </Link>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-
-          {filteredReports.length === 0 ? (
-            <div className="surface p-8 text-center text-slate-500">
-              Tidak ada laporan dengan status ini.
-            </div>
-          ) : (
-            <div className="grid gap-2">
-              {filteredReports.map((report) => (
-                <div key={report.id} className="surface p-3 bg-white hover:border-teal-500 transition-all flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <span className="text-xs text-slate-400 font-bold block">{formatDate(report.report_date)}</span>
-                    <p className="text-sm font-bold text-slate-800 truncate mt-0.5">{report.today_work}</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <ReportStatusBadge status={report.status} />
-                    
-                    {/* Tombol Detail */}
-                    <Link
-                      href={`/dashboard/intern/daily-reports?detailReportId=${report.id}&status=${currentFilter}`}
-                      className="button-secondary p-1.5 min-h-0 text-slate-600 hover:bg-slate-100"
-                      title="Lihat Detail Laporan"
-                    >
-                      <Eye size={15} />
-                    </Link>
-
-                    {/* Tombol Edit Revisi */}
-                    {report.status === "revision_requested" && (
-                      <Link
-                        href={`/dashboard/intern/daily-reports?editReportId=${report.id}&status=${currentFilter}`}
-                        className="button-secondary p-1.5 min-h-0 text-teal-600 hover:bg-teal-50 hover:text-teal-700 border-teal-200"
-                        title="Edit Revisi Laporan"
-                      >
-                        <Edit3 size={15} />
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
+      {/* POPUP MODAL FORM INPUT / EDIT DAILY REPORT */}
+      {isFormOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header Modal */}
+            <div className="flex items-center justify-between bg-slate-50 px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-black text-slate-950">
+                {editReport ? "Edit / Revisi Laporan" : "Kirim Laporan Baru"}
+              </h3>
+              <Link
+                href={`/dashboard/intern/daily-reports?status=${currentFilter}`}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
+              >
+                <X size={18} />
+              </Link>
+            </div>
+
+            {/* Form */}
+            <div className="p-6 overflow-y-auto max-h-[75vh]">
+              <DailyReportForm editReport={editReport} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* POPUP MODAL DETAIL LAPORAN */}
-      {detailReport ? (
+      {detailReport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
             {/* Header Modal */}
@@ -254,7 +312,7 @@ export default async function InternDailyReportsPage({ searchParams }: PageProps
             </div>
           </div>
         </div>
-      ) : null}
+      )}
     </main>
   );
 }

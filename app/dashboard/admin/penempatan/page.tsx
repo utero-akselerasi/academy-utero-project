@@ -35,22 +35,50 @@ export default async function AdminPenempatanPage() {
             )}
 
             {assignments.map((assignment) => {
-              const internName = assignment.intern_profiles?.full_name ?? "Peserta";
+              const intern = assignment.intern_profiles;
+              const internName = intern?.full_name ?? "Peserta";
               const mentorName = assignment.mentor_profiles?.user_profiles?.full_name ?? "Pembimbing";
               return (
-                <article className="surface p-4 flex items-center justify-between gap-4" key={assignment.id}>
-                  <div>
-                    <h3 className="font-bold text-slate-950">{internName}</h3>
-                    <p className="text-sm text-slate-600">Pembimbing (Admin): <span className="font-bold">{mentorName}</span></p>
-                    <p className="text-xs text-slate-400 mt-1">Sejak: {formatDate(assignment.started_at)}</p>
+                <article className="surface p-5 bg-white border border-slate-200 rounded-xl hover:shadow-md transition-all flex flex-col justify-between gap-4 md:flex-row md:items-center" key={assignment.id}>
+                  <div className="space-y-2 flex-1">
+                    <div>
+                      <h3 className="font-extrabold text-slate-900 text-lg leading-tight">{internName}</h3>
+                      <p className="text-xs text-teal-700 font-bold mt-0.5">
+                        {intern?.major || "No Major"} — {intern?.school_name || "Sekolah Umum"}
+                      </p>
+                    </div>
+                    
+                    <div className="grid gap-x-4 gap-y-1 text-xs text-slate-500 md:grid-cols-2">
+                      <div>
+                        <span className="font-semibold text-slate-400 block uppercase text-[9px] tracking-wider">Email</span>
+                        <span className="font-semibold text-slate-700">{intern?.email || "-"}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-400 block uppercase text-[9px] tracking-wider">WhatsApp</span>
+                        <span className="font-semibold text-slate-700">{intern?.phone || "-"}</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                      <div>
+                        <span className="font-semibold text-slate-400">Pembimbing:</span>{" "}
+                        <span className="font-extrabold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">{mentorName}</span>
+                      </div>
+                      <div className="text-slate-400">
+                        Sejak: <span className="font-semibold text-slate-600">{formatDate(assignment.started_at)}</span>
+                      </div>
+                    </div>
                   </div>
-                  <form action={removeMentorAssignmentAction}>
-                    <input name="assignmentId" type="hidden" value={assignment.id} />
-                    <button className="button-secondary text-red-600 hover:bg-red-50" type="submit" title="Batalkan Penugasan">
-                      <X size={16} />
-                      Batalkan
-                    </button>
-                  </form>
+                  
+                  <div className="shrink-0 flex items-center">
+                    <form action={removeMentorAssignmentAction} className="w-full">
+                      <input name="assignmentId" type="hidden" value={assignment.id} />
+                      <button className="button-secondary text-red-600 hover:bg-red-50 font-bold w-full md:w-auto flex items-center justify-center gap-1.5 text-xs px-3 py-2 border border-slate-200 hover:border-red-200 rounded-lg" type="submit" title="Batalkan Penugasan">
+                        <X size={14} />
+                        <span>Batalkan</span>
+                      </button>
+                    </form>
+                  </div>
                 </article>
               );
             })}

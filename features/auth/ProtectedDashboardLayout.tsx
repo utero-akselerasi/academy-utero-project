@@ -21,7 +21,7 @@ const roleLabelMap: Record<RoleCode, string> = {
 const sidebarItemsMap: Record<RoleCode, { label: string; href: string; icon: string }[]> = {
   admin: [
     { label: "Pendaftaran Masuk", href: "/dashboard/admin/pendaftaran", icon: "FileSpreadsheet" },
-    { label: "Penempatan Mentor", href: "/dashboard/admin/penempatan", icon: "UserCheck" },
+
     { label: "User & Role", href: "/dashboard/super-admin/users", icon: "Users" },
     { label: "Task Board", href: "/dashboard/mentor/tasks", icon: "Kanban" },
     { label: "LMS Penilaian", href: "/dashboard/mentor/lms", icon: "BookOpen" },
@@ -29,6 +29,7 @@ const sidebarItemsMap: Record<RoleCode, { label: string; href: string; icon: str
     { label: "Daily Report", href: "/dashboard/mentor/daily-reports", icon: "FileText" },
     { label: "Penilaian & Sertifikat", href: "/dashboard/mentor/assessments", icon: "Award" },
     { label: "Website CMS", href: "/dashboard/admin/cms", icon: "Globe" },
+    { label: "Landing Page", href: "/dashboard/admin/landing", icon: "LayoutTemplate" },
     { label: "Audit Log", href: "/dashboard/super-admin/audit-logs", icon: "FileText" },
   ],
   intern: [

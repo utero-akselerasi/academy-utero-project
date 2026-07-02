@@ -182,3 +182,178 @@ export async function createUserManualAction(formData: FormData) {
 
   revalidatePath("/dashboard/super-admin/users");
 }
+
+export async function updateUserAdminAction(formData: FormData) {
+  const user = await requireSuperAdmin();
+
+  const userId = formData.get("userId") as string;
+  const fullName = formData.get("fullName") as string;
+  const phone = formData.get("phone") as string;
+  const isActive = formData.get("isActive") === "true";
+
+  if (!userId || !fullName) {
+    throw new Error("ID pengguna dan nama lengkap wajib diisi.");
+  }
+
+  const db = await createUteroAcademyServiceRoleClient();
+
+  // Update profile
+  const { error: profileError } = await db
+    .from("user_profiles")
+    .update({
+      full_name: fullName,
+      phone: phone || null,
+      is_active: isActive,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", userId);
+
+  if (profileError) {
+    console.error("Gagal update user profile:", profileError);
+    throw new Error("Gagal mengupdate profil: " + profileError.message);
+  }
+
+  // Sync to intern_profiles if exists
+  await db
+    .from("intern_profiles")
+    .update({
+      full_name: fullName,
+      phone: phone || null,
+      updated_at: new Date().toISOString()
+    })
+    .eq("user_id", userId);
+
+  await writeAuditLog(
+    user.id,
+    "update_user",
+    "user_profiles",
+    userId,
+    null,
+    { fullName, phone, isActive }
+  );
+
+  revalidatePath("/dashboard/super-admin/users");
+}
+
+export async function resetUserPasswordAction(formData: FormData) {
+  const user = await requireSuperAdmin();
+
+  const userId = formData.get("userId") as string;
+  const password = formData.get("password") as string;
+
+  if (!userId || !password || password.length < 6) {
+    throw new Error("Password minimal 6 karakter.");
+  }
+
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase.auth.admin.updateUserById(userId, {
+    password: password
+  });
+
+  if (error) {
+    console.error("Gagal reset password user:", error);
+    throw new Error("Gagal meriset kata sandi: " + error.message);
+  }
+
+  await writeAuditLog(
+    user.id,
+    "reset_password",
+    "auth.users",
+    userId,
+    null,
+    { executorId: user.id }
+  );
+
+  revalidatePath("/dashboard/super-admin/users");
+}
+
+export async function deleteUserAction(formData: FormData) {
+  const user = await requireSuperAdmin();
+
+  const userId = formData.get("userId") as string;
+
+  if (!userId) {
+    throw new Error("ID pengguna wajib diisi.");
+  }
+
+  if (userId === user.id) {
+    throw new Error("Anda tidak dapat menghapus akun Anda sendiri.");
+  }
+
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase.auth.admin.deleteUser(userId);
+
+  if (error) {
+    console.error("Gagal delete user:", error);
+    throw new Error("Gagal menghapus user: " + error.message);
+  }
+
+  await writeAuditLog(
+    user.id,
+    "delete_user",
+    "auth.users",
+    userId
+  );
+
+  revalidatePath("/dashboard/super-admin/users");
+}
+
+export async function linkSchoolContactAction(formData: FormData) {
+  const user = await requireSuperAdmin();
+
+  const userId = formData.get("userId") as string;
+  const schoolId = formData.get("schoolId") as string;
+  const position = formData.get("position") as string;
+
+  if (!userId) {
+    throw new Error("ID pengguna wajib diisi.");
+  }
+
+  const db = await createUteroAcademyServiceRoleClient();
+
+  // Ambil profil user untuk metadata kontak sekolah
+  const { data: profile } = await db
+    .from("user_profiles")
+    .select("full_name, phone")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!profile) {
+    throw new Error("Profil pengguna tidak ditemukan.");
+  }
+
+  // Ambil email dari auth users
+  const supabase = createSupabaseServiceRoleClient();
+  const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+  const email = authUser.user?.email || null;
+
+  // Hapus kontak instansi sebelumnya untuk user ini jika ada
+  await db.from("school_contacts").delete().eq("user_id", userId);
+
+  if (schoolId) {
+    const { error: insertError } = await db.from("school_contacts").insert({
+      user_id: userId,
+      school_id: schoolId,
+      name: profile.full_name,
+      email: email,
+      phone: profile.phone || null,
+      position: position || "Perwakilan Instansi"
+    });
+
+    if (insertError) {
+      console.error("Gagal link kontak sekolah:", insertError);
+      throw new Error("Gagal menghubungkan perwakilan ke sekolah: " + insertError.message);
+    }
+  }
+
+  await writeAuditLog(
+    user.id,
+    "link_school_contact",
+    "school_contacts",
+    userId,
+    null,
+    { schoolId, position }
+  );
+
+  revalidatePath("/dashboard/super-admin/users");
+}

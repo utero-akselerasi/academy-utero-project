@@ -18,7 +18,7 @@ export function TaskAttachmentForm({ cardId }: Props) {
     try {
       const formData = new FormData(form);
       await addTaskAttachmentAction(formData);
-      form.reset();
+      if (form && typeof form.reset === 'function') { try { form.reset(); } catch (e) {} }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Gagal upload file.");
     } finally {

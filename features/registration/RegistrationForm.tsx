@@ -96,6 +96,29 @@ export function RegistrationForm() {
         />
       </label>
 
+      <div className="grid gap-4 md:grid-cols-2">
+        <label className="form-field">
+          <span className="form-label font-bold text-slate-700">Unggah CV (PDF/Gambar) *</span>
+          <input
+            type="file"
+            name="cv"
+            accept="application/pdf,image/*"
+            required
+            className="form-input text-xs"
+          />
+        </label>
+
+        <label className="form-field">
+          <span className="form-label font-bold text-slate-700">Unggah Portofolio (PDF/Gambar) (Opsional)</span>
+          <input
+            type="file"
+            name="portfolio"
+            accept="application/pdf,image/*"
+            className="form-input text-xs"
+          />
+        </label>
+      </div>
+
       <button className="button-primary" disabled={pending} type="submit">
         <Send size={18} />
         {pending ? "Mengirim..." : "Kirim pendaftaran"}

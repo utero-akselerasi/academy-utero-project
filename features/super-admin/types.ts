@@ -11,6 +11,9 @@ export type UserProfile = {
   phone: string | null;
   is_active: boolean;
   created_at: string;
+  email?: string;
+  last_sign_in_at?: string | null;
+  school_name?: string | null;
 };
 
 export type UserRole = {

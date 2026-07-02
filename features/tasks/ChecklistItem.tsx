@@ -41,7 +41,7 @@ export function ChecklistItem({ item }: Props) {
         <input name="boardId" type="hidden" value={boardId} />
         <button
           type="submit"
-          className="text-red-500 hover:text-red-700 p-1 rounded opacity-0 group-hover/item:opacity-100 transition-opacity flex items-center justify-center"
+          className="text-slate-400 hover:text-red-700 p-1 rounded transition-colors flex items-center justify-center"
           title="Hapus item checklist"
           onClick={(e) => {
             if (!confirm("Apakah Anda yakin ingin menghapus item checklist ini?")) {

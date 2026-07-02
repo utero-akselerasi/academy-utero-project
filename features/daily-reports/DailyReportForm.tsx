@@ -240,7 +240,7 @@ export function DailyReportForm({ editReport }: Props) {
             <LinkIcon size={16} className="text-slate-400" />
           </div>
           <input
-            className={"form-input pl-10 " + (driveLinkRequired && !driveLink ? "border-red-300 bg-red-50" : "")}
+            className={"form-input !pl-10 " + (driveLinkRequired && !driveLink ? "border-red-300 bg-red-50" : "")}
             id="googleDriveLink"
             name="googleDriveLink"
             type="url"

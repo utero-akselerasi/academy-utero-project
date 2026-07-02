@@ -30,3 +30,14 @@ export async function getCmsData(siteId: string) {
     error: faqsRes.error || testimonialsRes.error || galleriesRes.error || articlesRes.error
   };
 }
+
+export async function getLandingPageSettings() {
+  const db = await createUteroAcademyServiceRoleClient();
+  const { data, error } = await db
+    .from("landing_page_settings")
+    .select("*")
+    .eq("id", "00000000-0000-0000-0000-000000000002")
+    .maybeSingle();
+
+  return { data, error };
+}

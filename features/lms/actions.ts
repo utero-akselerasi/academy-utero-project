@@ -315,3 +315,155 @@ export async function createAssignmentAction(formData: FormData) {
 
   revalidatePath("/dashboard/mentor/lms/" + courseId);
 }
+
+
+export async function createCourseAction(formData: FormData) {
+  await requireUser();
+  const title = formData.get("title") as string;
+  const description = formData.get("description") as string;
+
+  if (!title) throw new Error("Judul course wajib diisi.");
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+  const { error } = await db.from("courses").insert({
+    title,
+    slug,
+    description: description || null,
+    status: "published"
+  });
+
+  if (error) {
+    console.error("Gagal buat course:", error);
+    throw new Error("Gagal membuat kelas baru.");
+  }
+
+  revalidatePath("/dashboard/mentor/lms");
+}
+
+export async function createQuizAction(formData: FormData) {
+  await requireUser();
+  const courseId = formData.get("courseId") as string;
+  const title = formData.get("title") as string;
+  const passingScoreStr = formData.get("passingScore") as string;
+  const questionsJsonStr = formData.get("questionsJson") as string;
+
+  if (!courseId || !title) throw new Error("Course ID dan Judul kuis wajib diisi.");
+
+  const db = await createUteroAcademyServiceRoleClient();
+
+  let questions = [];
+  try {
+    if (questionsJsonStr) {
+      questions = JSON.parse(questionsJsonStr);
+    }
+  } catch (err) {
+    throw new Error("Format JSON pertanyaan kuis tidak valid.");
+  }
+
+  const { error } = await db.from("quizzes").insert({
+    course_id: courseId,
+    title,
+    questions,
+    passing_score: passingScoreStr ? parseFloat(passingScoreStr) : 70
+  });
+
+  if (error) {
+    console.error("Gagal buat kuis:", error);
+    throw new Error("Gagal membuat kuis baru.");
+  }
+
+  revalidatePath("/dashboard/mentor/lms/" + courseId);
+}
+
+
+export async function enrollCourseAction(formData: FormData) {
+  const user = await requireUser();
+  const courseId = formData.get("courseId") as string;
+  if (!courseId) throw new Error("Course ID tidak valid.");
+
+  const internProfileId = await getInternProfileId(user.id);
+  if (!internProfileId) throw new Error("Profil peserta tidak ditemukan.");
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { error } = await db.from("course_enrollments").insert({
+    course_id: courseId,
+    intern_id: internProfileId,
+    enrolled_at: new Date().toISOString()
+  });
+
+  if (error && error.code !== "23505") {
+    console.error("Gagal join course:", error);
+    throw new Error("Gagal mengikuti kelas.");
+  }
+
+  revalidatePath("/dashboard/intern/lms");
+}
+
+
+export async function toggleLessonPublishAction(formData: FormData) {
+  await requireUser();
+  const lessonId = formData.get("lessonId") as string;
+  const courseId = formData.get("courseId") as string;
+  const isPublished = formData.get("isPublished") === "true";
+
+  if (!lessonId) throw new Error("Lesson ID tidak valid.");
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { error } = await db
+    .from("lessons")
+    .update({ is_published: isPublished, updated_at: new Date().toISOString() })
+    .eq("id", lessonId);
+
+  if (error) {
+    console.error("Gagal toggle status publish lesson:", error);
+    throw new Error("Gagal mengubah status publikasi materi.");
+  }
+
+  revalidatePath("/dashboard/mentor/lms/" + courseId);
+}
+
+export async function toggleQuizPublishAction(formData: FormData) {
+  await requireUser();
+  const quizId = formData.get("quizId") as string;
+  const courseId = formData.get("courseId") as string;
+  const isPublished = formData.get("isPublished") === "true";
+
+  if (!quizId) throw new Error("Quiz ID tidak valid.");
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { error } = await db
+    .from("quizzes")
+    .update({ is_published: isPublished, updated_at: new Date().toISOString() })
+    .eq("id", quizId);
+
+  if (error) {
+    console.error("Gagal toggle status publish quiz:", error);
+    throw new Error("Gagal mengubah status publikasi kuis.");
+  }
+
+  revalidatePath("/dashboard/mentor/lms/" + courseId);
+}
+
+export async function toggleAssignmentPublishAction(formData: FormData) {
+  await requireUser();
+  const assignmentId = formData.get("assignmentId") as string;
+  const courseId = formData.get("courseId") as string;
+  const isPublished = formData.get("isPublished") === "true";
+
+  if (!assignmentId) throw new Error("Assignment ID tidak valid.");
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { error } = await db
+    .from("assignments")
+    .update({ is_published: isPublished, updated_at: new Date().toISOString() })
+    .eq("id", assignmentId);
+
+  if (error) {
+    console.error("Gagal toggle status publish assignment:", error);
+    throw new Error("Gagal mengubah status publikasi tugas.");
+  }
+
+  revalidatePath("/dashboard/mentor/lms/" + courseId);
+}

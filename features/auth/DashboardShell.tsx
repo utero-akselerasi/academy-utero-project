@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { 
   Menu, X, LogOut, User, Settings, ChevronDown, 
   LayoutDashboard, Users, FileSpreadsheet, UserCheck, 
-  Kanban, Clock, FileText, CheckSquare, GraduationCap, Award, Globe
+  Kanban, Clock, FileText, CheckSquare, GraduationCap, Award, Globe, LayoutTemplate
 } from "lucide-react";
 
 type NavItem = {
@@ -53,7 +53,7 @@ export function DashboardShell({
   const [profileOpen, setProfileOpen] = useState(false);
 
   return (
-    <div className="min-h-screen flex bg-slate-50 text-slate-900">
+    <div className="h-screen flex bg-slate-50 text-slate-900">
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { saveAssessmentAction } from "@/features/assessments/actions";
-import { Award, X, Check, CheckCircle2 } from "lucide-react";
+import { Award, X, Check, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type Props = {
@@ -30,7 +30,32 @@ export function AssessmentModal({ intern, searchQuery }: Props) {
 
   const ass = intern.assessment;
   const isFinalized = ass?.status === "finalized";
-  const defaultScores = ass?.score as any || { technical: "", discipline: "", attitude: "" };
+  const defaultScores = ass?.score as any || {};
+
+  // Initialize criteria list from database or default three
+  const initialCriteria = Object.keys(defaultScores).length > 0 
+    ? Object.keys(defaultScores).map(k => ({ name: k, score: defaultScores[k] }))
+    : [
+        { name: "technical", score: "" },
+        { name: "discipline", score: "" },
+        { name: "attitude", score: "" }
+      ];
+
+  const [criteria, setCriteria] = useState<{ name: string; score: string | number }[]>(initialCriteria);
+
+  const handleAddCriteria = () => {
+    setCriteria([...criteria, { name: "", score: "" }]);
+  };
+
+  const handleRemoveCriteria = (index: number) => {
+    setCriteria(criteria.filter((_, idx) => idx !== index));
+  };
+
+  const handleCriteriaChange = (index: number, field: "name" | "score", value: string) => {
+    const updated = [...criteria];
+    updated[index][field] = value;
+    setCriteria(updated);
+  };
 
   const handleClose = () => {
     router.push("/dashboard/mentor/assessments?q=" + searchQuery);
@@ -83,51 +108,56 @@ export function AssessmentModal({ intern, searchQuery }: Props) {
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
           <input type="hidden" name="internId" value={intern.id} />
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="form-field col-span-1">
-              <label className="form-label text-[11px]" htmlFor="technical">Teknis (0-100) *</label>
-              <input
-                className="form-input text-xs font-bold text-center bg-slate-50 focus:bg-white"
-                type="number"
-                id="technical"
-                name="technical"
-                min="0"
-                max="100"
-                required
-                defaultValue={defaultScores.technical}
-                disabled={isFinalized || isPending}
-                placeholder="0"
-              />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700">Kriteria & Aspek Penilaian *</span>
+              {!isFinalized && (
+                <button
+                  type="button"
+                  onClick={handleAddCriteria}
+                  className="text-[10px] font-bold text-teal-700 hover:text-teal-900 flex items-center gap-0.5 border border-teal-200 bg-teal-50 px-2 py-0.5 rounded"
+                >
+                  <Plus size={10} /> Tambah Kriteria
+                </button>
+              )}
             </div>
-            <div className="form-field col-span-1">
-              <label className="form-label text-[11px]" htmlFor="discipline">Disiplin (0-100) *</label>
-              <input
-                className="form-input text-xs font-bold text-center bg-slate-50 focus:bg-white"
-                type="number"
-                id="discipline"
-                name="discipline"
-                min="0"
-                max="100"
-                required
-                defaultValue={defaultScores.discipline}
-                disabled={isFinalized || isPending}
-                placeholder="0"
-              />
-            </div>
-            <div className="form-field col-span-1">
-              <label className="form-label text-[11px]" htmlFor="attitude">Sikap (0-100) *</label>
-              <input
-                className="form-input text-xs font-bold text-center bg-slate-50 focus:bg-white"
-                type="number"
-                id="attitude"
-                name="attitude"
-                min="0"
-                max="100"
-                required
-                defaultValue={defaultScores.attitude}
-                disabled={isFinalized || isPending}
-                placeholder="0"
-              />
+
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {criteria.map((c, idx) => (
+                <div key={idx} className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    name="criteriaName"
+                    value={c.name}
+                    onChange={(e) => handleCriteriaChange(idx, "name", e.target.value)}
+                    required
+                    placeholder="Nama Kriteria (misal: Disiplin)"
+                    disabled={isFinalized || isPending}
+                    className="form-input text-xs flex-1"
+                  />
+                  <input
+                    type="number"
+                    name="criteriaScore"
+                    value={c.score}
+                    onChange={(e) => handleCriteriaChange(idx, "score", e.target.value)}
+                    required
+                    min="0"
+                    max="100"
+                    placeholder="Skor"
+                    disabled={isFinalized || isPending}
+                    className="form-input text-xs w-20 text-center font-bold"
+                  />
+                  {!isFinalized && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCriteria(idx)}
+                      className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
 

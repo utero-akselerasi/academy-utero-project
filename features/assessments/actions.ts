@@ -1,6 +1,6 @@
 "use server";
 
-import { createSupabaseServerClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -28,23 +28,38 @@ async function requireAdminUser() {
 export async function saveAssessmentAction(formData: FormData) {
   const user = await requireAdminUser();
   const internId = formData.get("internId") as string;
-  const technical = parseFloat(formData.get("technical") as string || "0");
-  const discipline = parseFloat(formData.get("discipline") as string || "0");
-  const attitude = parseFloat(formData.get("attitude") as string || "0");
+  const criteriaNames = formData.getAll("criteriaName") as string[];
+  const criteriaScores = formData.getAll("criteriaScore") as string[];
   const feedback = formData.get("feedback") as string;
-  const submitType = formData.get("submitType") as "draft" | "finalize"; // 'draft' atau 'finalize'
+  const submitType = formData.get("submitType") as "draft" | "finalize";
 
   if (!internId) throw new Error("Intern ID tidak valid.");
-  if (technical < 0 || technical > 100 || discipline < 0 || discipline > 100 || attitude < 0 || attitude > 100) {
-    throw new Error("Nilai harus berupa angka antara 0 s.d. 100.");
+
+  let scoreJson: Record<string, number> = {};
+  let totalScore = 0;
+
+  if (criteriaNames.length > 0) {
+    criteriaNames.forEach((name, idx) => {
+      const scoreVal = parseFloat(criteriaScores[idx] || "0");
+      if (scoreVal < 0 || scoreVal > 100) {
+        throw new Error("Setiap nilai kriteria harus antara 0 s.d. 100.");
+      }
+      scoreJson[name] = scoreVal;
+      totalScore += scoreVal;
+    });
+  } else {
+    const technical = parseFloat(formData.get("technical") as string || "0");
+    const discipline = parseFloat(formData.get("discipline") as string || "0");
+    const attitude = parseFloat(formData.get("attitude") as string || "0");
+    if (technical < 0 || technical > 100 || discipline < 0 || discipline > 100 || attitude < 0 || attitude > 100) {
+      throw new Error("Nilai harus berupa angka antara 0 s.d. 100.");
+    }
+    scoreJson = { technical, discipline, attitude };
+    totalScore = technical + discipline + attitude;
   }
 
-  const finalScore = Math.round(((technical + discipline + attitude) / 3) * 100) / 100;
-  const scoreJson = {
-    technical,
-    discipline,
-    attitude
-  };
+  const numCriteria = Object.keys(scoreJson).length || 3;
+  const finalScore = Math.round((totalScore / numCriteria) * 100) / 100;
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -149,4 +164,50 @@ export async function saveAssessmentAction(formData: FormData) {
   revalidatePath("/dashboard/mentor/assessments");
   revalidatePath("/dashboard/intern/certificate");
   revalidatePath("/dashboard/school");
+}
+
+
+export async function uploadCertificateTemplateAction(formData: FormData) {
+  const user = await requireAdminUser();
+  const file = formData.get("templateFile") as File;
+
+  if (!file || file.size === 0) {
+    throw new Error("File template wajib diunggah.");
+  }
+
+  const supabase = createSupabaseServiceRoleClient();
+  const ext = file.name.split(".").pop() || "jpg";
+  const filePath = "settings/certificate_template_" + Date.now() + "." + ext;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = new Uint8Array(arrayBuffer);
+
+  const { error: uploadError } = await supabase.storage
+    .from("avatars")
+    .upload(filePath, buffer, {
+      contentType: file.type,
+      upsert: true
+    });
+
+  if (uploadError) {
+    console.error("Gagal upload template sertifikat:", uploadError);
+    throw new Error("Gagal mengunggah template sertifikat.");
+  }
+
+  const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(filePath);
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { error } = await db.from("attendance_settings").upsert({
+    id: "00000000-0000-0000-0000-000000000001",
+    certificate_template_path: publicUrl,
+    updated_at: new Date().toISOString()
+  });
+
+  if (error) {
+    console.error("Gagal update template sertifikat di db:", error);
+    throw new Error("Gagal menyimpan data template sertifikat.");
+  }
+
+  revalidatePath("/dashboard/mentor/assessments");
+  revalidatePath("/dashboard/intern/certificate");
 }

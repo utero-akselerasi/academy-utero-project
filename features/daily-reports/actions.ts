@@ -1,6 +1,6 @@
 "use server";
 
-import { createSupabaseServerClient, createUteroAcademyClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseServiceRoleClient, createUteroAcademyClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getInternProfileId, getMentorProfileId } from "./queries";
@@ -109,11 +109,11 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
       const filePath = finalReportId + "/" + Date.now() + "_" + Math.random().toString(36).substring(2, 8) + "." + ext;
       const arrayBuffer = await file.arrayBuffer();
       const buffer = new Uint8Array(arrayBuffer);
-      const { error: uploadError } = await supabase.storage.from("daily-report").upload(filePath, buffer, { contentType: file.type, upsert: true });
+      const serviceRoleSupabase = createSupabaseServiceRoleClient(); const { error: uploadError } = await serviceRoleSupabase.storage.from("daily-report").upload(filePath, buffer, { contentType: file.type, upsert: true });
       if (uploadError) {
         console.error("Gagal upload attachment daily-report:", uploadError);
       } else {
-        const { data: { publicUrl } } = supabase.storage.from("daily-report").getPublicUrl(filePath);
+        const { data: { publicUrl } } = serviceRoleSupabase.storage.from("daily-report").getPublicUrl(filePath);
         await db.from("daily_report_attachments").insert({
           report_id: finalReportId,
           file_path: publicUrl,

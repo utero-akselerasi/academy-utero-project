@@ -153,7 +153,7 @@ export default async function InternQuizPage({ params }: Props) {
                     <div key={att.id || idx} className="p-3 bg-white border border-slate-200 rounded-lg flex items-center justify-between gap-3 text-xs">
                       <div>
                         <span className="font-bold text-slate-700 block">Skor: {att.score}</span>
-                        <span className="text-[10px] text-slate-400 mt-0.5 block">{new Date(att.submitted_at).toLocaleDateString("id-ID", { dateStyle: "short", timeStyle: "short" } as any)}</span>
+                        <span className="text-[10px] text-slate-400 mt-0.5 block">{new Date(att.submitted_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) + " " + new Date(att.submitted_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</span>
                       </div>
                       <span className={`font-black uppercase text-[10px] ${
                         att.score >= (quiz.passing_score ?? 70) ? "text-teal-600" : "text-red-500"

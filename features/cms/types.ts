@@ -59,3 +59,20 @@ export type Article = {
   created_at: string;
   updated_at: string;
 };
+
+export type LandingPageSettings = {
+  id: string;
+  hero_title: string;
+  hero_description: string;
+  hero_image_path?: string | null;
+  partnerships?: any;
+  skills: any;
+  expertisers: any;
+  about_text?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  contact_address?: string;
+  terms_content?: string;
+  created_at: string;
+  updated_at: string;
+};

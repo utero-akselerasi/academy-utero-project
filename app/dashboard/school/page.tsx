@@ -4,7 +4,7 @@ import { ImagePreview } from "@/features/daily-reports/ImagePreview";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Users, Clock, FileText, Search, Eye, X, BookOpen, MapPin } from "lucide-react";
+import { Users, Clock, FileText, Search, Eye, X, BookOpen, MapPin, Award, BarChart2 } from "lucide-react";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date(value));
@@ -24,11 +24,11 @@ function isImageAttachment(att: { mime_type?: string | null; file_name: string }
 }
 
 type PageProps = {
-  searchParams: Promise<{ tab?: string; status?: string; q?: string; detailReportId?: string }>;
+  searchParams: Promise<{ tab?: string; status?: string; q?: string; detailReportId?: string; detailAssessmentId?: string }>;
 };
 
 export default async function SchoolDashboardPage({ searchParams }: PageProps) {
-  const { tab: activeTab = "interns", status: statusFilter = "all", q: searchQuery = "", detailReportId } = await searchParams;
+  const { tab: activeTab = "interns", status: statusFilter = "all", q: searchQuery = "", detailReportId, detailAssessmentId } = await searchParams;
 
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -53,7 +53,26 @@ export default async function SchoolDashboardPage({ searchParams }: PageProps) {
   // Load semua data sekolah
   const { data: interns } = await getSchoolInterns(schoolProfile.id);
   const { data: reports } = await getSchoolInternsDailyReports(schoolProfile.id);
+  
   const { data: attendances } = await getSchoolInternsAttendances(schoolProfile.id);
+
+  // Statistik Instansi
+  const totalInterns = interns ? interns.length : 0;
+  const activeInterns = interns ? interns.filter(i => i.status === "active").length : 0;
+  const alumniInterns = interns ? interns.filter(i => i.status === "completed" || i.status === "inactive").length : 0;
+  
+  let avgAttendanceRate = 0;
+  if (interns && interns.length > 0) {
+    let totalPresent = 0;
+    let totalLogs = 0;
+    interns.forEach(i => {
+      const internAtt = attendances ? attendances.filter(a => a.intern_id === i.id) : [];
+      totalLogs += internAtt.length;
+      totalPresent += internAtt.filter(a => a.attendance_type === "present" && a.status === "valid").length;
+    });
+    avgAttendanceRate = totalLogs > 0 ? Math.round((totalPresent / totalLogs) * 100) : 100;
+  }
+
 
   // Filter interns berdasarkan pencarian nama
   const filteredInterns = interns.filter(i => 
@@ -75,6 +94,10 @@ export default async function SchoolDashboardPage({ searchParams }: PageProps) {
   });
 
   const detailReport = detailReportId ? reports.find(r => r.id === detailReportId) : undefined;
+  
+  // Cari assessment bimbingan jika ada
+  const selectedAssessmentIntern = detailAssessmentId ? interns.find(i => i.assessment?.id === detailAssessmentId) : undefined;
+  const selectedAssessment = selectedAssessmentIntern?.assessment;
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 relative">
@@ -90,6 +113,53 @@ export default async function SchoolDashboardPage({ searchParams }: PageProps) {
         </div>
         <div className="bg-teal-50 text-teal-800 border border-teal-200 rounded-lg px-3 py-1.5 text-xs font-bold shrink-0">
           Tipe Instansi: {schoolProfile.type || "Sekolah/Kampus"}
+        </div>
+      </section>
+
+      {/* Rangkuman Statistik Instansi */}
+      <section className="grid gap-4 grid-cols-2 md:grid-cols-4 mb-8">
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-2">
+          <span className="rounded-lg bg-teal-50 p-2 text-teal-700 inline-block">
+            <Users size={18} />
+          </span>
+          <p className="text-xs text-slate-400 font-bold uppercase">Total Siswa Terdaftar</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black text-slate-900">{totalInterns}</span>
+            <span className="text-xs text-slate-400 font-bold">siswa</span>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-2">
+          <span className="rounded-lg bg-sky-50 p-2 text-sky-700 inline-block">
+            <Clock size={18} />
+          </span>
+          <p className="text-xs text-slate-400 font-bold uppercase">Aktif Magang</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black text-slate-900">{activeInterns}</span>
+            <span className="text-xs text-slate-400 font-bold">aktif</span>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-2">
+          <span className="rounded-lg bg-indigo-50 p-2 text-indigo-700 inline-block">
+            <Award size={18} />
+          </span>
+          <p className="text-xs text-slate-400 font-bold uppercase">Alumni / Selesai</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black text-slate-900">{alumniInterns}</span>
+            <span className="text-xs text-slate-400 font-bold">alumni</span>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-2">
+          <span className="rounded-lg bg-emerald-50 p-2 text-emerald-700 inline-block">
+            <BarChart2 size={18} />
+          </span>
+          <p className="text-xs text-slate-400 font-bold uppercase">Rerata Kehadiran</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black text-slate-900">{avgAttendanceRate}%</span>
+            <span className="text-xs text-slate-400 font-bold">rata-rata</span>
+          </div>
         </div>
       </section>
 
@@ -133,7 +203,7 @@ export default async function SchoolDashboardPage({ searchParams }: PageProps) {
             <Search size={15} className="text-slate-400" />
           </div>
           <input
-            className="form-input pl-10"
+            className="form-input !pl-10"
             name="q"
             defaultValue={searchQuery}
             placeholder="Cari nama peserta magang..."
@@ -213,6 +283,31 @@ export default async function SchoolDashboardPage({ searchParams }: PageProps) {
                           }`}>
                             {i.status}
                           </span>
+                        </td>
+                        <td className="p-4 text-center">
+                          <div className="flex flex-col items-center gap-1 justify-center">
+                            {i.certificate ? (
+                              <span className="text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded uppercase">
+                                No: {i.certificate.certificate_number}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400">Belum Terbit</span>
+                            )}
+
+                            {i.assessment && i.assessment.status === "finalized" ? (
+                              <div className="flex items-center gap-1 mt-1">
+                                <span className="text-[10px] font-bold bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded border border-slate-200">
+                                  Nilai: {i.assessment.final_score}
+                                </span>
+                                <Link 
+                                  href={`/dashboard/school?tab=interns&detailAssessmentId=${i.assessment.id}`}
+                                  className="button-secondary text-[9px] py-0.5 px-2 min-h-0 font-bold hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300 rounded"
+                                >
+                                  Detail Rapor
+                                </Link>
+                              </div>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -419,6 +514,79 @@ export default async function SchoolDashboardPage({ searchParams }: PageProps) {
           );
         })()
       ) : null}
+      {/* POPUP DETAIL RAPOR & PENILAIAN SISWA */}
+      {selectedAssessmentIntern && selectedAssessment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header Modal */}
+            <div className="flex items-center justify-between bg-slate-50 px-6 py-4 border-b border-slate-200">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Rapor Hasil Magang</h3>
+                <p className="text-xs text-slate-400 font-semibold">{selectedAssessmentIntern.full_name} � {selectedAssessmentIntern.major}</p>
+              </div>
+              <Link
+                href="/dashboard/school?tab=interns"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
+              >
+                <X size={18} />
+              </Link>
+            </div>
+
+            {/* Content Rapor */}
+            <div className="p-6 overflow-y-auto space-y-5">
+              {/* Score Average Circle */}
+              <div className="flex flex-col items-center justify-center text-center p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Rerata Nilai Akhir</span>
+                <span className="text-4xl font-black text-teal-700 block mt-1.5">{selectedAssessment.final_score}</span>
+                <span className="text-xs font-bold text-slate-500 mt-1 uppercase">STATUS: FINALIZED</span>
+              </div>
+
+              {/* Individual Criteria Table */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-black text-slate-950 uppercase tracking-wider text-slate-400">Rincian Kompetensi Nilai</h4>
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+                        <th className="p-3">Aspek Penilaian</th>
+                        <th className="p-3 text-right">Skor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(selectedAssessment.score || {}).map(([key, val]) => (
+                        <tr key={key} className="border-b border-slate-100 hover:bg-slate-50/50">
+                          <td className="p-3 font-semibold text-slate-700 uppercase">{key}</td>
+                          <td className="p-3 font-bold text-slate-900 text-right">{val as any}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Feedback */}
+              {selectedAssessment.feedback && (
+                <div className="space-y-1">
+                  <h4 className="text-xs font-black text-slate-950 uppercase tracking-wider text-slate-400">Catatan Masukan Pembimbing</h4>
+                  <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100 italic">
+                    "{selectedAssessment.feedback}"
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Modal */}
+            <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex justify-end">
+              <Link
+                href="/dashboard/school?tab=interns"
+                className="button-secondary text-sm font-semibold"
+              >
+                Tutup
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

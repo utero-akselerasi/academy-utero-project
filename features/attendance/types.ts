@@ -15,6 +15,9 @@ export type Attendance = {
   check_out_selfie_path: string | null;
   check_out_wifi_ssid: string | null;
   status: AttendanceStatus;
+  attendance_type?: "present" | "permit" | "sick";
+  permit_reason?: string | null;
+  sick_certificate_path?: string | null;
   review_note: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;

@@ -1,6 +1,6 @@
 import { ApplicationStatusForm } from "@/features/admin/ApplicationStatusForm";
 import { type InternshipApplication } from "@/features/admin/types";
-import { createUteroAcademyClient } from "@/lib/supabase/server";
+import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("id-ID", {
@@ -10,10 +10,10 @@ function formatDate(value: string) {
 }
 
 export default async function AdminApplicationsPage() {
-  const db = await createUteroAcademyClient();
+  const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("internship_applications")
-    .select("id, full_name, email, phone, school_name, major, motivation, status, created_at")
+    .select("id, full_name, email, phone, school_name, major, motivation, status, cv_path, portfolio_path, created_at")
     .order("created_at", { ascending: false })
     .returns<InternshipApplication[]>();
 
@@ -67,6 +67,30 @@ export default async function AdminApplicationsPage() {
                   <div>
                     <dt className="font-bold text-slate-950">Jurusan</dt>
                     <dd>{item.major ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-bold text-slate-950">Berkas CV</dt>
+                    <dd>
+                      {item.cv_path ? (
+                        <a href={item.cv_path} target="_blank" rel="noopener noreferrer" className="text-teal-600 font-bold underline hover:text-teal-800">
+                          Lihat/Unduh CV
+                        </a>
+                      ) : (
+                        <span className="text-slate-400">Tidak ada</span>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-bold text-slate-950">Berkas Portofolio</dt>
+                    <dd>
+                      {item.portfolio_path ? (
+                        <a href={item.portfolio_path} target="_blank" rel="noopener noreferrer" className="text-teal-600 font-bold underline hover:text-teal-800">
+                          Lihat/Unduh Portofolio
+                        </a>
+                      ) : (
+                        <span className="text-slate-400">Tidak ada</span>
+                      )}
+                    </dd>
                   </div>
                   <div>
                     <dt className="font-bold text-slate-950">Tanggal daftar</dt>

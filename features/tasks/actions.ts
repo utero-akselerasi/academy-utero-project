@@ -491,3 +491,39 @@ export async function updateCardPriorityAction(formData: FormData) {
   revalidatePath("/dashboard/mentor/tasks");
   revalidatePath("/dashboard/intern/tasks");
 }
+
+
+export async function moveCardAction(cardId: string, listId: string, boardId: string) {
+  await requireUser();
+  if (!cardId || !listId) throw new Error("ID kartu atau list tidak valid.");
+
+  const db = await createUteroAcademyServiceRoleClient();
+  
+  // Ambil order max dari list tujuan
+  const { data: maxOrder } = await db
+    .from("task_cards")
+    .select("order_index")
+    .eq("list_id", listId)
+    .order("order_index", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const nextOrder = (maxOrder?.order_index ?? -1) + 1;
+
+  const { error } = await db
+    .from("task_cards")
+    .update({
+      list_id: listId,
+      order_index: nextOrder,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", cardId);
+
+  if (error) {
+    console.error("Gagal memindahkan kartu:", error);
+    throw new Error("Gagal memindahkan kartu.");
+  }
+
+  revalidatePath("/dashboard/mentor/tasks/" + boardId);
+  revalidatePath("/dashboard/intern/tasks");
+}

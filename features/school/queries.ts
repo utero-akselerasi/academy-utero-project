@@ -22,19 +22,27 @@ export async function getSchoolInterns(schoolId: string) {
 
   const { data, error } = await db
     .from("intern_profiles")
-    .select("id, full_name, email, phone, major, grade_or_semester, status, start_date, end_date, certificates(id, certificate_number, status)")
+    .select("id, full_name, email, phone, major, grade_or_semester, status, start_date, end_date, certificates(id, certificate_number, status), assessments(id, final_score, feedback, score, status)")
     .eq("school_id", schoolId)
     .order("full_name", { ascending: true })
     .returns<any[]>();
 
   const mapped = (data || []).map(i => {
     const cert = Array.isArray(i.certificates) ? i.certificates[0] : i.certificates;
+    const assess = Array.isArray(i.assessments) ? i.assessments[0] : i.assessments;
     return {
       ...i,
       certificate: cert ? {
         id: cert.id,
         certificate_number: cert.certificate_number,
         status: cert.status
+      } : null,
+      assessment: assess ? {
+        id: assess.id,
+        final_score: assess.final_score,
+        feedback: assess.feedback,
+        score: assess.score,
+        status: assess.status
       } : null
     };
   });
@@ -94,7 +102,7 @@ export async function getSchoolInternsAttendances(schoolId: string) {
 
   const { data, error } = await db
     .from("attendances")
-    .select("id, intern_id, attendance_date, check_in_at, check_out_at, status, review_note")
+    .select("id, intern_id, attendance_date, check_in_at, check_out_at, status, review_note, attendance_type")
     .in("intern_id", internIds)
     .order("attendance_date", { ascending: false });
 

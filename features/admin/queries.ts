@@ -146,7 +146,7 @@ export async function getMentorAssignments() {
   // We query mentor assignments
   const { data } = await db
     .from("mentor_assignments")
-    .select("id, mentor_id, intern_id, started_at, ended_at, mentor_profiles(id, user_id), intern_profiles(id, full_name, major)")
+    .select("id, mentor_id, intern_id, started_at, ended_at, mentor_profiles(id, user_id), intern_profiles(id, full_name, major, email, phone, schools(name))")
     .order("created_at", { ascending: false })
     .returns<any[]>();
     
@@ -190,7 +190,10 @@ export async function getMentorAssignments() {
       intern_profiles: {
         id: internProfilesArray?.id,
         full_name: internProfilesArray?.full_name || "Peserta",
-        major: internProfilesArray?.major || null
+        major: internProfilesArray?.major || null,
+        email: internProfilesArray?.email || null,
+        phone: internProfilesArray?.phone || null,
+        school_name: Array.isArray(internProfilesArray?.schools) ? internProfilesArray.schools[0]?.name : internProfilesArray?.schools?.name || null
       }
     };
   });

@@ -5,7 +5,7 @@ export async function getInternAttendances(internProfileId: string) {
   const db = await createUteroAcademyClient();
   const { data, error } = await db
     .from("attendances")
-    .select("id, intern_id, attendance_date, check_in_at, check_in_latitude, check_in_longitude, check_in_selfie_path, check_in_wifi_ssid, check_out_at, check_out_latitude, check_out_longitude, check_out_selfie_path, check_out_wifi_ssid, status, review_note, reviewed_by, reviewed_at, created_at, updated_at")
+    .select("*")
     .eq("intern_id", internProfileId)
     .order("attendance_date", { ascending: false })
     .returns<Attendance[]>();
@@ -18,7 +18,7 @@ export async function getTodayAttendance(internProfileId: string) {
   const today = new Date().toISOString().slice(0, 10);
   const { data } = await db
     .from("attendances")
-    .select("id, intern_id, attendance_date, check_in_at, check_in_latitude, check_in_longitude, check_in_selfie_path, check_in_wifi_ssid, check_out_at, check_out_latitude, check_out_longitude, check_out_selfie_path, check_out_wifi_ssid, status, review_note, reviewed_by, reviewed_at, created_at, updated_at")
+    .select("*")
     .eq("intern_id", internProfileId)
     .eq("attendance_date", today)
     .maybeSingle();
@@ -42,7 +42,7 @@ export async function getMentorAttendances(mentorProfileId: string) {
 
   const { data, error } = await db
     .from("attendances")
-    .select("id, intern_id, attendance_date, check_in_at, check_in_latitude, check_in_longitude, check_in_selfie_path, check_in_wifi_ssid, check_out_at, check_out_latitude, check_out_longitude, check_out_selfie_path, check_out_wifi_ssid, status, review_note, reviewed_by, reviewed_at, created_at, updated_at, intern_profiles(id, full_name)")
+    .select("*, intern_profiles(id, full_name)")
     .in("intern_id", internIds)
     .order("attendance_date", { ascending: false })
     .returns<AttendanceWithIntern[]>();
@@ -54,7 +54,7 @@ export async function getAllAttendances() {
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("attendances")
-    .select("id, intern_id, attendance_date, check_in_at, check_in_latitude, check_in_longitude, check_in_selfie_path, check_in_wifi_ssid, check_out_at, check_out_latitude, check_out_longitude, check_out_selfie_path, check_out_wifi_ssid, status, review_note, reviewed_by, reviewed_at, created_at, updated_at, intern_profiles(id, full_name)")
+    .select("*, intern_profiles(id, full_name)")
     .order("attendance_date", { ascending: false })
     .returns<any[]>();
 

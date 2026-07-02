@@ -33,7 +33,7 @@ export function SubtaskItem({ item }: Props) {
         <input name="subtaskId" type="hidden" value={item.id} />
         <button
           type="submit"
-          className="text-red-500 hover:text-red-700 p-0.5 rounded opacity-0 group-hover/subitem:opacity-100 transition-opacity flex items-center justify-center"
+          className="text-slate-400 hover:text-red-700 p-0.5 rounded transition-colors flex items-center justify-center"
           title="Hapus sub-task"
           onClick={(e) => {
             if (!confirm("Apakah Anda yakin ingin menghapus sub-task ini?")) {

@@ -1,10 +1,23 @@
 "use server";
 
-import { createSupabaseServerClient, createUteroAcademyClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createUteroAcademyClient, createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { getInternProfileId } from "@/features/daily-reports/queries";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { checkInSchema, checkOutSchema, reviewAttendanceSchema } from "./schemas";
+
+function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371e3; // Earth radius in meters
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+  const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+            Math.cos(phi1) * Math.cos(phi2) *
+            Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 export type FormState = {
   ok: boolean;
@@ -39,6 +52,30 @@ export async function checkInAction(_: FormState, formData: FormData): Promise<F
   if (!selfieBase64) return { ok: false, message: "Foto selfie wajib diambil." };
   const parsed = checkInSchema.safeParse({ latitude: Number(latStr), longitude: Number(lngStr), wifiSsid: formData.get("wifiSsid") || undefined });
   if (!parsed.success) return { ok: false, message: "Format koordinat lokasi tidak valid." };
+
+  // Geofencing Check
+  const dbSrvIn = await createUteroAcademyServiceRoleClient();
+  const { data: settingsIn } = await dbSrvIn
+    .from("attendance_settings")
+    .select("office_latitude, office_longitude, allow_geofencing, radius_meters")
+    .eq("id", "00000000-0000-0000-0000-000000000001")
+    .maybeSingle();
+
+  if (settingsIn?.allow_geofencing) {
+    const distance = getDistanceMeters(
+      parsed.data.latitude,
+      parsed.data.longitude,
+      settingsIn.office_latitude || -7.9671,
+      settingsIn.office_longitude || 112.6375
+    );
+    if (distance > (settingsIn.radius_meters || 100)) {
+      return { 
+        ok: false, 
+        message: "Absen ditolak. Anda berada di luar radius kantor (" + Math.round(distance) + "m > " + (settingsIn.radius_meters || 100) + "m)." 
+      };
+    }
+  }
+
   const selfieUrl = await uploadSelfieBase64(supabase, user.id, selfieBase64, "in");
   if (!selfieUrl) return { ok: false, message: "Gagal mengunggah foto selfie." };
   const db = await createUteroAcademyClient();
@@ -65,6 +102,30 @@ export async function checkOutAction(_: FormState, formData: FormData): Promise<
   if (!selfieBase64) return { ok: false, message: "Foto selfie wajib diambil." };
   const parsed = checkOutSchema.safeParse({ latitude: Number(latStr), longitude: Number(lngStr), wifiSsid: formData.get("wifiSsid") || undefined });
   if (!parsed.success) return { ok: false, message: "Format koordinat lokasi tidak valid." };
+
+  // Geofencing Check
+  const dbSrvOut = await createUteroAcademyServiceRoleClient();
+  const { data: settingsOut } = await dbSrvOut
+    .from("attendance_settings")
+    .select("office_latitude, office_longitude, allow_geofencing, radius_meters")
+    .eq("id", "00000000-0000-0000-0000-000000000001")
+    .maybeSingle();
+
+  if (settingsOut?.allow_geofencing) {
+    const distance = getDistanceMeters(
+      parsed.data.latitude,
+      parsed.data.longitude,
+      settingsOut.office_latitude || -7.9671,
+      settingsOut.office_longitude || 112.6375
+    );
+    if (distance > (settingsOut.radius_meters || 100)) {
+      return { 
+        ok: false, 
+        message: "Absen ditolak. Anda berada di luar radius kantor (" + Math.round(distance) + "m > " + (settingsOut.radius_meters || 100) + "m)." 
+      };
+    }
+  }
+
   const selfieUrl = await uploadSelfieBase64(supabase, user.id, selfieBase64, "out");
   if (!selfieUrl) return { ok: false, message: "Gagal mengunggah foto selfie." };
   const db = await createUteroAcademyClient();
@@ -90,5 +151,111 @@ export async function reviewAttendanceAction(formData: FormData) {
     console.error("Gagal review absensi:", error);
     throw new Error("Gagal review absensi.");
   }
+  revalidatePath("/dashboard/mentor/attendance");
+}
+
+export async function submitPermitAction(_: FormState, formData: FormData): Promise<FormState> {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const internId = await getInternProfileId(user.id);
+  if (!internId) return { ok: false, message: "Profil peserta tidak ditemukan." };
+
+  const permitType = formData.get("permitType") as string;
+  const reason = formData.get("reason") as string;
+  const file = formData.get("certificate") as File | null;
+
+  if (!permitType || !['permit', 'sick'].includes(permitType)) {
+    return { ok: false, message: "Tipe izin tidak valid." };
+  }
+
+  if (!reason || reason.trim().length < 5) {
+    return { ok: false, message: "Alasan wajib diisi minimal 5 karakter." };
+  }
+
+  let certificateUrl = null;
+  if (permitType === "sick") {
+    if (!file || file.size === 0) {
+      return { ok: false, message: "Keterangan Surat Dokter wajib diunggah untuk status Sakit." };
+    }
+
+    const serviceClient = createSupabaseServiceRoleClient();
+    const ext = file.name.split(".").pop() || "jpg";
+    const filePath = user.id + "/sick_cert_" + Date.now() + "." + ext;
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = new Uint8Array(arrayBuffer);
+
+    const { error: uploadError } = await serviceClient.storage
+      .from("avatars")
+      .upload(filePath, buffer, {
+        contentType: file.type,
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error("Gagal upload surat sakit:", uploadError);
+      return { ok: false, message: "Gagal mengunggah surat dokter. Silakan coba lagi." };
+    }
+
+    const { data: { publicUrl } } = serviceClient.storage.from("avatars").getPublicUrl(filePath);
+    certificateUrl = publicUrl;
+  }
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { error } = await db.from("attendances").insert({
+    intern_id: internId,
+    attendance_date: today,
+    attendance_type: permitType,
+    permit_reason: reason,
+    sick_certificate_path: certificateUrl,
+    status: "pending"
+  });
+
+  if (error) {
+    console.error("Gagal kirim izin:", error);
+    return { ok: false, message: "Pengajuan izin gagal, mungkin Anda sudah melakukan absen hari ini." };
+  }
+
+  revalidatePath("/dashboard/intern/attendance");
+  return { ok: true, message: "Pengajuan izin/sakit berhasil dikirim." };
+}
+
+
+export async function saveAttendanceSettingsAction(formData: FormData) {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const checkInTime = formData.get("checkInTime") as string;
+  const checkOutTime = formData.get("checkOutTime") as string;
+  const lateTolerance = formData.get("lateTolerance") as string;
+  const monthlyTarget = formData.get("monthlyTarget") as string;
+  const officeLatitude = formData.get("officeLatitude") as string;
+  const officeLongitude = formData.get("officeLongitude") as string;
+  const allowGeofencing = formData.get("allowGeofencing") === "true";
+  const radiusMeters = formData.get("radiusMeters") as string;
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { error } = await db.from("attendance_settings").upsert({
+    id: "00000000-0000-0000-0000-000000000001",
+    check_in_time: checkInTime || "08:00",
+    check_out_time: checkOutTime || "17:00",
+    late_tolerance_minutes: lateTolerance ? parseInt(lateTolerance) : 15,
+    monthly_target_hours: monthlyTarget ? parseInt(monthlyTarget) : 120,
+    office_latitude: officeLatitude ? parseFloat(officeLatitude) : -7.9671,
+    office_longitude: officeLongitude ? parseFloat(officeLongitude) : 112.6375,
+    allow_geofencing: allowGeofencing,
+    radius_meters: radiusMeters ? parseInt(radiusMeters) : 100,
+    updated_at: new Date().toISOString()
+  });
+
+  if (error) {
+    console.error("Gagal simpan settings absensi:", error);
+    throw new Error("Gagal menyimpan pengaturan absensi.");
+  }
+
   revalidatePath("/dashboard/mentor/attendance");
 }

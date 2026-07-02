@@ -75,16 +75,17 @@ export async function getInternDailyReports(internProfileId: string) {
 export async function getMentorDailyReports(mentorProfileId: string) {
   const db = await createUteroAcademyServiceRoleClient();
 
-  const { data: assignments } = await db
-    .from("mentor_assignments")
-    .select("intern_id")
-    .eq("mentor_id", mentorProfileId);
+  // Load all active interns globally (since penempatan bimbingan is global/deprecated)
+  const { data: activeInterns } = await db
+    .from("intern_profiles")
+    .select("id")
+    .eq("status", "active");
 
-  if (!assignments || assignments.length === 0) {
+  const internIds = (activeInterns || []).map(i => i.id);
+
+  if (internIds.length === 0) {
     return { data: [], error: null };
   }
-
-  const internIds = assignments.map((a) => a.intern_id);
 
   const { data: reports, error } = await db
     .from("daily_reports")

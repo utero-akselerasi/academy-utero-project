@@ -31,9 +31,9 @@ export async function getCourseDetails(courseId: string, internProfileId: string
 
   const [courseRes, lessonsRes, quizzesRes, assignmentsRes, progressRes, quizAttemptsRes, submissionsRes] = await Promise.all([
     db.from("courses").select("id, title, description, slug").eq("id", courseId).maybeSingle(),
-    db.from("lessons").select("id, course_id, title, order_index").eq("course_id", courseId).order("order_index", { ascending: true }),
-    db.from("quizzes").select("id, course_id, title, passing_score").eq("course_id", courseId),
-    db.from("assignments").select("id, course_id, title, description, due_at").eq("course_id", courseId),
+    db.from("lessons").select("id, course_id, title, order_index, is_published").eq("course_id", courseId).order("order_index", { ascending: true }),
+    db.from("quizzes").select("id, course_id, title, passing_score, is_published").eq("course_id", courseId),
+    db.from("assignments").select("id, course_id, title, description, due_at, is_published").eq("course_id", courseId),
     db.from("lesson_progress").select("lesson_id, completed_at").eq("intern_id", internProfileId),
     db.from("quiz_attempts").select("quiz_id, score, submitted_at").eq("intern_id", internProfileId),
     db.from("assignment_submissions").select("assignment_id, score, reviewed_at").eq("intern_id", internProfileId)
@@ -47,17 +47,17 @@ export async function getCourseDetails(courseId: string, internProfileId: string
   const quizMap = new Map(quizAttemptsRes.data?.map(q => [q.quiz_id, q.score]));
   const submissionMap = new Map(submissionsRes.data?.map(s => [s.assignment_id, s]));
 
-  const lessons = (lessonsRes.data || []).map(l => ({
+  const lessons = (lessonsRes.data || []).filter(l => l.is_published !== false).map(l => ({
     ...l,
     is_completed: progressMap.has(l.id)
   }));
 
-  const quizzes = (quizzesRes.data || []).map(q => ({
+  const quizzes = (quizzesRes.data || []).filter(q => q.is_published !== false).map(q => ({
     ...q,
     best_score: quizMap.get(q.id) ?? null
   }));
 
-  const assignments = (assignmentsRes.data || []).map(a => {
+  const assignments = (assignmentsRes.data || []).filter(a => a.is_published !== false).map(a => {
     const sub = submissionMap.get(a.id);
     return {
       ...a,
@@ -84,11 +84,12 @@ export async function getLesson(lessonId: string, internProfileId: string) {
 
   const { data: lesson, error } = await db
     .from("lessons")
-    .select("id, course_id, title, content, video_url, order_index")
+    .select("id, course_id, title, content, video_url, order_index, is_published")
     .eq("id", lessonId)
     .maybeSingle();
 
-  if (error || !lesson) {
+  if (error || !lesson || lesson.is_published === false) {
+    return { data: null, error: error || new Error("Materi belum dipublikasikan.") };
     return { data: null, error };
   }
 
@@ -113,11 +114,12 @@ export async function getQuiz(quizId: string, internProfileId: string) {
 
   const { data: quiz, error } = await db
     .from("quizzes")
-    .select("id, course_id, title, questions, passing_score")
+    .select("id, course_id, title, questions, passing_score, is_published")
     .eq("id", quizId)
     .maybeSingle();
 
-  if (error || !quiz) {
+  if (error || !quiz || quiz.is_published === false) {
+    return { data: null, error: error || new Error("Kuis belum dipublikasikan.") };
     return { data: null, error };
   }
 
@@ -142,11 +144,12 @@ export async function getAssignment(assignmentId: string, internProfileId: strin
 
   const { data: assignment, error } = await db
     .from("assignments")
-    .select("id, course_id, title, description, due_at")
+    .select("id, course_id, title, description, due_at, is_published")
     .eq("id", assignmentId)
     .maybeSingle();
 
-  if (error || !assignment) {
+  if (error || !assignment || assignment.is_published === false) {
+    return { data: null, error: error || new Error("Tugas belum dipublikasikan.") };
     return { data: null, error };
   }
 
@@ -229,9 +232,9 @@ export async function getMentorCourseDetails(courseId: string) {
 
   const [courseRes, lessonsRes, quizzesRes, assignmentsRes] = await Promise.all([
     db.from("courses").select("id, title, description, slug").eq("id", courseId).maybeSingle(),
-    db.from("lessons").select("id, course_id, title, order_index").eq("course_id", courseId).order("order_index", { ascending: true }),
-    db.from("quizzes").select("id, course_id, title, passing_score").eq("course_id", courseId),
-    db.from("assignments").select("id, course_id, title, description, due_at").eq("course_id", courseId)
+    db.from("lessons").select("id, course_id, title, order_index, is_published").eq("course_id", courseId).order("order_index", { ascending: true }),
+    db.from("quizzes").select("id, course_id, title, passing_score, is_published").eq("course_id", courseId),
+    db.from("assignments").select("id, course_id, title, description, due_at, is_published").eq("course_id", courseId)
   ]);
 
   if (courseRes.error || !courseRes.data) {

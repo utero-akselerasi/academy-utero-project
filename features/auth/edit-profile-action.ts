@@ -1,6 +1,6 @@
 "use server";
 
-import { createSupabaseServerClient, createUteroAcademyClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseServiceRoleClient, createUteroAcademyClient } from "@/lib/supabase/server";
 import { getInternProfileId, getMentorProfileId } from "@/features/daily-reports/queries";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -25,9 +25,9 @@ export async function updateProfileAction(_: ProfileFormState, formData: FormDat
     const filePath = user.id + "/avatar_" + Date.now() + "." + ext;
     const arrayBuffer = await avatarFile.arrayBuffer();
     const buffer = new Uint8Array(arrayBuffer);
-    const { error: uploadErr } = await supabase.storage.from("avatars").upload(filePath, buffer, { contentType: avatarFile.type, upsert: true });
+    const serviceRoleSupabase = createSupabaseServiceRoleClient(); const { error: uploadErr } = await serviceRoleSupabase.storage.from("avatars").upload(filePath, buffer, { contentType: avatarFile.type, upsert: true });
     if (!uploadErr) {
-      const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(filePath);
+      const { data: { publicUrl } } = serviceRoleSupabase.storage.from("avatars").getPublicUrl(filePath);
       avatarUrl = publicUrl;
     }
   }
