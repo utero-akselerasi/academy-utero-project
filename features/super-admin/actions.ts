@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { userHasAnyRole } from "@/features/auth/roles";
 import { createSupabaseServerClient, createUteroAcademyClient, createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
@@ -15,11 +15,11 @@ const assignRoleSchema = z.object({
 const schoolSchema = z.object({
   schoolId: z.string().uuid().optional().or(z.literal("")),
   name: z.string().min(2, "Nama instansi minimal 2 karakter."),
-  type: z.string().optional(),
-  city: z.string().optional(),
-  province: z.string().optional(),
-  address: z.string().optional(),
-  logoPath: z.string().optional(),
+  type: z.string().nullable().optional(),
+  city: z.string().nullable().optional(),
+  province: z.string().nullable().optional(),
+  address: z.string().nullable().optional(),
+  logoPath: z.string().nullable().optional(),
 });
 
 async function requireSuperAdmin() {
@@ -471,3 +471,4 @@ export async function deleteSchoolAction(formData: FormData) {
   revalidatePath("/dashboard/super-admin/schools");
   revalidatePath("/dashboard/super-admin/users");
 }
+
