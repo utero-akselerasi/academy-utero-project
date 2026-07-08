@@ -7,7 +7,7 @@ import { saveAttendanceSettingsAction } from "@/features/attendance/actions";
 import { createSupabaseServerClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Clock, Settings, User, X, CheckCircle, AlertTriangle, Play, HelpCircle, MapPin, Eye } from "lucide-react";
+import { Clock, Settings, User, X, CheckCircle, AlertTriangle, Play, HelpCircle, MapPin, Eye, Download } from "lucide-react";
 
 type Props = {
   searchParams: Promise<{ detailInternId?: string; showSettings?: string; date?: string }>;
@@ -156,6 +156,8 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
   });
 
   const selectedIntern = (detailInternId ? mappedInterns.find(i => i.id === detailInternId) : undefined) as any;
+  const today = new Date().toISOString().slice(0, 10);
+  const currentMonth = today.slice(0, 7);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 relative">
@@ -181,6 +183,42 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
           </Link>
         </div>
       </div>
+
+      <section className="surface mb-6 rounded-xl border border-slate-200 bg-white p-5">
+        <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-teal-700">Export Rekap</p>
+            <h2 className="text-lg font-bold text-slate-950">Download absensi CSV</h2>
+            <p className="text-sm text-slate-600">Rekap berisi hadir, total jam, target bulanan, telat, izin, dan sakit/tidak masuk.</p>
+          </div>
+        </div>
+        <form action="/dashboard/mentor/attendance/export" method="get" className="grid gap-3 md:grid-cols-5 md:items-end">
+          <div className="form-field">
+            <label className="form-label text-xs font-bold text-slate-700">Mode Export</label>
+            <select name="mode" defaultValue="monthly" className="form-input text-xs">
+              <option value="monthly">Bulanan</option>
+              <option value="range">Custom Range</option>
+            </select>
+          </div>
+          <div className="form-field">
+            <label className="form-label text-xs font-bold text-slate-700">Bulan</label>
+            <input type="month" name="month" defaultValue={currentMonth} className="form-input text-xs" />
+          </div>
+          <div className="form-field">
+            <label className="form-label text-xs font-bold text-slate-700">Tanggal Mulai</label>
+            <input type="date" name="start" defaultValue={today} className="form-input text-xs" />
+          </div>
+          <div className="form-field">
+            <label className="form-label text-xs font-bold text-slate-700">Tanggal Selesai</label>
+            <input type="date" name="end" defaultValue={today} className="form-input text-xs" />
+          </div>
+          <button type="submit" className="button-primary flex min-h-0 items-center justify-center gap-2 px-4 py-2 text-xs font-bold">
+            <Download size={14} />
+            Export CSV
+          </button>
+        </form>
+        <p className="mt-3 text-xs text-slate-500">Untuk mode bulanan, sistem memakai input bulan. Untuk custom range, sistem memakai tanggal mulai dan selesai.</p>
+      </section>
 
       {/* Settings Panel */}
       {showSettings === "true" && (
