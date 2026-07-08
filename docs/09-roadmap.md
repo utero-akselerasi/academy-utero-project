@@ -43,7 +43,7 @@
 10. [x] Implementasi daily report. (Selesai & Diperbaiki dengan Multi-Upload, Google Drive Fallback, Image Preview, & Edit Revisi)
 11. [x] Implementasi LMS (Pelajaran, Kuis, Tugas, Penilaian, & Pembuatan Modul). (Selesai)
 12. [ ] Implementasi assessment dan generate sertifikat. (Fase Berikutnya)
-13. [~] Implementasi school portal. (MVP Awal Sudah Dibuat - Lanjutan Fase Berikutnya)
+13. [x] Implementasi school portal. (MVP, Manajemen Instansi, Alumni, Cleanup Orphan - Selesai)
 
 ## Catatan Perancangan Fitur Berikutnya
 
@@ -93,6 +93,7 @@ Membuat fondasi teknis dan vertical slice tipis dari pendaftaran publik sampai r
 - Admin dapat mengubah status pendaftaran.
 - Data tersimpan di PostgreSQL schema `utero_academy`.
 - Akses role ditegakkan.
+
 
 
 
