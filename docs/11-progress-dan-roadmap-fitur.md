@@ -357,6 +357,14 @@ Fitur-fitur baru yang telah diselesaikan dalam sprint terbaru:
 * **Penyelesaian:** Menambahkan navigasi Manajemen Instansi dari dashboard Super Admin dan halaman User Management agar alur tambah instansi lalu link user role `school` lebih jelas.
 
 ---
+## 4.4. Link Siswa ke Instansi School Portal (9 Juli 2026)
+
+### **Q. Penghubungan Intern ke Sekolah/Kampus dari Super Admin**
+* **Penyelesaian:** Menambahkan aksi `linkInternToSchoolAction` untuk menghubungkan atau melepaskan siswa dari instansi melalui update `intern_profiles.school_id`.
+* **Penyelesaian:** Menambahkan daftar siswa terhubung per instansi dan form **Link Siswa ke Instansi Ini** di halaman `app/dashboard/super-admin/schools/page.tsx`.
+* **Penyelesaian:** Menambahkan indikator siswa yang belum terhubung ke instansi agar administrasi School Portal lebih mudah dibersihkan.
+
+---
 ## 5. Rencana Tahap Pengembangan Berikutnya (Revisi & Fitur Lanjutan)
 
 Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah rancangan roadmap untuk tahap pengerjaan berikutnya:
@@ -391,6 +399,7 @@ Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah
 
 ### **Bagian 8: Dashboard Analitik Admin**
 * **Grafik Pendapatan & Metrik:** Menyusun dashboard admin utama yang dilengkapi dengan diagram garis tren (seperti di referensi Image #3) serta panel metrik total pengguna, tugas terselesaikan, dan statistik keaktifan.
+
 
 
 

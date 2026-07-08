@@ -472,3 +472,38 @@ export async function deleteSchoolAction(formData: FormData) {
   revalidatePath("/dashboard/super-admin/users");
 }
 
+
+export async function linkInternToSchoolAction(formData: FormData) {
+  const user = await requireSuperAdmin();
+  const internId = formData.get("internId") as string;
+  const schoolId = formData.get("schoolId") as string;
+
+  if (!internId) {
+    throw new Error("Siswa wajib dipilih.");
+  }
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { error } = await db
+    .from("intern_profiles")
+    .update({
+      school_id: schoolId || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", internId);
+
+  if (error) {
+    throw new Error("Gagal menghubungkan siswa ke instansi: " + error.message);
+  }
+
+  await writeAuditLog(
+    user.id,
+    "link_intern_school",
+    "intern_profiles",
+    internId,
+    null,
+    { schoolId: schoolId || null }
+  );
+
+  revalidatePath("/dashboard/super-admin/schools");
+  revalidatePath("/dashboard/school");
+}

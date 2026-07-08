@@ -1,5 +1,5 @@
-import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
-import { type Role, type School, type UserProfile, type UserRole } from "./types";
+﻿import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { type Role, type School, type SchoolInternOption, type UserProfile, type UserRole } from "./types";
 
 export async function getSuperAdminUserManagementData() {
   const db = await createUteroAcademyServiceRoleClient();
@@ -64,9 +64,9 @@ export async function getSuperAdminSchoolsData() {
       .returns<any[]>(),
     db
       .from("intern_profiles")
-      .select("id, school_id")
-      .not("school_id", "is", null)
-      .returns<Array<{ id: string; school_id: string | null }>>(),
+      .select("id, full_name, email, major, status, school_id")
+      .order("full_name", { ascending: true })
+      .returns<SchoolInternOption[]>(),
   ]);
 
   const contacts = contactsResult.data ?? [];
@@ -81,6 +81,9 @@ export async function getSuperAdminSchoolsData() {
   return {
     schools,
     contacts,
+    interns,
+    unassignedInterns: interns.filter((intern) => !intern.school_id),
     error: schoolsResult.error ?? contactsResult.error ?? internsResult.error,
   };
 }
+

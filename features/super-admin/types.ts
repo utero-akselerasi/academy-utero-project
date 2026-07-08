@@ -1,4 +1,4 @@
-export type Role = {
+﻿export type Role = {
   id: string;
   code: string;
   name: string;
@@ -48,4 +48,13 @@ export type SchoolContact = {
   phone: string | null;
   position: string | null;
   schools?: { name: string } | { name: string }[] | null;
+};
+
+export type SchoolInternOption = {
+  id: string;
+  full_name: string;
+  email: string | null;
+  major: string | null;
+  status: string;
+  school_id: string | null;
 };

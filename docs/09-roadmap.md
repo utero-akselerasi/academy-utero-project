@@ -51,7 +51,7 @@
 - [x] Rancangan produk School Portal sudah dibuat di `docs/design/school-portal-design.md`.
 - [x] Rancangan teknis implementasi sudah dibuat di `docs/design/school-portal-implementation.md`.
 - [x] MVP awal School Portal sudah mulai diimplementasikan (dashboard overview, daftar siswa, detail siswa).
-- [x] Manajemen Instansi Super Admin sudah dibuat untuk tambah/edit/hapus instansi dan melihat perwakilan.
+- [x] Manajemen Instansi Super Admin sudah dibuat untuk tambah/edit/hapus instansi dan melihat perwakilan.`r`n- [x] Link siswa ke instansi sudah tersedia dari halaman Manajemen Instansi.
 ## Status Terbaru
 
 - [x] Export rekap absensi bulanan ke CSV untuk mentor.
@@ -93,6 +93,7 @@ Membuat fondasi teknis dan vertical slice tipis dari pendaftaran publik sampai r
 - Admin dapat mengubah status pendaftaran.
 - Data tersimpan di PostgreSQL schema `utero_academy`.
 - Akses role ditegakkan.
+
 
 
 

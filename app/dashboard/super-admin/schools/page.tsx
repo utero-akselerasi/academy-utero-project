@@ -1,5 +1,10 @@
 ﻿import Link from "next/link";
-import { createSchoolAction, deleteSchoolAction, updateSchoolAction } from "@/features/super-admin/actions";
+import {
+  createSchoolAction,
+  deleteSchoolAction,
+  linkInternToSchoolAction,
+  updateSchoolAction,
+} from "@/features/super-admin/actions";
 import { getSuperAdminSchoolsData } from "@/features/super-admin/queries";
 
 function TextInput({ name, defaultValue, placeholder, required = false }: { name: string; defaultValue?: string | null; placeholder: string; required?: boolean }) {
@@ -15,7 +20,7 @@ function TextInput({ name, defaultValue, placeholder, required = false }: { name
 }
 
 export default async function SuperAdminSchoolsPage() {
-  const { schools, contacts, error } = await getSuperAdminSchoolsData();
+  const { schools, contacts, interns, unassignedInterns, error } = await getSuperAdminSchoolsData();
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
@@ -24,7 +29,7 @@ export default async function SuperAdminSchoolsPage() {
           <p className="text-sm font-bold uppercase text-teal-700">Super Admin</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-950">Manajemen Instansi</h1>
           <p className="mt-2 max-w-3xl leading-7 text-slate-600">
-            Tambah sekolah/kampus partner, edit data instansi, dan cek perwakilan yang sudah terhubung ke School Portal.
+            Tambah sekolah/kampus partner, edit data instansi, link perwakilan, dan hubungkan siswa ke instansi School Portal.
           </p>
         </div>
         <div className="flex gap-2">
@@ -41,7 +46,7 @@ export default async function SuperAdminSchoolsPage() {
 
       <section className="surface mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-black text-slate-950">Tambah Instansi Baru</h2>
-        <p className="mt-1 text-sm text-slate-500">Setelah instansi dibuat, hubungkan user role `school` lewat halaman User Management.</p>
+        <p className="mt-1 text-sm text-slate-500">Setelah instansi dibuat, hubungkan user role `school` lewat User Management dan hubungkan siswa dari tabel di bawah.</p>
         <form action={createSchoolAction} className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           <TextInput name="name" placeholder="Nama instansi *" required />
           <TextInput name="type" placeholder="Tipe: SMK / Universitas / Kampus" />
@@ -55,25 +60,32 @@ export default async function SuperAdminSchoolsPage() {
         </form>
       </section>
 
+      <section className="surface mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+        <h2 className="text-base font-black text-amber-950">Siswa Belum Terhubung</h2>
+        <p className="mt-1 text-sm text-amber-800">Ada {unassignedInterns.length} siswa yang belum punya instansi. Gunakan form Link Siswa di daftar instansi.</p>
+      </section>
+
       <section className="surface overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-6 py-4">
           <h2 className="text-lg font-black text-slate-950">Daftar Instansi</h2>
           <p className="text-sm text-slate-500">Total {schools.length} instansi terdaftar.</p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1180px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500">
                 <th className="px-6 py-4">Instansi</th>
                 <th className="px-6 py-4">Lokasi</th>
-                <th className="px-6 py-4">Relasi</th>
                 <th className="px-6 py-4">Perwakilan</th>
+                <th className="px-6 py-4">Siswa Terhubung</th>
                 <th className="px-6 py-4">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {schools.map((school) => {
                 const schoolContacts = contacts.filter((contact) => contact.school_id === school.id);
+                const schoolInterns = interns.filter((intern) => intern.school_id === school.id);
+                const selectableInterns = interns.filter((intern) => !intern.school_id || intern.school_id === school.id);
                 const canDelete = (school.contacts_count || 0) === 0 && (school.interns_count || 0) === 0;
 
                 return (
@@ -104,12 +116,6 @@ export default async function SuperAdminSchoolsPage() {
                       </form>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <p><span className="font-bold text-slate-900">{school.contacts_count || 0}</span> perwakilan</p>
-                        <p><span className="font-bold text-slate-900">{school.interns_count || 0}</span> siswa</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
                       {schoolContacts.length === 0 ? (
                         <span className="text-slate-400">Belum ada perwakilan</span>
                       ) : (
@@ -123,12 +129,54 @@ export default async function SuperAdminSchoolsPage() {
                           ))}
                         </div>
                       )}
+                      <Link href="/dashboard/super-admin/users" className="mt-3 block rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-center text-xs font-bold text-blue-800 hover:bg-blue-100">
+                        Link User School
+                      </Link>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      <form action={linkInternToSchoolAction} className="mb-4 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <input type="hidden" name="schoolId" value={school.id} />
+                        <label className="text-xs font-bold uppercase text-slate-500">Link Siswa ke Instansi Ini</label>
+                        <select name="internId" required className="rounded-lg border border-slate-300 px-3 py-2 text-xs outline-none focus:border-teal-500">
+                          <option value="">Pilih siswa...</option>
+                          {selectableInterns.map((intern) => (
+                            <option key={intern.id} value={intern.id}>
+                              {intern.full_name} {intern.school_id === school.id ? "(sudah di sini)" : ""}
+                            </option>
+                          ))}
+                        </select>
+                        <button type="submit" className="rounded-lg bg-teal-700 px-3 py-2 text-xs font-bold text-white hover:bg-teal-800">
+                          Hubungkan Siswa
+                        </button>
+                      </form>
+
+                      {schoolInterns.length === 0 ? (
+                        <span className="text-slate-400">Belum ada siswa terhubung</span>
+                      ) : (
+                        <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                          {schoolInterns.map((intern) => (
+                            <div key={intern.id} className="rounded-xl border border-slate-100 p-3">
+                              <p className="font-bold text-slate-900">{intern.full_name}</p>
+                              <p className="text-xs text-slate-500">{intern.email || "-"}</p>
+                              <p className="text-xs text-slate-500">{intern.major || "Jurusan belum diisi"} · {intern.status}</p>
+                              <form action={linkInternToSchoolAction} className="mt-2">
+                                <input type="hidden" name="internId" value={intern.id} />
+                                <input type="hidden" name="schoolId" value="" />
+                                <button type="submit" className="text-xs font-bold text-red-700 hover:text-red-800">
+                                  Lepaskan dari instansi
+                                </button>
+                              </form>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="space-y-2">
-                        <Link href="/dashboard/super-admin/users" className="block rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-center text-xs font-bold text-blue-800 hover:bg-blue-100">
-                          Link User
-                        </Link>
+                        <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+                          <p><span className="font-bold text-slate-900">{school.contacts_count || 0}</span> perwakilan</p>
+                          <p><span className="font-bold text-slate-900">{school.interns_count || 0}</span> siswa</p>
+                        </div>
                         <form action={deleteSchoolAction}>
                           <input type="hidden" name="schoolId" value={school.id} />
                           <button
