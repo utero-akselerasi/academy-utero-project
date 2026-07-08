@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ReportStatusBadge } from "./ReportStatusBadge";
 import { ReviewReportForm } from "./ReviewReportForm";
 import { ImagePreview } from "./ImagePreview";
+import { PDFPreview } from "./PDFPreview";
 import { Users, FileText, Calendar, Filter, Eye, X, Printer, CheckCircle, HelpCircle } from "lucide-react";
 import Link from "next/link";
 

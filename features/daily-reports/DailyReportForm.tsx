@@ -4,6 +4,7 @@ import { submitDailyReportAction, type DailyReportFormState } from "@/features/d
 import { useActionState, useState, useRef, useEffect } from "react";
 import { Paperclip, X, AlertTriangle, Link as LinkIcon } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const initialState = {
   ok: false,
@@ -39,6 +40,16 @@ export function DailyReportForm({ editReport }: Props) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [driveLink, setDriveLink] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+
+  // Auto-redirect setelah submit sukses
+  useEffect(() => {
+    if (state.ok && state.message) {
+      setTimeout(() => {
+        router.push("/dashboard/intern/daily-reports?status=all");
+      }, 1500);
+    }
+  }, [state.ok, state.message, router]);
 
   // Load link google drive lama jika ada
   useEffect(() => {
