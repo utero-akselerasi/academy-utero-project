@@ -6,6 +6,7 @@ import {
   updateSchoolAction,
 } from "@/features/super-admin/actions";
 import { getSuperAdminSchoolsData } from "@/features/super-admin/queries";
+import { SchoolInternSelector } from "@/features/super-admin/components/SchoolInternSelector";
 
 function TextInput({ name, defaultValue, placeholder, required = false }: { name: string; defaultValue?: string | null; placeholder: string; required?: boolean }) {
   return (
@@ -137,14 +138,7 @@ export default async function SuperAdminSchoolsPage() {
                       <form action={linkInternToSchoolAction} className="mb-4 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
                         <input type="hidden" name="schoolId" value={school.id} />
                         <label className="text-xs font-bold uppercase text-slate-500">Link Siswa ke Instansi Ini</label>
-                        <select name="internId" required className="rounded-lg border border-slate-300 px-3 py-2 text-xs outline-none focus:border-teal-500">
-                          <option value="">Pilih siswa...</option>
-                          {selectableInterns.map((intern) => (
-                            <option key={intern.id} value={intern.id}>
-                              {intern.full_name} {intern.school_id === school.id ? "(sudah di sini)" : ""}
-                            </option>
-                          ))}
-                        </select>
+                        <SchoolInternSelector interns={selectableInterns} currentSchoolId={school.id} placeholder="Cari nama siswa..." />
                         <button type="submit" className="rounded-lg bg-teal-700 px-3 py-2 text-xs font-bold text-white hover:bg-teal-800">
                           Hubungkan Siswa
                         </button>
@@ -205,3 +199,4 @@ export default async function SuperAdminSchoolsPage() {
     </main>
   );
 }
+
