@@ -45,7 +45,14 @@
 12. [ ] Implementasi assessment dan generate sertifikat. (Fase Berikutnya)
 13. [~] Implementasi school portal. (MVP Awal Sudah Dibuat - Lanjutan Fase Berikutnya)
 
-## Catatan Perancangan Fitur Berikutnya`r`n`r`n- [ ] School Portal belum diimplementasikan di aplikasi.`r`n- [x] Rancangan produk School Portal sudah dibuat di `docs/design/school-portal-design.md`.`r`n- [x] Rancangan teknis implementasi sudah dibuat di `docs/design/school-portal-implementation.md`.`r`n`r`n## Status Terbaru
+## Catatan Perancangan Fitur Berikutnya
+
+- [ ] School Portal belum diimplementasikan penuh di aplikasi.
+- [x] Rancangan produk School Portal sudah dibuat di `docs/design/school-portal-design.md`.
+- [x] Rancangan teknis implementasi sudah dibuat di `docs/design/school-portal-implementation.md`.
+- [x] MVP awal School Portal sudah mulai diimplementasikan (dashboard overview, daftar siswa, detail siswa).
+- [x] Manajemen Instansi Super Admin sudah dibuat untuk tambah/edit/hapus instansi dan melihat perwakilan.
+## Status Terbaru
 
 - [x] Export rekap absensi bulanan ke CSV untuk mentor.
 - [x] Ubah password pengguna dari halaman profil.
@@ -86,6 +93,8 @@ Membuat fondasi teknis dan vertical slice tipis dari pendaftaran publik sampai r
 - Admin dapat mengubah status pendaftaran.
 - Data tersimpan di PostgreSQL schema `utero_academy`.
 - Akses role ditegakkan.
+
+
 
 
 

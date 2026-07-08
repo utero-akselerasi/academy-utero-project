@@ -1,4 +1,4 @@
-import { UserRoleManager } from "@/features/super-admin/UserRoleManager";
+﻿import { UserRoleManager } from "@/features/super-admin/UserRoleManager";
 import { getSuperAdminUserManagementData } from "@/features/super-admin/queries";
 import Link from "next/link";
 
@@ -15,9 +15,14 @@ export default async function SuperAdminUsersPage() {
             Kelola role aplikasi dari data `utero_academy.user_profiles`, `roles`, dan `user_roles`.
           </p>
         </div>
-        <Link className="button-secondary" href="/dashboard/super-admin">
-          Kembali
-        </Link>
+        <div className="flex gap-2">
+          <Link className="button-secondary" href="/dashboard/super-admin/schools">
+            Manajemen Instansi
+          </Link>
+          <Link className="button-secondary" href="/dashboard/super-admin">
+            Kembali
+          </Link>
+        </div>
       </div>
 
       {error ? (
@@ -30,4 +35,5 @@ export default async function SuperAdminUsersPage() {
     </main>
   );
 }
+
 

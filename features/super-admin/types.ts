@@ -26,3 +26,26 @@ export type UserRole = {
   } | null;
 };
 
+export type School = {
+  id: string;
+  name: string;
+  type: string | null;
+  city: string | null;
+  province: string | null;
+  address: string | null;
+  logo_path: string | null;
+  created_at: string;
+  contacts_count?: number;
+  interns_count?: number;
+};
+
+export type SchoolContact = {
+  id: string;
+  school_id: string;
+  user_id: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  position: string | null;
+  schools?: { name: string } | { name: string }[] | null;
+};

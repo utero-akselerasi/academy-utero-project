@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 export default function SuperAdminDashboardPage() {
   return (
@@ -24,6 +24,12 @@ export default function SuperAdminDashboardPage() {
             Lihat user profile dan assign role user tanpa membuka database langsung.
           </p>
         </Link>
+        <Link className="surface block p-5 hover:border-teal-500" href="/dashboard/super-admin/schools">
+          <h2 className="font-bold text-slate-950">Manajemen Instansi</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Tambah sekolah/kampus partner dan cek perwakilan yang terhubung ke School Portal.
+          </p>
+        </Link>
         <Link className="surface block p-5 hover:border-teal-500" href="/dashboard/super-admin/audit-logs">
           <h2 className="font-bold text-slate-950">Audit Log</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -34,3 +40,4 @@ export default function SuperAdminDashboardPage() {
     </main>
   );
 }
+

@@ -348,6 +348,15 @@ Fitur-fitur baru yang telah diselesaikan dalam sprint terbaru:
 * **Penyelesaian:** Menambahkan type khusus school portal di `features/school/types.ts` dan menyiapkan migrasi `supabase/migrations/0016_school_portal_reports.sql` untuk fondasi laporan periodik sekolah.
 
 ---
+## 4.3. Manajemen Instansi Super Admin (9 Juli 2026)
+
+### **P. CRUD Instansi dan Pengelolaan Relasi School Portal**
+* **Penyelesaian:** Menambahkan halaman `app/dashboard/super-admin/schools/page.tsx` untuk menambah, mengedit, dan menghapus instansi sekolah/kampus partner tanpa perlu akses SQL manual.
+* **Penyelesaian:** Menambahkan aksi `createSchoolAction`, `updateSchoolAction`, dan `deleteSchoolAction` di `features/super-admin/actions.ts` dengan audit log dan proteksi agar instansi yang masih punya perwakilan atau siswa tidak bisa dihapus langsung.
+* **Penyelesaian:** Menambahkan query `getSuperAdminSchoolsData()` untuk menampilkan daftar instansi, jumlah perwakilan, dan jumlah siswa yang terhubung.
+* **Penyelesaian:** Menambahkan navigasi Manajemen Instansi dari dashboard Super Admin dan halaman User Management agar alur tambah instansi lalu link user role `school` lebih jelas.
+
+---
 ## 5. Rencana Tahap Pengembangan Berikutnya (Revisi & Fitur Lanjutan)
 
 Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah rancangan roadmap untuk tahap pengerjaan berikutnya:
@@ -382,6 +391,7 @@ Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah
 
 ### **Bagian 8: Dashboard Analitik Admin**
 * **Grafik Pendapatan & Metrik:** Menyusun dashboard admin utama yang dilengkapi dengan diagram garis tren (seperti di referensi Image #3) serta panel metrik total pengguna, tugas terselesaikan, dan statistik keaktifan.
+
 
 
 

@@ -12,6 +12,16 @@ const assignRoleSchema = z.object({
   roleId: z.string().uuid(),
 });
 
+const schoolSchema = z.object({
+  schoolId: z.string().uuid().optional().or(z.literal("")),
+  name: z.string().min(2, "Nama instansi minimal 2 karakter."),
+  type: z.string().optional(),
+  city: z.string().optional(),
+  province: z.string().optional(),
+  address: z.string().optional(),
+  logoPath: z.string().optional(),
+});
+
 async function requireSuperAdmin() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -355,5 +365,109 @@ export async function linkSchoolContactAction(formData: FormData) {
     { schoolId, position }
   );
 
+  revalidatePath("/dashboard/super-admin/users");
+}
+
+export async function createSchoolAction(formData: FormData) {
+  const user = await requireSuperAdmin();
+  const parsed = schoolSchema.safeParse({
+    name: formData.get("name"),
+    type: formData.get("type") || null,
+    city: formData.get("city") || null,
+    province: formData.get("province") || null,
+    address: formData.get("address") || null,
+    logoPath: formData.get("logoPath") || null,
+  });
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message || "Data instansi tidak valid.");
+  }
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { data, error } = await db
+    .from("schools")
+    .insert({
+      name: parsed.data.name,
+      type: parsed.data.type || null,
+      city: parsed.data.city || null,
+      province: parsed.data.province || null,
+      address: parsed.data.address || null,
+      logo_path: parsed.data.logoPath || null,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    throw new Error("Gagal menambahkan instansi: " + error.message);
+  }
+
+  await writeAuditLog(user.id, "create_school", "schools", data.id, null, parsed.data);
+  revalidatePath("/dashboard/super-admin/schools");
+  revalidatePath("/dashboard/super-admin/users");
+}
+
+export async function updateSchoolAction(formData: FormData) {
+  const user = await requireSuperAdmin();
+  const parsed = schoolSchema.safeParse({
+    schoolId: formData.get("schoolId"),
+    name: formData.get("name"),
+    type: formData.get("type") || null,
+    city: formData.get("city") || null,
+    province: formData.get("province") || null,
+    address: formData.get("address") || null,
+    logoPath: formData.get("logoPath") || null,
+  });
+
+  if (!parsed.success || !parsed.data.schoolId) {
+    throw new Error(parsed.error?.issues[0]?.message || "ID instansi tidak valid.");
+  }
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { error } = await db
+    .from("schools")
+    .update({
+      name: parsed.data.name,
+      type: parsed.data.type || null,
+      city: parsed.data.city || null,
+      province: parsed.data.province || null,
+      address: parsed.data.address || null,
+      logo_path: parsed.data.logoPath || null,
+    })
+    .eq("id", parsed.data.schoolId);
+
+  if (error) {
+    throw new Error("Gagal memperbarui instansi: " + error.message);
+  }
+
+  await writeAuditLog(user.id, "update_school", "schools", parsed.data.schoolId, null, parsed.data);
+  revalidatePath("/dashboard/super-admin/schools");
+  revalidatePath("/dashboard/super-admin/users");
+}
+
+export async function deleteSchoolAction(formData: FormData) {
+  const user = await requireSuperAdmin();
+  const schoolId = formData.get("schoolId") as string;
+
+  if (!schoolId) {
+    throw new Error("ID instansi wajib diisi.");
+  }
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const [{ count: contactsCount }, { count: internsCount }] = await Promise.all([
+    db.from("school_contacts").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+    db.from("intern_profiles").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+  ]);
+
+  if ((contactsCount || 0) > 0 || (internsCount || 0) > 0) {
+    throw new Error("Instansi masih terhubung ke perwakilan atau siswa. Lepaskan relasinya terlebih dahulu.");
+  }
+
+  const { error } = await db.from("schools").delete().eq("id", schoolId);
+  if (error) {
+    throw new Error("Gagal menghapus instansi: " + error.message);
+  }
+
+  await writeAuditLog(user.id, "delete_school", "schools", schoolId);
+  revalidatePath("/dashboard/super-admin/schools");
   revalidatePath("/dashboard/super-admin/users");
 }

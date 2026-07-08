@@ -1,5 +1,5 @@
 import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
-import { type Role, type UserProfile, type UserRole } from "./types";
+import { type Role, type School, type UserProfile, type UserRole } from "./types";
 
 export async function getSuperAdminUserManagementData() {
   const db = await createUteroAcademyServiceRoleClient();
@@ -46,5 +46,41 @@ export async function getSuperAdminUserManagementData() {
     userRoles: userRolesResult.data ?? [],
     schools: schoolsResult.data ?? [],
     error: profilesResult.error ?? rolesResult.error ?? userRolesResult.error ?? (authUsersResult.error as any) ?? schoolsResult.error,
+  };
+}
+
+export async function getSuperAdminSchoolsData() {
+  const db = await createUteroAcademyServiceRoleClient();
+
+  const [schoolsResult, contactsResult, internsResult] = await Promise.all([
+    db
+      .from("schools")
+      .select("id, name, type, city, province, address, logo_path, created_at")
+      .order("name", { ascending: true })
+      .returns<School[]>(),
+    db
+      .from("school_contacts")
+      .select("id, school_id, user_id, name, email, phone, position, schools(name)")
+      .returns<any[]>(),
+    db
+      .from("intern_profiles")
+      .select("id, school_id")
+      .not("school_id", "is", null)
+      .returns<Array<{ id: string; school_id: string | null }>>(),
+  ]);
+
+  const contacts = contactsResult.data ?? [];
+  const interns = internsResult.data ?? [];
+
+  const schools = (schoolsResult.data ?? []).map((school) => ({
+    ...school,
+    contacts_count: contacts.filter((contact) => contact.school_id === school.id).length,
+    interns_count: interns.filter((intern) => intern.school_id === school.id).length,
+  }));
+
+  return {
+    schools,
+    contacts,
+    error: schoolsResult.error ?? contactsResult.error ?? internsResult.error,
   };
 }
