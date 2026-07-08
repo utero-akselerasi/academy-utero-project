@@ -47,11 +47,12 @@
 
 ## Catatan Perancangan Fitur Berikutnya
 
-- [ ] School Portal belum diimplementasikan penuh di aplikasi.
+- [x] School Portal Phase 1 & 2 sudah selesai (dashboard, daftar siswa, detail siswa, laporan periodik).
 - [x] Rancangan produk School Portal sudah dibuat di `docs/design/school-portal-design.md`.
 - [x] Rancangan teknis implementasi sudah dibuat di `docs/design/school-portal-implementation.md`.
-- [x] MVP awal School Portal sudah mulai diimplementasikan (dashboard overview, daftar siswa, detail siswa).
-- [x] Manajemen Instansi Super Admin sudah dibuat untuk tambah/edit/hapus instansi dan melihat perwakilan.`r`n- [x] Link siswa ke instansi sudah tersedia dari halaman Manajemen Instansi.
+- [x] Manajemen Instansi Super Admin sudah dibuat untuk tambah/edit/hapus instansi dan melihat perwakilan.
+- [x] Link siswa ke instansi sudah tersedia dari halaman Manajemen Instansi.
+- [x] Phase 2 laporan periodik dan CSV export sudah diimplementasikan.
 ## Status Terbaru
 
 - [x] Export rekap absensi bulanan ke CSV untuk mentor.
@@ -93,6 +94,7 @@ Membuat fondasi teknis dan vertical slice tipis dari pendaftaran publik sampai r
 - Admin dapat mengubah status pendaftaran.
 - Data tersimpan di PostgreSQL schema `utero_academy`.
 - Akses role ditegakkan.
+
 
 
 
