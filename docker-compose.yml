@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: utero_academy_web
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - TZ=Asia/Jakarta
+    env_file:
+      - .env
+    networks:
+      - utero_network
+      - carubra-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: utero_academy_nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web
+    networks:
+      - utero_network
+      - carubra-network
+
+networks:
+  utero_network:
+    driver: bridge
+  carubra-network:
+    external: true
