@@ -36,8 +36,8 @@ drop policy if exists school_reports_admin_all on utero_academy.school_reports;
 create policy school_reports_admin_all
 on utero_academy.school_reports
 for all
-using (utero_academy.has_role(auth.uid(), 'admin'))
-with check (utero_academy.has_role(auth.uid(), 'admin'));
+using (utero_academy.current_user_has_role('admin'))
+with check (utero_academy.current_user_has_role('admin'));
 
 drop trigger if exists set_school_reports_updated_at on utero_academy.school_reports;
 create trigger set_school_reports_updated_at
@@ -46,3 +46,4 @@ for each row execute function utero_academy.set_updated_at();
 
 grant all privileges on table utero_academy.school_reports to service_role;
 grant select on table utero_academy.school_reports to authenticated;
+
