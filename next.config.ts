@@ -1,4 +1,4 @@
-﻿import type { NextConfig } from "next";
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
@@ -20,6 +20,9 @@ const nextConfig: NextConfig = {
     "*.lvh.me",
     "*.lvh.me:3000",
     "*.maskhar.it.com",
+    "*.soundpub.xyz",
+    "*.carubra.com",
+    "10.10.10.102"
   ],
   turbopack: {
     root: process.cwd(),
@@ -28,7 +31,7 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "500mb",
     },
-    proxyClientMaxBodySize: 524288000,
+    proxyClientMaxBodySize: "500mb",
   },
 };
 
