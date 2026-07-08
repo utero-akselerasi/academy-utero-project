@@ -7,6 +7,21 @@ function formatDate(value: string | null) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(new Date(value));
 }
+function getPeriodInfo(startDate: string | null, endDate: string | null) {
+  if (!startDate || !endDate) return { progress: 0, daysRemaining: null, totalDays: null, elapsedDays: null, isFinished: false };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  const dayMs = 1000 * 60 * 60 * 24;
+  const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / dayMs) + 1);
+  const elapsedDays = Math.max(0, Math.min(totalDays, Math.ceil((today.getTime() - start.getTime()) / dayMs) + 1));
+  const daysRemaining = Math.max(0, Math.ceil((end.getTime() - today.getTime()) / dayMs));
+  const progress = Math.min(100, Math.max(0, Math.round((elapsedDays / totalDays) * 100)));
+  return { progress, daysRemaining, totalDays, elapsedDays, isFinished: today.getTime() > end.getTime() };
+}
 
 export default async function SchoolStudentDetailPage({ params }: { params: Promise<{ studentId: string }> }) {
   const { studentId } = await params;
@@ -27,6 +42,7 @@ export default async function SchoolStudentDetailPage({ params }: { params: Prom
   }
 
   const { intern } = detail;
+  const periodInfo = getPeriodInfo(intern.start_date, intern.end_date);
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
@@ -39,6 +55,35 @@ export default async function SchoolStudentDetailPage({ params }: { params: Prom
         <Link href="/dashboard/school/students" className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Kembali</Link>
       </div>
 
+      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase text-teal-700">Masa Magang</p>
+            <h2 className="mt-2 text-xl font-bold text-slate-900">{formatDate(intern.start_date)} - {formatDate(intern.end_date)}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {periodInfo.totalDays
+                ? `${periodInfo.elapsedDays} dari ${periodInfo.totalDays} hari berjalan`
+                : "Periode magang belum diatur."}
+            </p>
+          </div>
+          <div className="min-w-[240px] rounded-xl bg-slate-50 p-4">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+              <span>Progress Periode</span>
+              <span>{periodInfo.progress}%</span>
+            </div>
+            <div className="mt-2 h-2 rounded-full bg-slate-200">
+              <div className="h-2 rounded-full bg-teal-600" style={{ width: `${periodInfo.progress}%` }} />
+            </div>
+            <p className="mt-2 text-xs font-semibold text-slate-600">
+              {periodInfo.isFinished
+                ? "Masa magang selesai"
+                : periodInfo.daysRemaining !== null
+                ? `${periodInfo.daysRemaining} hari tersisa`
+                : "Periode belum lengkap"}
+            </p>
+          </div>
+        </div>
+      </section>
       <section className="mt-6 grid gap-4 md:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">Attendance</p><p className="mt-2 text-2xl font-bold text-slate-900">{detail.attendanceRate}%</p></div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">Total Jam</p><p className="mt-2 text-2xl font-bold text-slate-900">{detail.totalHours}</p></div>
@@ -104,3 +149,4 @@ export default async function SchoolStudentDetailPage({ params }: { params: Prom
     </main>
   );
 }
+

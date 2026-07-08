@@ -3,6 +3,7 @@ import {
   createSchoolAction,
   deleteSchoolAction,
   linkInternToSchoolAction,
+  updateInternPeriodAction,
   updateSchoolAction,
 } from "@/features/super-admin/actions";
 import { getSuperAdminSchoolsData } from "@/features/super-admin/queries";
@@ -153,6 +154,32 @@ export default async function SuperAdminSchoolsPage() {
                               <p className="font-bold text-slate-900">{intern.full_name}</p>
                               <p className="text-xs text-slate-500">{intern.email || "-"}</p>
                               <p className="text-xs text-slate-500">{intern.major || "Jurusan belum diisi"} · {intern.status}</p>
+
+                              <form action={updateInternPeriodAction} className="mt-3 grid gap-2 rounded-lg bg-slate-50 p-2">
+                                <input type="hidden" name="internId" value={intern.id} />
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Mulai</label>
+                                    <input type="date" name="startDate" defaultValue={intern.start_date || ""} className="w-full rounded border border-slate-300 px-2 py-1 text-xs" />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Selesai</label>
+                                    <input type="date" name="endDate" defaultValue={intern.end_date || ""} className="w-full rounded border border-slate-300 px-2 py-1 text-xs" />
+                                  </div>
+                                </div>
+                                <input name="major" defaultValue={intern.major || ""} placeholder="Jurusan" className="rounded border border-slate-300 px-2 py-1 text-xs" />
+                                <input name="gradeOrSemester" defaultValue={intern.grade_or_semester || ""} placeholder="Kelas / Semester" className="rounded border border-slate-300 px-2 py-1 text-xs" />
+                                <select name="status" defaultValue={intern.status} className="rounded border border-slate-300 px-2 py-1 text-xs">
+                                  <option value="active">Active</option>
+                                  <option value="completed">Completed</option>
+                                  <option value="inactive">Inactive</option>
+                                  <option value="pending">Pending</option>
+                                </select>
+                                <button type="submit" className="rounded bg-teal-700 px-2 py-1 text-xs font-bold text-white hover:bg-teal-800">
+                                  Simpan Masa Magang
+                                </button>
+                              </form>
+
                               <form action={linkInternToSchoolAction} className="mt-2">
                                 <input type="hidden" name="internId" value={intern.id} />
                                 <input type="hidden" name="schoolId" value="" />
@@ -199,4 +226,5 @@ export default async function SuperAdminSchoolsPage() {
     </main>
   );
 }
+
 

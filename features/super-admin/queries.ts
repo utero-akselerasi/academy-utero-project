@@ -64,7 +64,7 @@ export async function getSuperAdminSchoolsData() {
       .returns<any[]>(),
     db
       .from("intern_profiles")
-      .select("id, full_name, email, major, status, school_id")
+      .select("id, full_name, email, major, status, school_id, start_date, end_date, grade_or_semester")
       .order("full_name", { ascending: true })
       .returns<SchoolInternOption[]>(),
   ]);
@@ -124,3 +124,4 @@ export async function detectOrphanData() {
     error: allSchoolContacts.error || allSchools.error,
   };
 }
+

@@ -1,4 +1,4 @@
-import { createSupabaseServerClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+﻿import { createSupabaseServerClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { getInternProfileId, getInternDailyReports } from "@/features/daily-reports/queries";
 import { getInternAttendances, getTodayAttendance } from "@/features/attendance/queries";
 import { getInternCards } from "@/features/tasks/queries";
@@ -19,6 +19,40 @@ function formatDate(value: string) {
 function formatTime(value: string | null) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("id-ID", { timeStyle: "short" }).format(new Date(value));
+}
+function getInternshipPeriodInfo(startDate: string | null, endDate: string | null) {
+  if (!startDate || !endDate) {
+    return {
+      label: "Belum diatur",
+      daysRemaining: null,
+      progress: 0,
+      totalDays: null,
+      elapsedDays: null,
+      isFinished: false,
+    };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  const dayMs = 1000 * 60 * 60 * 24;
+  const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / dayMs) + 1);
+  const elapsedDays = Math.max(0, Math.min(totalDays, Math.ceil((today.getTime() - start.getTime()) / dayMs) + 1));
+  const daysRemaining = Math.max(0, Math.ceil((end.getTime() - today.getTime()) / dayMs));
+  const progress = Math.min(100, Math.max(0, Math.round((elapsedDays / totalDays) * 100)));
+
+  return {
+    label: `${formatDate(startDate)} - ${formatDate(endDate)}`,
+    daysRemaining,
+    progress,
+    totalDays,
+    elapsedDays,
+    isFinished: today.getTime() > end.getTime(),
+  };
 }
 
 export default async function InternDashboardPage() {
@@ -51,6 +85,7 @@ export default async function InternDashboardPage() {
   const internProfile = internProfileResult.data;
   const schoolObj = Array.isArray(internProfile?.schools) ? internProfile?.schools[0] : internProfile?.schools;
   const schoolName = schoolObj?.name || "-";
+  const periodInfo = getInternshipPeriodInfo(internProfile?.start_date || null, internProfile?.end_date || null);
 
   const tasks = tasksResult.data || [];
   const attendances = attendancesResult.data || [];
@@ -160,6 +195,36 @@ export default async function InternDashboardPage() {
         </div>
       </section>
 
+      {/* Internship Period */}
+      <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-teal-700">Masa Magang</p>
+            <h2 className="mt-2 text-xl font-black text-slate-950">{periodInfo.label}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {periodInfo.totalDays
+                ? `${periodInfo.elapsedDays} dari ${periodInfo.totalDays} hari berjalan`
+                : "Admin belum mengatur tanggal mulai dan selesai magang."}
+            </p>
+          </div>
+          <div className="min-w-[220px] rounded-xl bg-slate-50 p-4">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+              <span>Progress</span>
+              <span>{periodInfo.progress}%</span>
+            </div>
+            <div className="mt-2 h-2 rounded-full bg-slate-200">
+              <div className="h-2 rounded-full bg-teal-600" style={{ width: `${periodInfo.progress}%` }} />
+            </div>
+            <p className="mt-2 text-xs font-semibold text-slate-600">
+              {periodInfo.isFinished
+                ? "Masa magang selesai"
+                : periodInfo.daysRemaining !== null
+                ? `${periodInfo.daysRemaining} hari tersisa`
+                : "Periode belum lengkap"}
+            </p>
+          </div>
+        </div>
+      </section>
       {/* KPI Stats widgets */}
       <section className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-2">
@@ -309,3 +374,4 @@ export default async function InternDashboardPage() {
     </main>
   );
 }
+

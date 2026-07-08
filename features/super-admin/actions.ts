@@ -588,3 +588,46 @@ export async function cleanupOrphanDataAction(formData: FormData) {
   // Server action untuk form submit tidak perlu mengembalikan payload.
 }
 
+export async function updateInternPeriodAction(formData: FormData) {
+  const user = await requireSuperAdmin();
+  const internId = formData.get("internId") as string;
+  const startDate = formData.get("startDate") as string;
+  const endDate = formData.get("endDate") as string;
+  const major = formData.get("major") as string;
+  const gradeOrSemester = formData.get("gradeOrSemester") as string;
+  const status = formData.get("status") as string;
+
+  if (!internId) {
+    throw new Error("Siswa wajib dipilih.");
+  }
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { error } = await db
+    .from("intern_profiles")
+    .update({
+      start_date: startDate || null,
+      end_date: endDate || null,
+      major: major || null,
+      grade_or_semester: gradeOrSemester || null,
+      status: status || "active",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", internId);
+
+  if (error) {
+    throw new Error("Gagal memperbarui periode magang: " + error.message);
+  }
+
+  await writeAuditLog(
+    user.id,
+    "update_intern_period",
+    "intern_profiles",
+    internId,
+    null,
+    { startDate, endDate, major, gradeOrSemester, status }
+  );
+
+  revalidatePath("/dashboard/super-admin/schools");
+  revalidatePath("/dashboard/intern");
+  revalidatePath("/dashboard/school/students");
+}

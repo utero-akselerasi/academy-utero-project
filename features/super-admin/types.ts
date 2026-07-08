@@ -57,6 +57,9 @@ export type SchoolInternOption = {
   major: string | null;
   status: string;
   school_id: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  grade_or_semester: string | null;
 };
 
 export type OrphanData = {
@@ -80,3 +83,4 @@ export type OrphanData = {
   total: number;
   error?: any;
 };
+

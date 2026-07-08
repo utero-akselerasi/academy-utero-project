@@ -388,6 +388,15 @@ Fitur-fitur baru yang telah diselesaikan dalam sprint terbaru:
 * **Penyelesaian:** Link navigasi dari dashboard Super Admin untuk akses mudah ke tool cleanup.
 
 ---
+## 4.6. Manajemen Masa Magang Intern (9 Juli 2026)
+
+### **S. Periode Magang, Progress, dan Sisa Hari Intern**
+* **Penyelesaian:** Menambahkan aksi `updateInternPeriodAction` untuk mengatur tanggal mulai, tanggal selesai, jurusan, kelas/semester, dan status intern dari Super Admin.
+* **Penyelesaian:** Menambahkan form edit masa magang per siswa di halaman `app/dashboard/super-admin/schools/page.tsx` agar periode magang bisa diisi setelah siswa terhubung ke instansi.
+* **Penyelesaian:** Menambahkan card masa magang di dashboard intern (`app/dashboard/intern/page.tsx`) dengan progress persentase, hari berjalan, total hari, dan sisa hari.
+* **Penyelesaian:** Menambahkan card masa magang di detail siswa School Portal (`app/dashboard/school/students/[studentId]/page.tsx`) agar sekolah dapat memantau progress periode magang setiap siswa.
+
+---
 ## 5. Rencana Tahap Pengembangan Berikutnya (Revisi & Fitur Lanjutan)
 
 Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah rancangan roadmap untuk tahap pengerjaan berikutnya:
@@ -422,6 +431,7 @@ Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah
 
 ### **Bagian 8: Dashboard Analitik Admin**
 * **Grafik Pendapatan & Metrik:** Menyusun dashboard admin utama yang dilengkapi dengan diagram garis tren (seperti di referensi Image #3) serta panel metrik total pengguna, tugas terselesaikan, dan statistik keaktifan.
+
 
 
 
