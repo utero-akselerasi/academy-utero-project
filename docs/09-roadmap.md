@@ -1,4 +1,4 @@
-# Roadmap Implementasi
+﻿# Roadmap Implementasi
 
 ## Fase 1: Analisis
 
@@ -45,6 +45,12 @@
 12. [ ] Implementasi assessment dan generate sertifikat. (Fase Berikutnya)
 13. [ ] Implementasi school portal. (Fase Berikutnya)
 
+## Status Terbaru
+
+- [x] Export rekap absensi bulanan ke CSV untuk mentor.
+- [x] Ubah password pengguna dari halaman profil.
+- [x] Preview PDF untuk attachment daily report.
+- [x] Containerization aplikasi dengan Docker, Docker Compose, dan Nginx reverse proxy.
 ## Fase 5: Integrasi
 
 - [x] Notifikasi email (SMTP) (Selesai)
@@ -80,3 +86,4 @@ Membuat fondasi teknis dan vertical slice tipis dari pendaftaran publik sampai r
 - Admin dapat mengubah status pendaftaran.
 - Data tersimpan di PostgreSQL schema `utero_academy`.
 - Akses role ditegakkan.
+

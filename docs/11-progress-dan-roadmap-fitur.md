@@ -1,4 +1,4 @@
-# Progres Implementasi & Rencana Pengembangan Fitur
+﻿# Progres Implementasi & Rencana Pengembangan Fitur
 
 Dokumen ini mencatat seluruh fitur yang telah diperbaiki, dikembangkan, serta rencana langkah pengembangan berikutnya.
 
@@ -298,6 +298,46 @@ Berikut adalah status penyelesaian perbaikan bug dan peningkatan fitur terbaru y
 
 ---
 
+## 4.1. Rilis Perbaikan & Fitur Baru (9 Juli 2026)
+
+Fitur-fitur baru yang telah diselesaikan dalam sprint terbaru:
+
+### **K. Export Rekapitulasi Absensi Bulanan ke Excel/CSV (9 Juli 2026)**
+* **Masalah:** Mentor kesulitan membuat laporan rekapitulasi absensi peserta magang secara manual, terutama untuk ekspor data bulanan yang kompleks mencakup total jam, keterlambatan, izin, dan status pencapaian target.
+* **Solusi:**
+  - Membuat API endpoint `app/dashboard/mentor/attendance/export/route.ts` yang menghasilkan file CSV terstruktur berisi rekapitulasi absensi lengkap per peserta magang.
+  - Endpoint mendukung dua mode ekspor: **Monthly** (ekspor seluruh data satu bulan berdasarkan parameter `?month=YYYY-MM`) dan **Range** (ekspor custom date range dengan parameter `?mode=range&start=YYYY-MM-DD&end=YYYY-MM-DD`).
+  - CSV mencakup kolom: Nama, Email, Jurusan, No. HP, Periode, Tanggal Mulai, Tanggal Selesai, Total Hadir, Total Jam, Target Jam Bulanan, Mode Target, Status Target, Total Telat, Total Menit Telat, Total Izin, Total Sakit, Pending Review, dan Invalid.
+  - Kalkulasi otomatis untuk total jam (dari check-in dan check-out), keterlambatan berdasarkan tolerance setting, dan status pencapaian target (Terpenuhi/Belum Terpenuhi).
+  - Fitur UTF-8 BOM dan CSV escaping untuk kompatibilitas dengan MS Excel dan aplikasi spreadsheet lainnya.
+
+### **L. Fitur Ubah Password Pengguna (9 Juli 2026)**
+* **Masalah:** Pengguna tidak dapat mengubah password mereka sendiri dengan alur validasi yang aman.
+* **Solusi:**
+  - Membuat Server Action `features/auth/change-password-action.ts` yang menghandle validasi password lama, kesamaan password baru, dan verifikasi identitas pengguna melalui re-authentication dengan Supabase Auth.
+  - Validasi ketat mencakup: minimal 8 karakter, password baru berbeda dari password lama, konfirmasi password cocok, dan password lama diverifikasi dengan sign-in ulang.
+  - Integrasi ke halaman profil pengguna (`app/dashboard/profile/page.tsx`) agar setiap user dapat mengubah password mereka secara mandiri dengan aman.
+  - Pesan error yang jelas dan user-friendly untuk setiap skenario validasi gagal.
+
+### **M. PDF Preview Modal untuk Daily Report & Attachment (9 Juli 2026)**
+* **Masalah:** Pengguna hanya melihat nama file attachment saja tanpa bisa preview konten PDF sebelum didownload, serta tidak ada visual indicator bahwa file tersebut adalah dokumen PDF.
+* **Solusi:**
+  - Membuat komponen Client `features/daily-reports/PDFPreview.tsx` yang menyediakan tombol "Lihat PDF" dengan icon file yang terlihat jelas.
+  - Implementasi React Portal untuk merender modal preview PDF di atas semua elemen (z-index 9999) dengan backdrop blur semi-transparent.
+  - Modal menampilkan embed iframe PDF viewer yang responsive dan mendukung zoom, scroll, dan download built-in dari browser.
+  - Close button dan click-outside-modal-to-close untuk UX yang intuitif.
+  - Reusable component dengan props `src` (URL file), `fileName` (nama display), dan `className` (custom styling).
+
+### **N. Containerization dengan Docker & Nginx Reverse Proxy (9 Juli 2026)**
+* **Masalah:** Aplikasi belum di-containerize untuk deployment yang konsisten di berbagai environment dan sulit untuk scaling.
+* **Solusi:**
+  - Membuat `Dockerfile` dengan multi-stage build: stage 1 build Next.js app, stage 2 runtime container yang lean berbasis Node.js alpine.
+  - Konfigurasi environment variables, expose port 3000, dan health check endpoint untuk monitoring container status.
+  - Membuat `docker-compose.yml` untuk orchestration lokal yang memudahkan development dan testing dengan volume mounts untuk hot-reload.
+  - Membuat `nginx.conf` sebagai reverse proxy yang meforward traffic ke Next.js container, menangani static file caching, compression, dan security headers (HSTS, X-Content-Type-Options, X-Frame-Options).
+  - Nginx dikonfigurasi listen di port 80 (HTTP) dengan kemampuan untuk diperluas ke HTTPS di production.
+
+---
 ## 5. Rencana Tahap Pengembangan Berikutnya (Revisi & Fitur Lanjutan)
 
 Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah rancangan roadmap untuk tahap pengerjaan berikutnya:
@@ -332,4 +372,5 @@ Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah
 
 ### **Bagian 8: Dashboard Analitik Admin**
 * **Grafik Pendapatan & Metrik:** Menyusun dashboard admin utama yang dilengkapi dengan diagram garis tren (seperti di referensi Image #3) serta panel metrik total pengguna, tugas terselesaikan, dan statistik keaktifan.
+
 
