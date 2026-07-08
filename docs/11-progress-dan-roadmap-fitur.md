@@ -374,6 +374,20 @@ Fitur-fitur baru yang telah diselesaikan dalam sprint terbaru:
 * **Penyelesaian:** Menyimpan metadata laporan ke tabel `school_reports` agar school portal punya audit trail laporan yang pernah di-generate.
 
 ---
+## 4.5. Tab Alumni Portal Sekolah & Cleanup Orphan Data (9 Juli 2026)
+
+### **R. Filter Alumni di Portal Sekolah**
+* **Penyelesaian:** Menambahkan tab filter Aktif/Alumni di halaman daftar siswa sekolah `app/dashboard/school/students/page.tsx`.
+* **Penyelesaian:** Sekolah sekarang bisa melihat siswa dengan status `completed` (alumni) dan memantau track record mereka termasuk nilai akhir dan periode magang.
+* **Penyelesaian:** Badge visual berbeda untuk status aktif vs alumni, serta kolom periode magang (start_date s/d end_date).
+
+### **S. Tool Cleanup Orphan Data Super Admin**
+* **Penyelesaian:** Menambahkan query `detectOrphanData` untuk mendeteksi data orphan: perwakilan sekolah tanpa user valid, siswa terhubung ke sekolah yang sudah dihapus.
+* **Penyelesaian:** Menambahkan action `cleanupOrphanDataAction` untuk membersihkan data orphan secara massal atau selektif.
+* **Penyelesaian:** Menambahkan halaman `app/dashboard/super-admin/orphan-cleanup/page.tsx` dengan UI deteksi dan cleanup otomatis data broken.
+* **Penyelesaian:** Link navigasi dari dashboard Super Admin untuk akses mudah ke tool cleanup.
+
+---
 ## 5. Rencana Tahap Pengembangan Berikutnya (Revisi & Fitur Lanjutan)
 
 Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah rancangan roadmap untuk tahap pengerjaan berikutnya:
@@ -408,6 +422,7 @@ Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah
 
 ### **Bagian 8: Dashboard Analitik Admin**
 * **Grafik Pendapatan & Metrik:** Menyusun dashboard admin utama yang dilengkapi dengan diagram garis tren (seperti di referensi Image #3) serta panel metrik total pengguna, tugas terselesaikan, dan statistik keaktifan.
+
 
 
 

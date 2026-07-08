@@ -58,3 +58,25 @@ export type SchoolInternOption = {
   status: string;
   school_id: string | null;
 };
+
+export type OrphanData = {
+  orphanContacts: Array<{
+    id: string;
+    user_id: string | null;
+    school_id: string;
+    name: string;
+  }>;
+  orphanInterns: Array<{
+    id: string;
+    school_id: string | null;
+    full_name: string;
+  }>;
+  schoolContactsWithoutSchool: Array<{
+    id: string;
+    user_id: string | null;
+    school_id: string;
+    name: string;
+  }>;
+  total: number;
+  error?: any;
+};

@@ -87,3 +87,40 @@ export async function getSuperAdminSchoolsData() {
   };
 }
 
+
+export async function detectOrphanData() {
+  const db = await createUteroAcademyServiceRoleClient();
+  const authClient = createSupabaseServiceRoleClient();
+
+  const [allSchoolContacts, allAuthUsers, allInterns, allSchools] = await Promise.all([
+    db.from("school_contacts").select("id, user_id, school_id, name").returns<Array<{ id: string; user_id: string | null; school_id: string; name: string }>>(),
+    authClient.auth.admin.listUsers({ perPage: 1000 }),
+    db.from("intern_profiles").select("id, school_id, full_name").returns<Array<{ id: string; school_id: string | null; full_name: string }>>(),
+    db.from("schools").select("id, name").returns<Array<{ id: string; name: string }>>(),
+  ]);
+
+  const authUserIds = new Set(allAuthUsers.data?.users.map(u => u.id) || []);
+  const schoolIds = new Set(allSchools.data?.map(s => s.id) || []);
+
+  const orphanContacts = allSchoolContacts.data?.filter((contact) => {
+    if (!contact.user_id) return true;
+    return !authUserIds.has(contact.user_id);
+  }) || [];
+
+  const orphanInterns = allInterns.data?.filter((intern) => {
+    if (!intern.school_id) return false;
+    return !schoolIds.has(intern.school_id);
+  }) || [];
+
+  const schoolContactsWithoutSchool = allSchoolContacts.data?.filter((contact) => {
+    return !schoolIds.has(contact.school_id);
+  }) || [];
+
+  return {
+    orphanContacts,
+    orphanInterns,
+    schoolContactsWithoutSchool,
+    total: orphanContacts.length + orphanInterns.length + schoolContactsWithoutSchool.length,
+    error: allSchoolContacts.error || allSchools.error,
+  };
+}

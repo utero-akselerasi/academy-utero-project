@@ -507,3 +507,84 @@ export async function linkInternToSchoolAction(formData: FormData) {
   revalidatePath("/dashboard/super-admin/schools");
   revalidatePath("/dashboard/school");
 }
+
+export async function cleanupOrphanDataAction(formData: FormData) {
+  const user = await requireSuperAdmin();
+  const orphanType = formData.get("orphanType") as string; // 'contacts', 'interns', 'all'
+  
+  if (!orphanType || !['contacts', 'interns', 'all'].includes(orphanType)) {
+    throw new Error("Tipe orphan tidak valid.");
+  }
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const authClient = createSupabaseServiceRoleClient();
+
+  // Fetch semua data untuk deteksi
+  const [allSchoolContacts, allAuthUsers, allInterns, allSchools] = await Promise.all([
+    db.from("school_contacts").select("id, user_id, school_id").returns<Array<{ id: string; user_id: string | null; school_id: string }>>(),
+    authClient.auth.admin.listUsers({ perPage: 1000 }),
+    db.from("intern_profiles").select("id, school_id").returns<Array<{ id: string; school_id: string | null }>>(),
+    db.from("schools").select("id").returns<Array<{ id: string }>>(),
+  ]);
+
+  const authUserIds = new Set(allAuthUsers.data?.users.map(u => u.id) || []);
+  const schoolIds = new Set(allSchools.data?.map(s => s.id) || []);
+
+  let deletedCount = 0;
+
+  // Cleanup orphan contacts (user tidak ada atau sekolah tidak ada)
+  if (orphanType === 'contacts' || orphanType === 'all') {
+    const orphanContacts = (allSchoolContacts.data || []).filter((contact) => {
+      if (!contact.user_id) return true;
+      if (!schoolIds.has(contact.school_id)) return true;
+      return !authUserIds.has(contact.user_id);
+    });
+
+    if (orphanContacts.length > 0) {
+      const { error } = await db
+        .from("school_contacts")
+        .delete()
+        .in("id", orphanContacts.map(c => c.id));
+
+      if (error) {
+        throw new Error("Gagal hapus orphan contacts: " + error.message);
+      }
+      deletedCount += orphanContacts.length;
+    }
+  }
+
+  // Cleanup orphan interns (sekolah tidak ada)
+  if (orphanType === 'interns' || orphanType === 'all') {
+    const orphanInterns = (allInterns.data || []).filter((intern) => {
+      if (!intern.school_id) return false;
+      return !schoolIds.has(intern.school_id);
+    });
+
+    if (orphanInterns.length > 0) {
+      const { error } = await db
+        .from("intern_profiles")
+        .update({ school_id: null })
+        .in("id", orphanInterns.map(i => i.id));
+
+      if (error) {
+        throw new Error("Gagal cleanup orphan interns: " + error.message);
+      }
+      deletedCount += orphanInterns.length;
+    }
+  }
+
+  await writeAuditLog(
+    user.id,
+    "cleanup_orphan_data",
+    "system",
+    null,
+    null,
+    { orphanType, deletedCount }
+  );
+
+  revalidatePath("/dashboard/super-admin/schools");
+  revalidatePath("/dashboard/super-admin/users");
+  
+  // Server action untuk form submit tidak perlu mengembalikan payload.
+}
+
