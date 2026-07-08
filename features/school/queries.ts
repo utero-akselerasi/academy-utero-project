@@ -215,3 +215,15 @@ export async function getSchoolStudentDetail(schoolId: string, internId: string)
     error: null,
   };
 }
+
+export async function getSchoolReports(schoolId: string) {
+  const db = await createUteroAcademyServiceRoleClient();
+
+  const { data, error } = await db
+    .from("school_reports")
+    .select("id, report_type, period_start, period_end, file_path, total_students, status, created_at")
+    .eq("school_id", schoolId)
+    .order("created_at", { ascending: false });
+
+  return { data: data || [], error };
+}

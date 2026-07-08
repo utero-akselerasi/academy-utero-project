@@ -365,6 +365,15 @@ Fitur-fitur baru yang telah diselesaikan dalam sprint terbaru:
 * **Penyelesaian:** Menambahkan indikator siswa yang belum terhubung ke instansi agar administrasi School Portal lebih mudah dibersihkan.
 
 ---
+## 4.5. Phase 2 School Portal - Laporan Periodik (9 Juli 2026)
+
+### **R. Generate dan Export Laporan Siswa Magang per Periode**
+* **Penyelesaian:** Menambahkan query agregasi `getSchoolReportMetrics()` untuk menghitung metrik siswa per periode: attendance rate, total jam, keterlambatan, izin, sakit, dan nilai akhir.
+* **Penyelesaian:** Menambahkan halaman `app/dashboard/school/reports/page.tsx` untuk form generate laporan dan riwayat laporan yang pernah dibuat.
+* **Penyelesaian:** Menambahkan route `app/dashboard/school/reports/generate/download/route.ts` untuk generate dan download CSV laporan siswa secara real-time tanpa library eksternal.
+* **Penyelesaian:** Menyimpan metadata laporan ke tabel `school_reports` agar school portal punya audit trail laporan yang pernah di-generate.
+
+---
 ## 5. Rencana Tahap Pengembangan Berikutnya (Revisi & Fitur Lanjutan)
 
 Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah rancangan roadmap untuk tahap pengerjaan berikutnya:
@@ -399,6 +408,7 @@ Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah
 
 ### **Bagian 8: Dashboard Analitik Admin**
 * **Grafik Pendapatan & Metrik:** Menyusun dashboard admin utama yang dilengkapi dengan diagram garis tren (seperti di referensi Image #3) serta panel metrik total pengguna, tugas terselesaikan, dan statistik keaktifan.
+
 
 
 
