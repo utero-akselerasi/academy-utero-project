@@ -397,6 +397,15 @@ Fitur-fitur baru yang telah diselesaikan dalam sprint terbaru:
 * **Penyelesaian:** Menambahkan card masa magang di detail siswa School Portal (`app/dashboard/school/students/[studentId]/page.tsx`) agar sekolah dapat memantau progress periode magang setiap siswa.
 
 ---
+## 4.7. Perapihan UI Manajemen Instansi (9 Juli 2026)
+
+### **T. Layout Ringkas Berbasis Accordion untuk Instansi**
+* **Penyelesaian:** Mengubah form Tambah Instansi Baru menjadi panel toggle agar halaman tidak langsung penuh oleh form input.
+* **Penyelesaian:** Mengubah daftar instansi dari tabel lebar menjadi baris ringkas per instansi dengan tombol **Lihat Detail** untuk membuka informasi lengkap.
+* **Penyelesaian:** Merapikan tampilan siswa terhubung menjadi card compact dengan detail masa magang yang bisa dibuka melalui accordion **Edit Masa Magang**.
+* **Penyelesaian:** Mengurangi kebutuhan horizontal scroll dan membuat pengelolaan instansi lebih mudah dibaca oleh Super Admin.
+
+---
 ## 5. Rencana Tahap Pengembangan Berikutnya (Revisi & Fitur Lanjutan)
 
 Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah rancangan roadmap untuk tahap pengerjaan berikutnya:
@@ -431,6 +440,7 @@ Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah
 
 ### **Bagian 8: Dashboard Analitik Admin**
 * **Grafik Pendapatan & Metrik:** Menyusun dashboard admin utama yang dilengkapi dengan diagram garis tren (seperti di referensi Image #3) serta panel metrik total pengguna, tugas terselesaikan, dan statistik keaktifan.
+
 
 
 
