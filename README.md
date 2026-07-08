@@ -1,8 +1,37 @@
-# Utero Academy Platform
+﻿# Utero Academy Platform
 
 Utero Academy Platform (UAP) adalah Education Management System internal untuk kebutuhan website publik, CMS, LKP, e-learning, manajemen magang, task management, absensi, daily report, portal sekolah, assessment, dan sertifikasi.
 
 Project ini dimulai dari fondasi dokumentasi agar arsitektur, database, role, dan alur bisnis tetap terarah sebelum implementasi aplikasi.
+
+## Status Implementasi
+
+Platform sudah mencakup fitur-fitur utama berikut:
+
+**School Portal**
+- Dashboard sekolah dengan statistik real-time (siswa aktif, alumni, attendance rate)
+- Daftar siswa dengan search dan filter Aktif/Alumni
+- Detail siswa: kehadiran, daily report, assessment, dan sertifikat
+- Tracking alumni untuk monitoring jangka panjang
+
+**Super Admin Tools**
+- Manajemen instansi: CRUD sekolah/kampus partner
+- Link user role `school` dan siswa ke instansi
+- Tool cleanup orphan data (relasi broken detection & removal)
+- Dropdown search untuk menghubungkan siswa ke instansi
+
+**Mentor & Intern Management**
+- Absensi dengan GPS, selfie, geofencing, dan target jam bulanan
+- Daily report dengan multi-upload, PDF preview, dan approval mentor
+- Export rekap absensi ke CSV/Excel
+- Task management dengan assignment dan tracking progress
+- LMS: materi, kuis, tugas, dan penilaian
+
+**Infrastruktur**
+- Docker & Nginx reverse proxy untuk deployment
+- Supabase Storage untuk file management
+- Email & WhatsApp notification
+- Audit log untuk tracking aktivitas penting
 
 ## Target Platform
 
@@ -39,7 +68,12 @@ Project ini dimulai dari fondasi dokumentasi agar arsitektur, database, role, da
 - [Struktur Repository](docs/08-repository-structure.md)
 - [Roadmap Implementasi](docs/09-roadmap.md)
 - [Standar Coding](docs/10-coding-standard.md)
+- [Progres & Fitur](docs/11-progress-dan-roadmap-fitur.md)
 - [Setup Supabase](supabase/README.md)
+
+**Rancangan School Portal:**
+- [Product Design](docs/design/school-portal-design.md)
+- [Implementation Guide](docs/design/school-portal-implementation.md)
 
 ## Prinsip Arsitektur
 
@@ -49,4 +83,3 @@ Project ini dimulai dari fondasi dokumentasi agar arsitektur, database, role, da
 - Setiap modul punya batas tanggung jawab yang jelas.
 - File storage memakai bucket dan path yang konsisten.
 - Audit log dan histori status disiapkan untuk proses penting seperti pendaftaran, absensi, assessment, dan sertifikasi.
-
