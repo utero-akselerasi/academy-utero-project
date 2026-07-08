@@ -43,9 +43,9 @@
 10. [x] Implementasi daily report. (Selesai & Diperbaiki dengan Multi-Upload, Google Drive Fallback, Image Preview, & Edit Revisi)
 11. [x] Implementasi LMS (Pelajaran, Kuis, Tugas, Penilaian, & Pembuatan Modul). (Selesai)
 12. [ ] Implementasi assessment dan generate sertifikat. (Fase Berikutnya)
-13. [ ] Implementasi school portal. (Fase Berikutnya)
+13. [~] Implementasi school portal. (MVP Awal Sudah Dibuat - Lanjutan Fase Berikutnya)
 
-## Status Terbaru
+## Catatan Perancangan Fitur Berikutnya`r`n`r`n- [ ] School Portal belum diimplementasikan di aplikasi.`r`n- [x] Rancangan produk School Portal sudah dibuat di `docs/design/school-portal-design.md`.`r`n- [x] Rancangan teknis implementasi sudah dibuat di `docs/design/school-portal-implementation.md`.`r`n`r`n## Status Terbaru
 
 - [x] Export rekap absensi bulanan ke CSV untuk mentor.
 - [x] Ubah password pengguna dari halaman profil.
@@ -86,4 +86,6 @@ Membuat fondasi teknis dan vertical slice tipis dari pendaftaran publik sampai r
 - Admin dapat mengubah status pendaftaran.
 - Data tersimpan di PostgreSQL schema `utero_academy`.
 - Akses role ditegakkan.
+
+
 

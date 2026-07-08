@@ -338,6 +338,16 @@ Fitur-fitur baru yang telah diselesaikan dalam sprint terbaru:
   - Nginx dikonfigurasi listen di port 80 (HTTP) dengan kemampuan untuk diperluas ke HTTPS di production.
 
 ---
+## 4.2. MVP Awal School Portal (9 Juli 2026)
+
+### **O. Dashboard Sekolah, Daftar Siswa, dan Detail Siswa (9 Juli 2026)**
+* **Penyelesaian:** Merapikan ulang portal sekolah agar memiliki alur MVP yang lebih jelas, dimulai dari halaman overview dashboard sekolah, halaman daftar siswa, dan halaman detail siswa terpisah.
+* **Penyelesaian:** Menambahkan halaman `app/dashboard/school/students/page.tsx` untuk menampilkan daftar siswa dari instansi yang sama dengan fitur pencarian nama, email, dan jurusan.
+* **Penyelesaian:** Menambahkan halaman `app/dashboard/school/students/[studentId]/page.tsx` untuk menampilkan ringkasan attendance rate, total jam, izin, sakit, profil intern, nilai akhir, sertifikat, serta riwayat kehadiran terbaru.
+* **Penyelesaian:** Merapikan `features/school/queries.ts` menjadi query reusable untuk dashboard sekolah, daftar siswa, attendance, daily report, dan detail siswa.
+* **Penyelesaian:** Menambahkan type khusus school portal di `features/school/types.ts` dan menyiapkan migrasi `supabase/migrations/0016_school_portal_reports.sql` untuk fondasi laporan periodik sekolah.
+
+---
 ## 5. Rencana Tahap Pengembangan Berikutnya (Revisi & Fitur Lanjutan)
 
 Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah rancangan roadmap untuk tahap pengerjaan berikutnya:
@@ -372,5 +382,6 @@ Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah
 
 ### **Bagian 8: Dashboard Analitik Admin**
 * **Grafik Pendapatan & Metrik:** Menyusun dashboard admin utama yang dilengkapi dengan diagram garis tren (seperti di referensi Image #3) serta panel metrik total pengguna, tugas terselesaikan, dan statistik keaktifan.
+
 
 
