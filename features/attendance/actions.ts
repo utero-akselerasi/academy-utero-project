@@ -1,10 +1,14 @@
-"use server";
+﻿"use server";
 
 import { createSupabaseServerClient, createUteroAcademyClient, createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { getInternProfileId } from "@/features/daily-reports/queries";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { checkInSchema, checkOutSchema, reviewAttendanceSchema } from "./schemas";
+
+function getTodayDateLocal() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
 
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371e3; // Earth radius in meters
@@ -22,12 +26,13 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
 export type FormState = {
   ok: boolean;
   message: string;
+  isOutOfRange?: boolean;
 };
 
 async function uploadSelfieBase64(supabase: any, userId: string, base64Data: string, type: 'in' | 'out'): Promise<string | null> {
   const base64Image = base64Data.split(";base64,").pop();
   if (!base64Image) return null;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getTodayDateLocal();
   const filePath = userId + "/attendance_" + today + "_" + type + "_" + Date.now() + ".jpg";
   const buffer = Buffer.from(base64Image, "base64");
   const { error } = await supabase.storage.from("avatars").upload(filePath, buffer, { contentType: "image/jpeg", upsert: true });
@@ -61,6 +66,10 @@ export async function checkInAction(_: FormState, formData: FormData): Promise<F
     .eq("id", "00000000-0000-0000-0000-000000000001")
     .maybeSingle();
 
+  let isOutOfRange = false;
+  let outOfRangeReason = null;
+  let outOfRangeProofUrl = null;
+
   if (settingsIn?.allow_geofencing) {
     const distance = getDistanceMeters(
       parsed.data.latitude,
@@ -69,18 +78,61 @@ export async function checkInAction(_: FormState, formData: FormData): Promise<F
       settingsIn.office_longitude || 112.6375
     );
     if (distance > (settingsIn.radius_meters || 100)) {
-      return { 
-        ok: false, 
-        message: "Absen ditolak. Anda berada di luar radius kantor (" + Math.round(distance) + "m > " + (settingsIn.radius_meters || 100) + "m)." 
-      };
+      isOutOfRange = true;
+      const reason = formData.get("outOfRangeReason") as string | null;
+      const proofFile = formData.get("outOfRangeProof") as File | null;
+      
+      if (!reason || reason.trim().length < 5) {
+        return { 
+          ok: false, 
+          message: "Kamu di luar jangkauan Kantor. Mohon konfirmasi kegiatan luar jika ada.",
+          isOutOfRange: true
+        };
+      }
+      
+      if (!proofFile || proofFile.size === 0) {
+        return { 
+          ok: false, 
+          message: "Dokumen bukti kegiatan luar wajib diunggah.",
+          isOutOfRange: true
+        };
+      }
+      
+      const serviceClient = createSupabaseServiceRoleClient();
+      const ext = proofFile.name.split(".").pop() || "pdf";
+      const filePath = user.id + "/proof_" + Date.now() + "." + ext;
+      const arrayBuffer = await proofFile.arrayBuffer();
+      const buffer = new Uint8Array(arrayBuffer);
+      const { error: uploadError } = await serviceClient.storage
+        .from("avatars")
+        .upload(filePath, buffer, { contentType: proofFile.type, upsert: true });
+        
+      if (uploadError) {
+        return { ok: false, message: "Gagal mengunggah dokumen bukti kegiatan luar." };
+      }
+      const { data: { publicUrl } } = serviceClient.storage.from("avatars").getPublicUrl(filePath);
+      outOfRangeProofUrl = publicUrl;
+      outOfRangeReason = reason;
     }
   }
 
   const selfieUrl = await uploadSelfieBase64(supabase, user.id, selfieBase64, "in");
   if (!selfieUrl) return { ok: false, message: "Gagal mengunggah foto selfie." };
   const db = await createUteroAcademyClient();
-  const today = new Date().toISOString().slice(0, 10);
-  const { error } = await db.from("attendances").insert({ intern_id: internId, attendance_date: today, check_in_at: new Date().toISOString(), check_in_latitude: parsed.data.latitude, check_in_longitude: parsed.data.longitude, check_in_wifi_ssid: parsed.data.wifiSsid || null, check_in_selfie_path: selfieUrl, status: "pending" });
+  const today = getTodayDateLocal();
+  const { error } = await db.from("attendances").insert({ 
+    intern_id: internId, 
+    attendance_date: today, 
+    check_in_at: new Date().toISOString(), 
+    check_in_latitude: parsed.data.latitude, 
+    check_in_longitude: parsed.data.longitude, 
+    check_in_wifi_ssid: parsed.data.wifiSsid || null, 
+    check_in_selfie_path: selfieUrl, 
+    status: isOutOfRange ? "manual_review" : "pending",
+    is_out_of_range: isOutOfRange,
+    out_of_range_reason: outOfRangeReason,
+    out_of_range_proof_path: outOfRangeProofUrl
+  });
   if (error) {
     console.error("Gagal check-in:", error);
     return { ok: false, message: "Gagal check-in, mungkin sudah check-in hari ini." };
@@ -129,7 +181,7 @@ export async function checkOutAction(_: FormState, formData: FormData): Promise<
   const selfieUrl = await uploadSelfieBase64(supabase, user.id, selfieBase64, "out");
   if (!selfieUrl) return { ok: false, message: "Gagal mengunggah foto selfie." };
   const db = await createUteroAcademyClient();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getTodayDateLocal();
   const { error } = await db.from("attendances").update({ check_out_at: new Date().toISOString(), check_out_latitude: parsed.data.latitude, check_out_longitude: parsed.data.longitude, check_out_wifi_ssid: parsed.data.wifiSsid || null, check_out_selfie_path: selfieUrl, updated_at: new Date().toISOString() }).eq("intern_id", internId).eq("attendance_date", today);
   if (error) {
     console.log("Gagal check-out:", error);
@@ -165,9 +217,15 @@ export async function submitPermitAction(_: FormState, formData: FormData): Prom
   const permitType = formData.get("permitType") as string;
   const reason = formData.get("reason") as string;
   const file = formData.get("certificate") as File | null;
+  const startDate = formData.get("startDate") as string;
+  const endDate = formData.get("endDate") as string;
 
   if (!permitType || !['permit', 'sick'].includes(permitType)) {
     return { ok: false, message: "Tipe izin tidak valid." };
+  }
+  
+  if (!startDate || !endDate) {
+    return { ok: false, message: "Tanggal mulai dan selesai wajib diisi." };
   }
 
   if (!reason || reason.trim().length < 5) {
@@ -203,20 +261,20 @@ export async function submitPermitAction(_: FormState, formData: FormData): Prom
   }
 
   const db = await createUteroAcademyServiceRoleClient();
-  const today = new Date().toISOString().slice(0, 10);
 
-  const { error } = await db.from("attendances").insert({
+  const { error } = await db.from("permits").insert({
     intern_id: internId,
-    attendance_date: today,
-    attendance_type: permitType,
-    permit_reason: reason,
-    sick_certificate_path: certificateUrl,
+    permit_type: permitType,
+    start_date: startDate,
+    end_date: endDate,
+    reason: reason,
+    attachment_path: certificateUrl,
     status: "pending"
   });
 
   if (error) {
     console.error("Gagal kirim izin:", error);
-    return { ok: false, message: "Pengajuan izin gagal, mungkin Anda sudah melakukan absen hari ini." };
+    return { ok: false, message: "Pengajuan izin gagal diproses. Silakan coba lagi." };
   }
 
   revalidatePath("/dashboard/intern/attendance");
@@ -255,6 +313,73 @@ export async function saveAttendanceSettingsAction(formData: FormData) {
   if (error) {
     console.error("Gagal simpan settings absensi:", error);
     throw new Error("Gagal menyimpan pengaturan absensi.");
+  }
+
+  revalidatePath("/dashboard/mentor/attendance");
+}
+
+
+export async function reviewPermitAction(formData: FormData) {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const permitId = formData.get("permitId") as string;
+  const status = formData.get("status") as string; // 'approved' | 'rejected'
+  const endDate = formData.get("endDate") as string;
+
+  if (!permitId || !status) throw new Error("Data tidak lengkap.");
+
+  const db = await createUteroAcademyServiceRoleClient();
+
+  // Ambil data permit
+  const { data: permit } = await db.from("permits").select("*").eq("id", permitId).single();
+  if (!permit) throw new Error("Permit tidak ditemukan.");
+
+  // Update permit status and optionally endDate
+  const newEndDate = endDate || permit.end_date;
+  const { error: permitError } = await db.from("permits").update({
+    status: status,
+    end_date: newEndDate,
+    reviewed_by: user.id,
+    reviewed_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }).eq("id", permitId);
+
+  if (permitError) {
+    console.error("Gagal review permit:", permitError);
+    throw new Error("Gagal menyimpan review izin.");
+  }
+
+  // Generate attendances if approved
+  if (status === "approved") {
+    let current = new Date(permit.start_date);
+    const end = new Date(newEndDate);
+    const inserts = [];
+    while (current <= end) {
+      const dateStr = current.toISOString().slice(0, 10);
+      inserts.push({
+        intern_id: permit.intern_id,
+        attendance_date: dateStr,
+        attendance_type: permit.permit_type,
+        permit_reason: permit.reason,
+        sick_certificate_path: permit.attachment_path,
+        status: "valid",
+        reviewed_by: user.id,
+        reviewed_at: new Date().toISOString()
+      });
+      current.setDate(current.getDate() + 1);
+    }
+
+    if (inserts.length > 0) {
+      // Upsert to handle conflict if intern already had an attendance row that day (e.g. pending check-in)
+      const { error: insertError } = await db.from("attendances").upsert(inserts, {
+        onConflict: "intern_id, attendance_date"
+      });
+      if (insertError) {
+        console.error("Gagal buat absen dari permit:", insertError);
+      }
+    }
   }
 
   revalidatePath("/dashboard/mentor/attendance");

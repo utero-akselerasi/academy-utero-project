@@ -15,7 +15,7 @@ export async function getInternAttendances(internProfileId: string) {
 
 export async function getTodayAttendance(internProfileId: string) {
   const db = await createUteroAcademyClient();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const { data } = await db
     .from("attendances")
     .select("*")

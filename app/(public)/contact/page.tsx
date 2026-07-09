@@ -1,6 +1,8 @@
 import { getLandingPageSettings } from "@/features/cms/queries";
 ﻿import { MapPin, Mail, Phone } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export default async function ContactPage() {
   const { data: dbSettings } = await getLandingPageSettings();
   const embedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=112.637%2C-7.945%2C112.647%2C-7.935&layer=mapnik&marker=-7.940%2C112.642`;

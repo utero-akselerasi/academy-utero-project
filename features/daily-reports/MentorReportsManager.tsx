@@ -129,7 +129,7 @@ export function MentorReportsManager({ reports }: Props) {
           Belum ada anak magang bimbingan yang mengirimkan laporan harian.
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {uniqueInterns.map((intern) => (
             <article 
               key={intern.id}
@@ -138,7 +138,7 @@ export function MentorReportsManager({ reports }: Props) {
                 setTimeFilter("all");
                 setStatusFilter("all");
               }}
-              className="surface p-5 bg-white border border-slate-200 rounded-2xl hover:border-teal-500 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between items-center text-center gap-3 relative group"
+              className="surface p-3 sm:p-5 bg-white border border-slate-200 rounded-2xl hover:border-teal-500 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between items-center text-center gap-2 sm:gap-3 relative group"
             >
               {intern.pendingCount > 0 && (
                 <span className="absolute top-3 right-3 h-5 min-w-5 px-1.5 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center animate-pulse">
@@ -146,18 +146,18 @@ export function MentorReportsManager({ reports }: Props) {
                 </span>
               )}
               
-              <div className="h-16 w-16 rounded-full bg-teal-50 text-teal-800 font-black text-xl flex items-center justify-center border border-teal-150">
+              <div className="h-10 w-10 sm:h-16 sm:w-16 rounded-full bg-teal-50 text-teal-800 font-black text-sm sm:text-xl flex items-center justify-center border border-teal-150">
                 {intern.name.charAt(0)}
               </div>
 
               <div>
-                <h3 className="font-extrabold text-slate-900 text-sm group-hover:text-teal-700 transition-colors">
+                <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm group-hover:text-teal-700 transition-colors line-clamp-2 break-words min-h-[2rem] flex items-center justify-center">
                   {intern.name}
                 </h3>
                 <p className="text-[10px] text-slate-400 font-semibold mt-1">ID: {intern.id.slice(0, 8)}</p>
               </div>
 
-              <div className="w-full bg-slate-50 border border-slate-100 p-2 rounded-xl text-center text-xs font-bold text-slate-600 mt-2">
+              <div className="w-full bg-slate-50 border border-slate-100 p-1.5 sm:p-2 rounded-xl text-center text-[10px] sm:text-xs font-bold text-slate-600 mt-1 sm:mt-2">
                 <span>{intern.reportsCount} Laporan Harian</span>
               </div>
             </article>

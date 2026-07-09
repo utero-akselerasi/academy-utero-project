@@ -1,4 +1,5 @@
 import { AttendanceStatusBadge } from "@/features/attendance/AttendanceStatusBadge";
+import { PendingPermitsList } from "@/features/attendance/PendingPermitsList";
 import { ReviewAttendanceForm } from "@/features/attendance/ReviewAttendanceForm";
 import { AttendanceMap } from "@/features/attendance/AttendanceMap";
 import { DatePickerFilter } from "@/features/attendance/DatePickerFilter";
@@ -71,6 +72,13 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
     .from("attendances")
     .select("*")
     .order("attendance_date", { ascending: false });
+
+  // 3.5. Fetch pending permits
+  const { data: pendingPermits } = await db
+    .from("permits")
+    .select("*, intern_profiles(full_name)")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
 
   // 4. Calculate stats for each intern
   const [setHour, setMin] = checkInTime.split(":").map(Number);
@@ -156,7 +164,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
   });
 
   const selectedIntern = (detailInternId ? mappedInterns.find(i => i.id === detailInternId) : undefined) as any;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const currentMonth = today.slice(0, 7);
 
   return (
@@ -184,41 +192,49 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
         </div>
       </div>
 
-      <section className="surface mb-6 rounded-xl border border-slate-200 bg-white p-5">
-        <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-teal-700">Export Rekap</p>
-            <h2 className="text-lg font-bold text-slate-950">Download absensi CSV</h2>
-            <p className="text-sm text-slate-600">Rekap berisi hadir, total jam, target bulanan, telat, izin, dan sakit/tidak masuk.</p>
+            <details className="group surface mb-6 rounded-xl border border-slate-200 bg-white overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+        <summary className="flex items-center justify-between p-4 cursor-pointer select-none hover:bg-slate-50 transition-colors">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-teal-100 p-2 text-teal-800 shrink-0">
+              <Download size={18} />
+            </div>
+            <div>
+              <h2 className="text-sm sm:text-base font-bold text-slate-950">Export Rekap Absensi (CSV)</h2>
+              <p className="text-[10px] sm:text-xs text-slate-500 font-medium">Download daftar hadir bulanan / custom range.</p>
+            </div>
           </div>
+          <span className="text-teal-700 text-xs font-bold uppercase tracking-widest hidden sm:block mr-2 group-open:hidden">Buka Export</span>
+        </summary>
+        
+        <div className="p-5 border-t border-slate-200 bg-slate-50/50">
+          <form action="/dashboard/mentor/attendance/export" method="get" className="grid gap-3 md:grid-cols-5 md:items-end">
+            <div className="form-field">
+              <label className="form-label text-xs font-bold text-slate-700">Mode Export</label>
+              <select name="mode" defaultValue="monthly" className="form-input text-xs">
+                <option value="monthly">Bulanan</option>
+                <option value="range">Custom Range</option>
+              </select>
+            </div>
+            <div className="form-field">
+              <label className="form-label text-xs font-bold text-slate-700">Bulan</label>
+              <input type="month" name="month" defaultValue={currentMonth} className="form-input text-xs" />
+            </div>
+            <div className="form-field">
+              <label className="form-label text-xs font-bold text-slate-700">Tanggal Mulai</label>
+              <input type="date" name="start" defaultValue={today} className="form-input text-xs" />
+            </div>
+            <div className="form-field">
+              <label className="form-label text-xs font-bold text-slate-700">Tanggal Selesai</label>
+              <input type="date" name="end" defaultValue={today} className="form-input text-xs" />
+            </div>
+            <button type="submit" className="button-primary flex min-h-0 items-center justify-center gap-2 px-4 py-2 text-xs font-bold h-[42px]">
+              <Download size={14} />
+              Export
+            </button>
+          </form>
+          <p className="mt-3 text-[10px] sm:text-xs text-slate-500 font-medium">Rekap CSV berisi hadir, total jam, target bulanan, telat, izin, dan sakit/tidak masuk.</p>
         </div>
-        <form action="/dashboard/mentor/attendance/export" method="get" className="grid gap-3 md:grid-cols-5 md:items-end">
-          <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700">Mode Export</label>
-            <select name="mode" defaultValue="monthly" className="form-input text-xs">
-              <option value="monthly">Bulanan</option>
-              <option value="range">Custom Range</option>
-            </select>
-          </div>
-          <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700">Bulan</label>
-            <input type="month" name="month" defaultValue={currentMonth} className="form-input text-xs" />
-          </div>
-          <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700">Tanggal Mulai</label>
-            <input type="date" name="start" defaultValue={today} className="form-input text-xs" />
-          </div>
-          <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700">Tanggal Selesai</label>
-            <input type="date" name="end" defaultValue={today} className="form-input text-xs" />
-          </div>
-          <button type="submit" className="button-primary flex min-h-0 items-center justify-center gap-2 px-4 py-2 text-xs font-bold">
-            <Download size={14} />
-            Export CSV
-          </button>
-        </form>
-        <p className="mt-3 text-xs text-slate-500">Untuk mode bulanan, sistem memakai input bulan. Untuk custom range, sistem memakai tanggal mulai dan selesai.</p>
-      </section>
+      </details>
 
       {/* Settings Panel */}
       {showSettings === "true" && (
@@ -316,6 +332,9 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
         </form>
       )}
 
+      {/* Pending Permits List */}
+      <PendingPermitsList permits={pendingPermits || []} />
+
       {/* Interns Grid View */}
       <h2 className="mb-4 text-lg font-bold text-slate-950">Peserta Magang Aktif ({interns.length})</h2>
       
@@ -324,43 +343,43 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
           Belum ada anak magang aktif.
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {mappedInterns.map((intern) => {
             return (
-              <article key={intern.id} className="surface p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md transition-all flex flex-col justify-between items-center text-center gap-3">
-                <div className="relative h-20 w-20 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-100 flex items-center justify-center shrink-0">
+              <article key={intern.id} className="surface p-3 sm:p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md transition-all flex flex-col justify-between items-center text-center gap-2 sm:gap-3">
+                <div className="relative h-12 w-12 sm:h-20 sm:w-20 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-100 flex items-center justify-center shrink-0">
                   {intern.latestSelfie ? (
                     <img src={intern.latestSelfie} alt={intern.full_name} className="h-full w-full object-cover" />
                   ) : (
-                    <User size={36} className="text-slate-400" />
+                    <User className="text-slate-400 w-6 h-6 sm:w-9 sm:h-9" />
                   )}
                 </div>
 
                 <div className="min-w-0">
-                  <h3 className="font-extrabold text-slate-900 text-sm truncate">{intern.full_name}</h3>
+                  <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm line-clamp-2 break-words min-h-[2rem] flex items-center justify-center">{intern.full_name}</h3>
                   {intern.major ? (
-                    <p className="text-[10px] text-teal-700 font-bold truncate mt-0.5">{intern.major}</p>
+                    <p className="text-[10px] text-teal-700 font-bold line-clamp-1 break-words mt-0.5">{intern.major}</p>
                   ) : <div className="h-4" />}
                 </div>
 
-                <div className="grid grid-cols-3 gap-1.5 w-full bg-slate-50 p-2 rounded-lg border border-slate-100 text-[10px] font-bold text-slate-500">
+                <div className="grid grid-cols-3 gap-1 w-full bg-slate-50 p-1 sm:p-2 rounded-lg border border-slate-100 text-[8px] sm:text-[10px] font-bold text-slate-500">
                   <div>
-                    <span className="block text-slate-400 text-[8px] uppercase">Rate</span>
+                    <span className="block text-slate-400 text-[6px] sm:text-[8px] uppercase">Rate</span>
                     <span className="text-teal-700">{intern.attendanceRate}%</span>
                   </div>
                   <div>
-                    <span className="block text-slate-400 text-[8px] uppercase">Late</span>
+                    <span className="block text-slate-400 text-[6px] sm:text-[8px] uppercase">Late</span>
                     <span className="text-red-600">{intern.lateCount}x</span>
                   </div>
                   <div>
-                    <span className="block text-slate-400 text-[8px] uppercase">Hours</span>
+                    <span className="block text-slate-400 text-[6px] sm:text-[8px] uppercase">Hours</span>
                     <span className="text-slate-800">{intern.totalHours}h</span>
                   </div>
                 </div>
 
                 <Link
                   href={`/dashboard/mentor/attendance?detailInternId=${intern.id}`}
-                  className="button-secondary text-xs w-full py-1.5 min-h-0 font-bold flex items-center justify-center gap-1 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300"
+                  className="button-secondary text-[10px] sm:text-xs w-full py-1 sm:py-1.5 min-h-0 font-bold flex items-center justify-center gap-1 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300"
                 >
                   <Eye size={12} />
                   <span>Detail Absen</span>
@@ -392,7 +411,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
             {/* Isi Modal */}
             <div className="p-6 overflow-y-auto space-y-6">
               {/* Summary Stats Grid */}
-              <div className="grid gap-3 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-center">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Lama Magang</span>
                   <span className="text-lg font-black text-slate-800 block mt-1">{selectedIntern.durationDays} Hari</span>
@@ -460,40 +479,82 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
 
                           {/* Detail Jam & Foto */}
                           {isPresent ? (
-                            <div className="grid gap-3 sm:grid-cols-2 text-xs">
-                              <div className="space-y-1 bg-white p-2 rounded-lg border border-slate-150">
-                                <span className="font-bold text-[10px] text-slate-400 uppercase block">Jam Masuk (Check-In)</span>
-                                <p className="font-bold text-slate-800">{formatTime(log.check_in_at)}</p>
-                                {log.check_in_selfie_path && (
-                                  <div className="mt-2 mb-2">
-                                    <span className="font-bold text-[9px] text-slate-400 uppercase block mb-1">Selfie Masuk</span>
-                                    <ImagePreview src={log.check_in_selfie_path} alt="Selfie Masuk" className="max-h-24 w-auto object-contain rounded border border-slate-200" />
+                            <>
+                            <div className="grid gap-4 sm:grid-cols-2 text-xs">
+                              {/* Jam Masuk */}
+                              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                                <div>
+                                  <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+                                    <span className="font-extrabold text-[10px] text-slate-400 uppercase tracking-wider">Jam Masuk (Check-In)</span>
+                                    <span className="font-extrabold text-xs text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-full">{formatTime(log.check_in_at)}</span>
                                   </div>
-                                )}
+                                  {log.check_in_selfie_path && (
+                                    <div className="mb-3">
+                                      <span className="font-bold text-[9px] text-slate-400 uppercase block mb-1">Selfie Masuk</span>
+                                      <ImagePreview src={log.check_in_selfie_path} alt="Selfie Masuk" className="max-h-32 w-full object-cover rounded-lg border border-slate-200" />
+                                    </div>
+                                  )}
+                                </div>
                                 {log.check_in_latitude && (
-                                  <>
-                                    <p className="text-[10px] text-slate-500 font-mono mt-1">GPS: {log.check_in_latitude.toFixed(5)}, {log.check_in_longitude?.toFixed(5)}</p>
+                                  <div className="border-t border-slate-100 pt-2 mt-auto">
+                                    <span className="font-semibold text-[9px] text-slate-400 uppercase block">Lokasi GPS</span>
+                                    <p className="text-[10px] text-slate-600 font-mono mt-0.5">Lat: {log.check_in_latitude.toFixed(5)}, {log.check_in_longitude?.toFixed(5)}</p>
                                     <AttendanceMap latitude={log.check_in_latitude} longitude={log.check_in_longitude!} label="Check-In" />
-                                  </>
+                                  </div>
                                 )}
                               </div>
-                              <div className="space-y-1 bg-white p-2 rounded-lg border border-slate-150">
-                                <span className="font-bold text-[10px] text-slate-400 uppercase block">Jam Pulang (Check-Out)</span>
-                                <p className="font-bold text-slate-800">{formatTime(log.check_out_at)}</p>
-                                {log.check_out_selfie_path && (
-                                  <div className="mt-2 mb-2">
-                                    <span className="font-bold text-[9px] text-slate-400 uppercase block mb-1">Selfie Pulang</span>
-                                    <ImagePreview src={log.check_out_selfie_path} alt="Selfie Pulang" className="max-h-24 w-auto object-contain rounded border border-slate-200" />
+                              
+                              {/* Jam Pulang */}
+                              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                                <div>
+                                  <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+                                    <span className="font-extrabold text-[10px] text-slate-400 uppercase tracking-wider">Jam Pulang (Check-Out)</span>
+                                    <span className="font-extrabold text-xs text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                                      {log.check_out_at ? formatTime(log.check_out_at) : "--:--"}
+                                    </span>
                                   </div>
-                                )}
+                                  {log.check_out_selfie_path ? (
+                                    <div className="mb-3">
+                                      <span className="font-bold text-[9px] text-slate-400 uppercase block mb-1">Selfie Pulang</span>
+                                      <ImagePreview src={log.check_out_selfie_path} alt="Selfie Pulang" className="max-h-32 w-full object-cover rounded-lg border border-slate-200" />
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-center h-28 bg-slate-50 border border-dashed border-slate-200 rounded-lg mb-3">
+                                      <span className="text-[10px] text-slate-400 font-medium italic">Belum check-out</span>
+                                    </div>
+                                  )}
+                                </div>
                                 {log.check_out_latitude && (
-                                  <>
-                                    <p className="text-[10px] text-slate-500 font-mono mt-1">GPS: {log.check_out_latitude.toFixed(5)}, {log.check_out_longitude?.toFixed(5)}</p>
+                                  <div className="border-t border-slate-100 pt-2 mt-auto">
+                                    <span className="font-semibold text-[9px] text-slate-400 uppercase block">Lokasi GPS</span>
+                                    <p className="text-[10px] text-slate-600 font-mono mt-0.5">Lat: {log.check_out_latitude.toFixed(5)}, {log.check_out_longitude?.toFixed(5)}</p>
                                     <AttendanceMap latitude={log.check_out_latitude} longitude={log.check_out_longitude!} label="Check-Out" />
-                                  </>
+                                  </div>
                                 )}
                               </div>
                             </div>
+                            {log.is_out_of_range && (
+                              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs mt-2 space-y-2 text-left">
+                                <span className="font-bold text-amber-900 block">⚠️ Absen di Luar Jangkauan Kantor</span>
+                                <div>
+                                  <span className="font-bold text-[10px] text-slate-500 uppercase block">Alasan Kegiatan:</span>
+                                  <p className="text-slate-700 italic mt-0.5">"{log.out_of_range_reason}"</p>
+                                </div>
+                                {log.out_of_range_proof_path && (
+                                  <div>
+                                    <span className="font-bold text-[10px] text-slate-500 uppercase block mb-1">Bukti Dokumen:</span>
+                                    {log.out_of_range_proof_path.endsWith('.pdf') ? (
+                                      <a href={log.out_of_range_proof_path} target="_blank" rel="noreferrer" className="text-teal-600 font-bold underline hover:text-teal-700 block">
+                                        Lihat Dokumen PDF Bukti
+                                      </a>
+                                    ) : (
+                                      <ImagePreview src={log.out_of_range_proof_path} alt="Bukti Kegiatan Luar" className="max-h-36 object-contain rounded border border-slate-200" />
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            </>
                           ) : (
                             <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-2 text-xs">
                               <div>

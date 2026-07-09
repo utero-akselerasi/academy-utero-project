@@ -51,7 +51,7 @@ export default async function SchoolDashboardPage() {
           Pantau siswa magang, progres pembelajaran, kehadiran, dan hasil penilaian dalam satu dashboard terpusat.
         </p>
         <div className="mt-6 flex flex-wrap gap-3 text-sm">
-          <Link href="/dashboard/school/students" className="rounded-full bg-white px-4 py-2 font-semibold text-blue-700 hover:bg-blue-50">Lihat Siswa</Link>
+          <Link href="/dashboard/school/students" className="rounded-full bg-white px-4 py-2 font-semibold text-black hover:bg-slate-100">Lihat Siswa</Link>
           <Link href="/dashboard/school/reports" className="rounded-full border border-white/30 px-4 py-2 font-semibold text-white hover:bg-white/10">Laporan</Link>
         </div>
       </section>

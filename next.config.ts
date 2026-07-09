@@ -12,9 +12,9 @@ const nextConfig: NextConfig = {
   },
   allowedDevOrigins: [
     "localhost",
-    "localhost:3000",
+    "localhost:3002",
     "*.localhost",
-    "*.localhost:3000",
+    "*.localhost:3002",
     "lvh.me",
     "lvh.me:3000",
     "*.lvh.me",
@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
     "*.maskhar.it.com",
     "*.soundpub.xyz",
     "*.carubra.com",
-    "10.10.10.102"
+    "http://10.10.10.102:3002"
   ],
   turbopack: {
     root: process.cwd(),

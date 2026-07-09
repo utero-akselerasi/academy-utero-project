@@ -11,6 +11,8 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date(value));
 }
 
+export const dynamic = "force-dynamic";
+
 export default async function BlogDetailPage({ params }: Props) {
   const { slug } = await params;
   const db = await createUteroAcademyServiceRoleClient();

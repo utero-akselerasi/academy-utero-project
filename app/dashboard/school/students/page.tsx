@@ -14,7 +14,7 @@ function getStatusLabel(status: string) {
 
 function tabClass(isActive: boolean) {
   return isActive
-    ? "rounded-full bg-blue-700 px-4 py-2 text-sm font-bold text-white"
+    ? "rounded-full bg-blue-700 px-4 py-2 text-sm font-bold !text-white"
     : "rounded-full border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50";
 }
 

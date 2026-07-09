@@ -1,5 +1,7 @@
 import { getLandingPageSettings } from "@/features/cms/queries";
-﻿export default async function TermsPage() {
+﻿export const dynamic = "force-dynamic";
+
+export default async function TermsPage() {
   const { data: dbSettings } = await getLandingPageSettings();
   return (
     <main className="mx-auto max-w-3xl px-6 py-12 space-y-8">

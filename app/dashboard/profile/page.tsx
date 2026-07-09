@@ -21,6 +21,18 @@ export default async function EditProfilePage() {
     const { data } = await db.from("mentor_profiles").select("*").eq("id", mentorId).maybeSingle();
     mentorProfile = data;
   }
+
+  // Fetch real user roles from database
+  const { data: userRoles } = await db
+    .from("user_roles")
+    .select("roles(code, name)")
+    .eq("user_id", user.id)
+    .returns<any[]>();
+
+  const roles = (userRoles || []).map(ur => {
+    const roleObj = Array.isArray(ur.roles) ? ur.roles[0] : ur.roles;
+    return roleObj;
+  }).filter(Boolean);
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <div className="mb-6">
@@ -42,9 +54,32 @@ export default async function EditProfilePage() {
           <h2 className="font-bold text-lg text-slate-950">{userProfile?.full_name || "Nama Pengguna"}</h2>
           <p className="text-xs text-slate-500 break-all">{user.email}</p>
           <div className="mt-4 flex flex-wrap gap-1 justify-center">
-            {internProfile && <span className="status-pill text-teal-700 bg-teal-50 border-teal-200">Peserta Magang</span>}
-            {mentorProfile && <span className="status-pill text-amber-700 bg-amber-50 border-amber-200">Mentor</span>}
-            {!internProfile && !mentorProfile && <span className="status-pill text-slate-700 bg-slate-50 border-slate-200">Staff / Admin</span>}
+            {roles.length > 0 ? (
+              roles.map((role: any) => {
+                let badgeClass = "text-slate-700 bg-slate-50 border-slate-200";
+                if (role.code === "intern") {
+                  badgeClass = "text-teal-700 bg-teal-50 border-teal-200";
+                } else if (role.code === "mentor") {
+                  badgeClass = "text-amber-700 bg-amber-50 border-amber-200";
+                } else if (role.code === "super_admin") {
+                  badgeClass = "text-red-700 bg-red-50 border-red-200";
+                } else if (role.code === "admin") {
+                  badgeClass = "text-blue-700 bg-blue-50 border-blue-200";
+                } else if (role.code === "school") {
+                  badgeClass = "text-indigo-700 bg-indigo-50 border-indigo-200";
+                }
+                
+                return (
+                  <span key={role.code} className={`status-pill ${badgeClass}`}>
+                    {role.name}
+                  </span>
+                );
+              })
+            ) : (
+              <span className="status-pill text-slate-700 bg-slate-50 border-slate-200">
+                Tanpa Role
+              </span>
+            )}
           </div>
         </div>
         <div>

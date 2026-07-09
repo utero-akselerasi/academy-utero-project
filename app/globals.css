@@ -1,12 +1,26 @@
 @import "tailwindcss";
+@theme {
+  --color-teal-50: #FFF5F5;
+  --color-teal-100: #FFE3E3;
+  --color-teal-200: #FFC9C9;
+  --color-teal-300: #FFA8A8;
+  --color-teal-400: #FF7878;
+  --color-teal-500: #CE181E;
+  --color-teal-600: #B61016;
+  --color-teal-700: #9B0C11;
+  --color-teal-800: #7E080C;
+  --color-teal-900: #5A0407;
+  --color-teal-950: #3C0103;
+}
+
 
 :root {
   --background: #f8fafc;
   --foreground: #172033;
   --muted: #65738a;
   --border: #dce3ee;
-  --primary: #0f766e;
-  --primary-strong: #0b5f59;
+  --primary: #CE181E;
+  --primary-strong: #B61016;
   --accent: #b45309;
 }
 
@@ -62,7 +76,7 @@ select {
 
 .form-input:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+  box-shadow: 0 0 0 3px rgba(206, 24, 30, 0.14);
 }
 
 .button-primary {

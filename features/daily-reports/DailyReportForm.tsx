@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { submitDailyReportAction, type DailyReportFormState } from "@/features/daily-reports/actions";
 import { useActionState, useState, useRef, useEffect } from "react";
@@ -24,7 +24,7 @@ type Props = {
 };
 
 function getTodayDate() {
-  return new Date().toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 }
 
 function formatBytes(bytes: number) {
@@ -105,18 +105,21 @@ export function DailyReportForm({ editReport }: Props) {
       ) : null}
 
       <div className="form-field">
-        <label className="form-label" htmlFor="reportDate">
+        <label className="form-label">
           Tanggal Laporan
         </label>
-        <input
-          className="form-input read-only:bg-slate-100"
-          defaultValue={editReport ? editReport.report_date : getTodayDate()}
-          id="reportDate"
-          name="reportDate"
-          required
-          type="date"
-          readOnly={!!editReport}
-        />
+        {editReport ? (
+          <div className="bg-slate-100 p-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 font-medium">
+            {editReport.report_date}
+            <input type="hidden" name="reportDate" value={editReport.report_date} />
+          </div>
+        ) : (
+          <div className="bg-slate-100 p-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 font-medium flex items-center justify-between">
+            <span>{getTodayDate()} (Hari Ini)</span>
+            <span className="text-xs text-slate-500 font-normal hidden sm:inline">Harus dikirim hari ini sebelum pulang</span>
+            <input type="hidden" name="reportDate" value={getTodayDate()} />
+          </div>
+        )}
       </div>
       
       <div className="form-field">
@@ -229,7 +232,7 @@ export function DailyReportForm({ editReport }: Props) {
                 return (
                   <li key={idx} className="flex justify-between items-center gap-2">
                     <span className="truncate">
-                      📄 {file.name}
+                      ðŸ“„ {file.name}
                     </span>
                     <span className="shrink-0 text-slate-400">
                       {formatBytes(file.size)}
@@ -288,3 +291,4 @@ export function DailyReportForm({ editReport }: Props) {
     </form>
   );
 }
+

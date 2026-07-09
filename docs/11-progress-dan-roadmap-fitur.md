@@ -405,6 +405,33 @@ Fitur-fitur baru yang telah diselesaikan dalam sprint terbaru:
 * **Penyelesaian:** Merapikan tampilan siswa terhubung menjadi card compact dengan detail masa magang yang bisa dibuka melalui accordion **Edit Masa Magang**.
 * **Penyelesaian:** Mengurangi kebutuhan horizontal scroll dan membuat pengelolaan instansi lebih mudah dibaca oleh Super Admin.
 
+## 4.8. Rilis Perbaikan, Optimalisasi Timezone, & Perapihan UI (10 Juli 2026)
+
+### **U. Penguncian Tanggal Laporan Harian (Daily Report)**
+* **Penyelesaian:** Menghapus form pemilih tanggal pada pembuatan laporan harian intern (`features/daily-reports/DailyReportForm.tsx`).
+* **Penyelesaian:** Tanggal otomatis terkunci ke hari ini menggunakan zona waktu Asia/Jakarta (WIB) untuk melatih kedisiplinan pengisian laporan sebelum pulang.
+
+### **V. Absensi Geofencing Out-of-Range**
+* **Penyelesaian:** Memperbarui `checkInAction` di `features/attendance/actions.ts` dan `features/attendance/CheckInForm.tsx` untuk menangani deteksi jarak di luar radius kantor.
+* **Penyelesaian:** Menyediakan formulir alasan (`outOfRangeReason`) dan unggah berkas bukti (`outOfRangeProof`) dengan kewajiban berfoto selfie. Jika disetujui mentor, status absensi akan diubah menjadi valid (dihitung hadir).
+
+### **W. Izin Multi-Hari & Approval Flow**
+* **Penyelesaian:** Mengubah form pengajuan izin/sakit (`features/attendance/PermitForm.tsx`) agar mendukung rentang tanggal (Mulai s.d. Selesai).
+* **Penyelesaian:** Membuat tabel `permits` (`supabase/migrations/0017_out_of_range_and_multi_day_permits.sql`) dan antrean persetujuan (`features/attendance/PendingPermitsList.tsx`) di dashboard mentor. Mentor dapat mengedit tanggal selesai izin sebelum memberikan persetujuan yang secara otomatis menghasilkan entri absen harian di tabel `attendances`.
+
+### **X. Perbaikan Timezone Tanggal Absensi**
+* **Penyelesaian:** Mengganti semua format penentuan tanggal hari ini dari `.toISOString().slice(0, 10)` (UTC) menjadi berbasis Asia/Jakarta (`Intl.DateTimeFormat`) di seluruh logika absensi.
+
+### **Y. Perapihan Tampilan UI/UX Responsif**
+* **Penyelesaian:** Mengubah list absensi mentor (`app/dashboard/mentor/attendance/page.tsx`) dan daily report mentor (`features/daily-reports/MentorReportsManager.tsx`) menjadi grid responsif 2 kolom di layar HP.
+* **Penyelesaian:** Merampingkan visual kartu profil, logo status, dan text wrap (`line-clamp-2 break-words`) untuk mencegah melubernya nama panjang.
+* **Penyelesaian:** Mengubah stats grid modal detail absensi menjadi 2 kolom di layar HP dan membungkus form Export Rekap CSV ke dalam accordion details yang praktis.
+* **Penyelesaian:** Memperbaiki teks tombol filter siswa school portal agar tetap kontras (putih) di atas warna biru.
+* **Penyelesaian:** Menampilkan list role dinamis dari tabel `user_roles` di halaman edit profil (`app/dashboard/profile/page.tsx`).
+
+### **Z. Resolusi Prerender Build Docker**
+* **Penyelesaian:** Menambahkan `export const dynamic = "force-dynamic"` pada seluruh halaman publik dinamis agar Next.js tidak melakukan static prerendering saat runtime env Supabase belum di-mount pada proses Docker build.
+
 ---
 ## 5. Rencana Tahap Pengembangan Berikutnya (Revisi & Fitur Lanjutan)
 

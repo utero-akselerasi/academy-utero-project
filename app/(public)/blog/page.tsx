@@ -6,6 +6,8 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date(value));
 }
 
+export const dynamic = "force-dynamic";
+
 export default async function BlogListPage() {
   const siteId = "c6e8f645-5f5e-4b33-a66a-bf92e047c212";
   let articles: any[] = [];

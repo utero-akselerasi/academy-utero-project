@@ -6,6 +6,10 @@ import { CalendarRange, FileText, Upload } from "lucide-react";
 
 const initialState: FormState = { ok: false, message: "" };
 
+function getTodayDate() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
+
 export function PermitForm() {
   const [state, formAction, isPending] = useActionState(submitPermitAction, initialState);
   const [permitType, setPermitType] = useState<"permit" | "sick">("permit");
@@ -72,6 +76,33 @@ export function PermitForm() {
         </div>
       </div>
 
+      {/* Rentang Tanggal Izin */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="form-field">
+          <label className="form-label font-bold text-slate-700" htmlFor="startDate">Tanggal Mulai *</label>
+          <input
+            id="startDate"
+            name="startDate"
+            type="date"
+            required
+            defaultValue={getTodayDate()}
+            className="form-input text-sm"
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label font-bold text-slate-700" htmlFor="endDate">Tanggal Selesai *</label>
+          <input
+            id="endDate"
+            name="endDate"
+            type="date"
+            required
+            defaultValue={getTodayDate()}
+            className="form-input text-sm"
+          />
+        </div>
+      </div>
+
       {/* Alasan / Deskripsi */}
       <div className="form-field">
         <label className="form-label font-bold text-slate-700" htmlFor="reasonInput">Alasan Keterangan *</label>
@@ -123,3 +154,5 @@ export function PermitForm() {
     </form>
   );
 }
+
+

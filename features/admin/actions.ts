@@ -65,7 +65,7 @@ export async function assignMentorAction(formData: FormData) {
     intern_id: internId,
     mentor_id: mentorId,
     assigned_by: user.id,
-    started_at: new Date().toISOString().slice(0, 10)
+    started_at: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())
   });
 
   if (error) {

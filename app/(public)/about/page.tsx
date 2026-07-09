@@ -1,6 +1,8 @@
 import { getLandingPageSettings } from "@/features/cms/queries";
 ﻿import { Award, ShieldCheck, Heart } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export default async function AboutPage() {
   const { data: dbSettings } = await getLandingPageSettings();
   return (

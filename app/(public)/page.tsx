@@ -67,6 +67,8 @@ const defaultReviews = [
   }
 ];
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const siteId = "c6e8f645-5f5e-4b33-a66a-bf92e047c212";
   let cmsData: { faqs: Faq[]; testimonials: Testimonial[]; galleries: Gallery[]; articles: Article[] } = { 
