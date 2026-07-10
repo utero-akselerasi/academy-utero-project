@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 ﻿import { UserRoleManager } from "@/features/super-admin/UserRoleManager";
 import { getSuperAdminUserManagementData } from "@/features/super-admin/queries";
 import Link from "next/link";

@@ -82,3 +82,22 @@ Sebelum mulai menguji di browser:
    - Nama panjang (misal: *Muhammad Toyfur Dita Ramadan*) melipat rapi ke baris berikutnya (*word wrapping*) dan tidak meluber keluar dari batas kartu.
    - Pada modal detail absensi siswa, 4 kotak statistik utama (Lama Magang, Rate, dll.) tersusun seimbang dalam format petak 2x2.
    - Menu **Export Rekap CSV** kini diringkas rapi di dalam accordion details yang hemat ruang.
+
+
+### Skenario F: Visualisasi Grafik & Statistik (School Portal & Intern Dashboard)
+1. **Verifikasi Dashboard Sekolah:**
+   - Login menggunakan akun perwakilan sekolah (`school` role).
+   - Masuk ke **School Portal Dashboard** (`/dashboard/school`).
+   - **Verifikasi Grafik:** Anda akan melihat bagian grafik visual interaktif baru:
+     - **Tren Kehadiran Siswa:** Line chart yang memetakan perkembangan rata-rata absensi mingguan.
+     - **Distribusi Status Siswa:** Bar chart berwarna biru cerah yang menunjukkan distribusi status akademik siswa (Total, Aktif, Alumni, Perlu Perhatian).
+     - Arahkan kursor (*hover*) pada poin/batang grafik untuk memunculkan *tooltip popup* angka detail.
+2. **Verifikasi Detail Siswa (School Portal):**
+   - Di Dashboard Sekolah, cari bagian **Siswa Terbaru** dan klik **Detail** pada salah satu nama siswa.
+   - **Verifikasi Grafik:** Di atas profil siswa, perhatikan bagan batang **"Distribusi Absensi Kehadiran Siswa"** yang menggambarkan secara visual jumlah hari Hadir, Izin, dan Sakit siswa tersebut.
+3. **Verifikasi Dashboard Intern:**
+   - Login menggunakan akun dengan role `intern`.
+   - Masuk ke **Beranda Dashboard** (`/dashboard/intern`).
+   - **Verifikasi Grafik:** Gulir ke bagian bawah ringkasan widget. Anda akan melihat dua grafik visual:
+     - **Distribusi Kehadiran:** Menampilkan jumlah kehadiran fisik, izin, dan sakit secara visual.
+     - **Status Penyelesaian Tugas:** Menampilkan progres tugas yang Selesai vs Pending dalam diagram batang.

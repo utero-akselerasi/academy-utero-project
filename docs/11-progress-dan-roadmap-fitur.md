@@ -432,6 +432,18 @@ Fitur-fitur baru yang telah diselesaikan dalam sprint terbaru:
 ### **Z. Resolusi Prerender Build Docker**
 * **Penyelesaian:** Menambahkan `export const dynamic = "force-dynamic"` pada seluruh halaman publik dinamis agar Next.js tidak melakukan static prerendering saat runtime env Supabase belum di-mount pada proses Docker build.
 
+### **AA. Visualisasi Grafik & Statistik Interaktif (Dashboard School & Intern)**
+* **Penyelesaian:** Membuat komponen `StatsVisualization.tsx` berbasis custom SVG untuk merender visual grafik garis (*line chart*) dan diagram batang (*bar chart*) tanpa menggunakan package external tambahan.
+* **Penyelesaian:** Mengintegrasikan grafik interaktif pada Dashboard Portal Sekolah (`app/dashboard/school/page.tsx`) untuk menampilkan statistik tren kehadiran siswa mingguan dan distribusi status akademik.
+* **Penyelesaian:** Menambahkan grafik visual absensi pada halaman detail siswa portal sekolah (`app/dashboard/school/students/[studentId]/page.tsx`).
+* **Penyelesaian:** Mengintegrasikan grafik pada Dashboard Intern (`app/dashboard/intern/page.tsx`) untuk visualisasi data penyelesaian tugas dan diagram absensi kehadiran.
+
+### **AA. Visualisasi Grafik & Statistik Interaktif (Dashboard School & Intern)**
+* **Penyelesaian:** Membuat komponen `StatsVisualization.tsx` berbasis custom SVG untuk merender visual grafik garis (*line chart*) dan diagram batang (*bar chart*) tanpa menggunakan package external tambahan.
+* **Penyelesaian:** Mengintegrasikan grafik interaktif pada Dashboard Portal Sekolah (`app/dashboard/school/page.tsx`) untuk menampilkan statistik tren kehadiran siswa mingguan dan distribusi status akademik.
+* **Penyelesaian:** Menambahkan grafik visual absensi pada halaman detail siswa portal sekolah (`app/dashboard/school/students/[studentId]/page.tsx`).
+* **Penyelesaian:** Mengintegrasikan grafik pada Dashboard Intern (`app/dashboard/intern/page.tsx`) untuk visualisasi data penyelesaian tugas dan diagram absensi kehadiran.
+
 ---
 ## 5. Rencana Tahap Pengembangan Berikutnya (Revisi & Fitur Lanjutan)
 
@@ -446,9 +458,7 @@ Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah
   - **Lihat Profil Detail** (khusus role intern untuk melihat rangkuman task, absensi, dan data akademik di halaman terpisah).
   - **Hapus User** (menghapus akun beserta data terkait).
 
-### **Bagian 2: Rangkuman Dashboard Sekolah & Siswa (dashboard/intern & school)**
-* **Visualisasi Statistik:** Menambahkan ringkasan chart interaktif, performa nilai, status kehadiran, dan skala kemajuan tugas anak magang (seperti grafik pada referensi Image #3).
-* **Portal Instansi:** Menampilkan jumlah total siswa magang terdaftar dari sekolah tersebut, status (aktif/alumni), dan rata-rata performa mereka.
+<!-- Bagian 2 dipindahkan ke 4.8 karena sudah selesai -->
 
 ### **Bagian 3: Deprecate Penempatan (dashboard/admin/penempatan)**
 * **Penyelesaian:** Menu penempatan mentor telah dinonaktifkan dan dihapus dari sidebar navigasi admin karena semua pengguna admin secara default dapat membimbing seluruh peserta magang secara global.

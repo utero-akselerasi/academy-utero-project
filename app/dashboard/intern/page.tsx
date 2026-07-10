@@ -1,9 +1,12 @@
+export const dynamic = "force-dynamic";
+
 ﻿import { createSupabaseServerClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { getInternProfileId, getInternDailyReports } from "@/features/daily-reports/queries";
 import { getInternAttendances, getTodayAttendance } from "@/features/attendance/queries";
 import { getInternCards } from "@/features/tasks/queries";
 import { AttendanceStatusBadge } from "@/features/attendance/AttendanceStatusBadge";
 import { ReportStatusBadge } from "@/features/daily-reports/ReportStatusBadge";
+import { StatsVisualization } from "@/features/dashboard/StatsVisualization";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { 
@@ -131,6 +134,17 @@ export default async function InternDashboardPage() {
       todayStatusColor = "bg-sky-50 text-sky-850 border-sky-200";
     }
   }
+
+  const attendanceBreakdownData = [
+    { label: "Hadir", value: presentDays },
+    { label: "Izin", value: permitDays },
+    { label: "Sakit", value: sickDays },
+  ];
+
+  const taskProgressData = [
+    { label: "Selesai", value: completedTasks },
+    { label: "Pending", value: totalTasks - completedTasks },
+  ];
 
   const modules = [
     {
@@ -276,6 +290,24 @@ export default async function InternDashboardPage() {
             <span className="text-xs text-slate-400 font-bold">{permitDays} Izin, {sickDays} Sakit</span>
           </div>
         </div>
+      </section>
+
+      {/* Chart Visualisasi Stats */}
+      <section className="grid gap-6 md:grid-cols-2">
+        <StatsVisualization 
+          title="Distribusi Kehadiran" 
+          subtitle="Akumulasi kehadiran selama masa magang berjalan" 
+          data={attendanceBreakdownData} 
+          type="bar" 
+          color="#CE181E" 
+        />
+        <StatsVisualization 
+          title="Status Penyelesaian Tugas" 
+          subtitle="Tugas yang ditugaskan oleh mentor" 
+          data={taskProgressData} 
+          type="bar" 
+          color="#3b82f6" 
+        />
       </section>
 
       {/* Grid Menu Portal */}

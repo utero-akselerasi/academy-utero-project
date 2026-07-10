@@ -1,7 +1,10 @@
+export const dynamic = "force-dynamic";
+
 ﻿import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSchoolProfile, getSchoolStudentDetail } from "@/features/school/queries";
+import { StatsVisualization } from "@/features/dashboard/StatsVisualization";
 
 function formatDate(value: string | null) {
   if (!value) return "-";
@@ -43,6 +46,13 @@ export default async function SchoolStudentDetailPage({ params }: { params: Prom
 
   const { intern } = detail;
   const periodInfo = getPeriodInfo(intern.start_date, intern.end_date);
+
+  const presentDays = detail.attendances.filter(a => a.attendance_type === "present" || !a.attendance_type).length;
+  const attendanceBreakdownData = [
+    { label: "Hadir", value: presentDays },
+    { label: "Izin", value: detail.permitCount },
+    { label: "Sakit", value: detail.sickCount },
+  ];
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
@@ -89,6 +99,18 @@ export default async function SchoolStudentDetailPage({ params }: { params: Prom
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">Total Jam</p><p className="mt-2 text-2xl font-bold text-slate-900">{detail.totalHours}</p></div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">Izin</p><p className="mt-2 text-2xl font-bold text-slate-900">{detail.permitCount}</p></div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">Sakit</p><p className="mt-2 text-2xl font-bold text-slate-900">{detail.sickCount}</p></div>
+      </section>
+
+      {/* Chart Visualisasi Stats */}
+      <section className="mt-6">
+        <StatsVisualization 
+          title="Distribusi Absensi Kehadiran Siswa" 
+          subtitle="Total hari kehadiran, izin, dan sakit selama magang" 
+          data={attendanceBreakdownData} 
+          type="bar" 
+          color="#CE181E" 
+          height={180}
+        />
       </section>
 
       <section className="mt-6 grid gap-6 lg:grid-cols-2">

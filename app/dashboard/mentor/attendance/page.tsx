@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { AttendanceStatusBadge } from "@/features/attendance/AttendanceStatusBadge";
 import { PendingPermitsList } from "@/features/attendance/PendingPermitsList";
 import { ReviewAttendanceForm } from "@/features/attendance/ReviewAttendanceForm";

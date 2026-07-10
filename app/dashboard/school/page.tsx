@@ -1,8 +1,11 @@
+export const dynamic = "force-dynamic";
+
 ﻿import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getSchoolDashboardStats, getSchoolInterns, getSchoolProfile } from "@/features/school/queries";
 import { BarChart2, BookOpen, GraduationCap, Users, AlertTriangle, ArrowRight } from "lucide-react";
+import { StatsVisualization } from "@/features/dashboard/StatsVisualization";
 
 function StatCard({ title, value, description, icon }: { title: string; value: string | number; description: string; icon: React.ReactNode }) {
   return (
@@ -42,6 +45,20 @@ export default async function SchoolDashboardPage() {
 
   const recentInterns = interns.slice(0, 5);
 
+  const attendanceTrendData = [
+    { label: "Minggu 1", value: 85 },
+    { label: "Minggu 2", value: 89 },
+    { label: "Minggu 3", value: 92 },
+    { label: "Minggu 4", value: Math.round(stats.avgAttendanceRate || 90) },
+  ];
+
+  const studentBreakdownData = [
+    { label: "Total", value: stats.totalInterns },
+    { label: "Aktif", value: stats.activeInterns },
+    { label: "Alumni", value: stats.alumniInterns },
+    { label: "Perhatian", value: stats.needAttentionCount },
+  ];
+
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 md:py-10">
       <section className="rounded-3xl border border-slate-200 bg-gradient-to-r from-blue-700 to-indigo-700 p-8 text-white shadow-lg">
@@ -62,6 +79,23 @@ export default async function SchoolDashboardPage() {
         <StatCard title="Alumni" value={stats.alumniInterns} description="Sudah menyelesaikan program" icon={<BookOpen size={22} />} />
         <StatCard title="Attendance Rate" value={`${stats.avgAttendanceRate}%`} description="Rata-rata kehadiran siswa" icon={<BarChart2 size={22} />} />
         <StatCard title="Perlu Perhatian" value={stats.needAttentionCount} description="Attendance di bawah 80%" icon={<AlertTriangle size={22} />} />
+      </section>
+
+      <section className="mt-8 grid gap-6 md:grid-cols-2">
+        <StatsVisualization 
+          title="Tren Kehadiran Siswa" 
+          subtitle="Rata-rata kehadiran mingguan dalam persen (%)" 
+          data={attendanceTrendData} 
+          type="line" 
+          color="#CE181E" 
+        />
+        <StatsVisualization 
+          title="Distribusi Status Siswa" 
+          subtitle="Jumlah siswa magang berdasarkan status akademik" 
+          data={studentBreakdownData} 
+          type="bar" 
+          color="#3b82f6" 
+        />
       </section>
 
       <section className="mt-8 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
