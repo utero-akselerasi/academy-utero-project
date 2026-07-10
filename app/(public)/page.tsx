@@ -301,11 +301,15 @@ export default async function HomePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {displayExpertisers.map((exp: any, idx: number) => (
               <div key={idx} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
-                <div className="w-full h-48 bg-slate-200 flex items-center justify-center text-slate-400 relative">
+                <div className="w-full h-48 bg-slate-200 flex items-center justify-center text-slate-400 relative overflow-hidden">
+                  {exp.avatar ? (
+                    <img src={exp.avatar} alt={exp.name} className="absolute inset-0 h-full w-full object-cover" />
+                  ) : (
+                    <span className="font-extrabold text-white text-3xl uppercase z-10">
+                      {exp.name.split(" ").map((w: string) => w[0]).join("")}
+                    </span>
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent"></div>
-                  <span className="font-extrabold text-white text-3xl uppercase z-10">
-                    {exp.name.split(" ").map((w: string) => w[0]).join("")}
-                  </span>
                 </div>
                 <div className="p-4 text-center space-y-2">
                   <span className="text-[9px] font-black text-red-600 tracking-wider uppercase block">{exp.role}</span>
@@ -380,58 +384,27 @@ export default async function HomePage() {
             <div>
               <p className="text-xs text-red-600 font-extrabold uppercase tracking-widest">OUR ACTIVITY</p>
               <h2 className="text-3xl font-black text-slate-900 mt-1">Recent activity</h2>
+              <p className="mt-2 text-xs text-slate-500">Data ini diambil dari artikel/blog CMS yang berstatus published.</p>
             </div>
             <Link href="/blog" className="text-xs font-bold text-slate-900 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-full flex items-center gap-1.5 transition-all">
               MORE ACTIVITY ?
             </Link>
           </div>
 
-          <div className="grid gap-8 md:grid-cols-3">
-            {activeArticles.length === 0 ? (
-              // Beautiful Fallback cards matching design if no CMS articles found
-              <>
-                <article className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
-                  <div className="w-full h-44 bg-slate-100 flex items-center justify-center text-slate-400">
-                    <Newspaper size={36} />
-                  </div>
-                  <div className="p-5 space-y-2">
-                    <span className="text-[9px] text-red-500 font-bold uppercase block">KEGIATAN MAGANG</span>
-                    <h4 className="text-sm font-black text-slate-800 leading-snug">Kunjungan Industri & Pelatihan Desain Bersama Utero Group</h4>
-                    <p className="text-xs text-slate-400 leading-relaxed line-clamp-3">Pelatihan desain grafis intensif untuk siswa SMK se-Jawa Timur.</p>
-                  </div>
-                  <div className="p-5 pt-0">
-                    <span className="text-xs font-bold text-teal-700 hover:underline cursor-pointer">Selengkapnya ?</span>
-                  </div>
-                </article>
-                <article className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
-                  <div className="w-full h-44 bg-slate-100 flex items-center justify-center text-slate-400">
-                    <Newspaper size={36} />
-                  </div>
-                  <div className="p-5 space-y-2">
-                    <span className="text-[9px] text-red-500 font-bold uppercase block">KEGIATAN MAGANG</span>
-                    <h4 className="text-sm font-black text-slate-800 leading-snug">Uji Kompetensi Kerja (UKK) Desain & Cetak Digital</h4>
-                    <p className="text-xs text-slate-400 leading-relaxed line-clamp-3">Uji kompetensi praktis untuk menilai kelayakan kerja siswa magang.</p>
-                  </div>
-                  <div className="p-5 pt-0">
-                    <span className="text-xs font-bold text-teal-700 hover:underline cursor-pointer">Selengkapnya ?</span>
-                  </div>
-                </article>
-                <article className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
-                  <div className="w-full h-44 bg-slate-100 flex items-center justify-center text-slate-400">
-                    <Newspaper size={36} />
-                  </div>
-                  <div className="p-5 space-y-2">
-                    <span className="text-[9px] text-red-500 font-bold uppercase block">PRESTASI ALUMNI</span>
-                    <h4 className="text-sm font-black text-slate-800 leading-snug">Kisah Sukses Alumni Magang Utero di Industri Kreatif Nasional</h4>
-                    <p className="text-xs text-slate-400 leading-relaxed line-clamp-3">Perjalanan alumni membangun portofolio hingga menembus karir top.</p>
-                  </div>
-                  <div className="p-5 pt-0">
-                    <span className="text-xs font-bold text-teal-700 hover:underline cursor-pointer">Selengkapnya ?</span>
-                  </div>
-                </article>
-              </>
-            ) : (
-              activeArticles.map((art) => (
+          {activeArticles.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+              <Newspaper size={34} className="mx-auto text-slate-300" />
+              <h3 className="mt-4 text-sm font-black text-slate-900">Belum ada activity dari CMS.</h3>
+              <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                Section ini bukan data dummy permanen. Kontennya akan otomatis muncul dari menu Blog/Artikel CMS setelah artikel dibuat dan statusnya dipublish.
+              </p>
+              <Link href="/blog" className="mt-4 inline-flex rounded-full bg-[#CE181E] px-4 py-2 text-xs font-bold text-white hover:bg-[#B61016] transition-all">
+                Lihat Halaman Blog
+              </Link>
+            </div>
+          ) : (
+            <div className="grid gap-8 md:grid-cols-3">
+              {activeArticles.map((art) => (
                 <article key={art.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
                   <div>
                     {art.cover_path ? (
@@ -453,9 +426,9 @@ export default async function HomePage() {
                     </Link>
                   </div>
                 </article>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -492,3 +465,4 @@ export default async function HomePage() {
     </main>
   );
 }
+
