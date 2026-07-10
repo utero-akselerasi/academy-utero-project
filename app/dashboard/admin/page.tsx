@@ -1,4 +1,4 @@
-﻿export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { getAdminDashboardStats } from "@/features/admin/dashboard-queries";
@@ -46,8 +46,8 @@ export default async function AdminDashboardPage() {
           Kelola modul pembelajaran LMS, validasi pendaftaran magang, review monitoring absensi, dan pengaturan CMS situs.
         </p>
         <div className="mt-6 flex flex-wrap gap-3 text-sm">
-          <Link href="/dashboard/admin/pendaftaran" className="rounded-full bg-white px-4 py-2 font-bold text-teal-900 hover:bg-slate-100 shadow-sm transition-all">Review Pendaftaran</Link>
-          <Link href="/dashboard/admin/cms" className="rounded-full border border-white/30 px-4 py-2 font-bold text-white hover:bg-white/10 transition-all">Manajemen CMS</Link>
+          <Link href="/dashboard/admin/pendaftaran" className="rounded-full bg-slate-950 px-4 py-2 font-bold text-white hover:bg-slate-800 shadow-sm transition-all">Review Pendaftaran</Link>
+          <Link href="/dashboard/admin/cms" className="rounded-full border border-white/40 bg-white/10 px-4 py-2 font-bold text-white hover:bg-white/20 transition-all">Manajemen CMS</Link>
         </div>
       </section>
 
@@ -138,3 +138,4 @@ export default async function AdminDashboardPage() {
     </main>
   );
 }
+
