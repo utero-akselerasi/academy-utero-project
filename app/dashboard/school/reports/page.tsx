@@ -1,7 +1,7 @@
 ﻿import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { getSchoolProfile, getSchoolReports } from "@/features/school/queries";
+import { getSchoolProfile, getSchoolReports, getSchoolInternsDailyReports } from "@/features/school/queries";
 
 export default async function SchoolReportsPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
   const { from, to } = await searchParams;
@@ -13,6 +13,7 @@ export default async function SchoolReportsPage({ searchParams }: { searchParams
   if (!schoolProfile) redirect("/dashboard/school");
 
   const { data: reports } = await getSchoolReports(schoolProfile.id);
+  const { data: dailyReports } = await getSchoolInternsDailyReports(schoolProfile.id);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
@@ -44,7 +45,51 @@ export default async function SchoolReportsPage({ searchParams }: { searchParams
 
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-6 py-4">
-          <h2 className="text-lg font-bold text-slate-900">Riwayat Laporan</h2>
+          <h2 className="text-lg font-bold text-slate-900">Riwayat Daily Report Anak Magang</h2>
+          <p className="mt-1 text-sm text-slate-500">Laporan harian terbaru dari seluruh peserta magang di sekolah ini.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase text-slate-500">
+                <th className="px-6 py-3">Tanggal</th>
+                <th className="px-6 py-3">Nama Anak Magang</th>
+                <th className="px-6 py-3">Aktivitas Hari Ini</th>
+                <th className="px-6 py-3">Status</th>
+                <th className="px-6 py-3">Lampiran</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {(dailyReports || []).map((report: any) => (
+                <tr key={report.id}>
+                  <td className="px-6 py-4 text-slate-600">{report.report_date}</td>
+                  <td className="px-6 py-4 text-slate-900 font-medium">{report.intern_name}</td>
+                  <td className="px-6 py-4 text-slate-600">{report.today_work}</td>
+                  <td className="px-6 py-4">
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700">{report.status}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    {report.daily_report_attachments?.[0]?.file_path ? (
+                      <a href={report.daily_report_attachments[0].file_path} className="text-sm font-bold text-teal-700 hover:text-teal-800" target="_blank" rel="noopener">Lihat Lampiran</a>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {(!dailyReports || dailyReports.length === 0) && (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">Belum ada daily report.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-6 py-4">
+          <h2 className="text-lg font-bold text-slate-900">Riwayat Laporan CSV Periodik</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left text-sm">
