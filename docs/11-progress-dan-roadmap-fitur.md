@@ -461,29 +461,13 @@ Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah
 
 <!-- Bagian 1 dipindahkan ke 4.8 karena sudah selesai -->
 
-### **Bagian 3: Deprecate Penempatan (dashboard/admin/penempatan)**
-* **Penyelesaian:** Menu penempatan mentor telah dinonaktifkan dan dihapus dari sidebar navigasi admin karena semua pengguna admin secara default dapat membimbing seluruh peserta magang secara global.
+<!-- Bagian 3: Deprecate Penempatan (dashboard/admin/penempatan) dipindahkan ke 4.8 karena sudah selesai -->
 
-### **Bagian 4: Pengaturan Absensi Presisi (dashboard/mentor/attendance)**
-* **Skop Khusus Intern:** Membatasi agar tabel peninjauan absensi hanya menampilkan pengguna dengan role intern saja.
-* **Target Magang Bulanan Dinamis:** Mengubah sistem target bulanan agar dihitung dinamis berdasarkan jumlah hari kerja efektif (di mana hari minggu dikecualikan secara otomatis dari target jam magang).
+<!-- Bagian 4: Pengaturan Absensi Presisi (dashboard/mentor/attendance) dipindahkan ke 4.8 karena sudah selesai -->
 
-### **Bagian 5: Pengelompokan & Ekspor Daily Report (dashboard/mentor/daily-reports)**
-* **Grid Profil Intern:** Mengubah tampilan daily report mentor dari list memanjang menjadi grid profil anak magang (seperti absensi) agar lebih tertata per user.
-* **Filter Waktu:** Menyediakan filter berbasis Harian, Mingguan, dan Bulanan.
-* **Ekspor PDF Rekap:** Membuat fungsi untuk mencetak ringkasan rekapitulasi kinerja mingguan/bulanan per anak magang ke dalam dokumen PDF resmi.
+<!-- Bagian 5: Pengelompokan & Ekspor Daily Report (dashboard/mentor/daily-reports) dipindahkan ke 4.8 karena sudah selesai -->
 
-### **Bagian 6: Kustomisasi Halaman Utama (CMS Website)**
-* **CRUD Landing Page:** Menyediakan antarmuka manajemen di menu CMS admin agar pengelola dapat dengan mudah mengubah konten teks, gambar banner, info kompetensi, dan logo partner yang tampil di halaman depan website.
+<!-- Bagian 6: Kustomisasi Halaman Utama (CMS Website) dipindahkan ke 4.8 karena sudah selesai -->
 
-### **Bagian 8: Dashboard Analitik Admin**
-* **Grafik Pendapatan & Metrik:** Menyusun dashboard admin utama yang dilengkapi dengan diagram garis tren (seperti di referensi Image #3) serta panel metrik total pengguna, tugas terselesaikan, dan statistik keaktifan.
-
-
-
-
-
-
-
-
+<!-- Bagian 8: Dashboard Analitik Admin dipindahkan ke 4.8 karena sudah selesai -->
 

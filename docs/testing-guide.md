@@ -114,3 +114,19 @@ Sebelum mulai menguji di browser:
    - Klik opsi **Ubah Password** untuk memicu modal popup peresetan kata sandi.
    - Jika pengguna memiliki role `intern`, klik **Lihat Profil Detail** untuk memastikan halaman profil mendetail dimuat sempurna dengan visualisasi chart.
    - Jika diperlukan, klik opsi **Hapus User** yang memicu peringatan merah penghapusan permanen (pastikan menggunakan data *dummy* jika ingin mengujinya hingga tuntas).
+
+### Skenario H: Dashboard Analitik Admin Utama
+1. **Akses Dashboard Admin:**
+   - Login menggunakan akun dengan role `admin`.
+   - Masuk ke dashboard utama pengelola (`/dashboard/admin`).
+   - **Verifikasi Layout & Metrik:** Dasbor kini tidak lagi me-redirect ke halaman pendaftaran, melainkan menyajikan halaman statistik beranda utama:
+     - Banner penyambutan gradasi warna hijau teal/emerald yang gagah.
+     - 4 buah kartu metrik statistik utama: **Peserta Aktif** (intern), **Instansi Partner** (sekolah/kampus), **Total Tugas** (checklist selesai), dan **Rata Kehadiran** (persentase rate global).
+2. **Verifikasi Grafik Visual:**
+   - Di bagian tengah dashboard, pastikan dua grafik utama dirender dengan sempurna:
+     - **Keaktifan Absensi Mingguan:** Grafik garis (line chart) tren absensi harian.
+     - **Progress Pengerjaan Tugas:** Grafik batang (bar chart) perbandingan tugas selesai vs pending.
+     - Arahkan kursor (*hover*) pada poin/batang grafik untuk memverifikasi fungsionalitas tooltip angka detail.
+3. **Verifikasi Alur Log & Pintasan:**
+   - Buka bagian **Aktivitas Absensi Terbaru** untuk melihat log check-in riil terakhir peserta magang.
+   - Coba klik menu pengelola di sisi kanan: **Pendaftaran Magang**, **Website CMS**, dan **Super Admin** untuk memastikan navigasi cepat berfungsi lancar.
