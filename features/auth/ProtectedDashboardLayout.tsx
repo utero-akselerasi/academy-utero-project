@@ -20,6 +20,7 @@ const roleLabelMap: Record<RoleCode, string> = {
 
 const sidebarItemsMap: Record<RoleCode, { label: string; href: string; icon: string }[]> = {
   admin: [
+    { label: "Dashboard", href: "/dashboard/admin", icon: "LayoutDashboard" },
     { label: "Pendaftaran Masuk", href: "/dashboard/admin/pendaftaran", icon: "FileSpreadsheet" },
 
     { label: "User & Role", href: "/dashboard/super-admin/users", icon: "Users" },

@@ -8,7 +8,7 @@ export default async function AdminLayout({
   return (
     <ProtectedDashboardLayout
       allowedRoles={["admin"]}
-      homeHref="/dashboard/admin/pendaftaran"
+      homeHref="/dashboard/admin"
       title="Dashboard Admin"
     >
       {children}

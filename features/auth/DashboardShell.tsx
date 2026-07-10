@@ -36,7 +36,8 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   CheckSquare,
   GraduationCap,
   Award,
-  Globe
+  Globe,
+  LayoutTemplate
 };
 
 export function DashboardShell({ 
