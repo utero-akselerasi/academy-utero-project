@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from "react";
 
@@ -37,7 +37,7 @@ export function StatsVisualization({ title, subtitle, data, type = "line", color
   const maxValue = Math.max(...data.map((d) => d.value), 10);
   const padding = 30;
   const graphWidth = 1000;
-  const graphHeight = 300;
+  const graphHeight = 350;
 
   const points = data.map((d, i) => {
     const x = (i / (data.length - 1 || 1)) * (graphWidth - padding * 2) + padding;
@@ -56,7 +56,7 @@ export function StatsVisualization({ title, subtitle, data, type = "line", color
       </div>
       
       <div className="relative w-full flex-1" style={{ minHeight: height }}>
-        <svg viewBox={`0 0 ${graphWidth} ${graphHeight}`} preserveAspectRatio="none" className="w-full h-full overflow-visible">
+        <svg viewBox={`0 0 ${graphWidth} ${graphHeight}`} preserveAspectRatio="none" className="w-full h-full">
           {/* Grid lines */}
           {[0, 1, 2, 3].map((tick) => {
             const y = padding + (tick / 3) * (graphHeight - padding * 2);
@@ -115,7 +115,7 @@ export function StatsVisualization({ title, subtitle, data, type = "line", color
                 {/* X Axis Labels */}
                 <text 
                   x={p.x} 
-                  y={graphHeight + 25} 
+                  y={graphHeight - 10} 
                   textAnchor="middle" 
                   className={`fill-slate-500 text-[16px] font-bold transition-all ${hoveredIdx === i ? "fill-slate-900" : ""}`}
                 >
@@ -138,3 +138,4 @@ export function StatsVisualization({ title, subtitle, data, type = "line", color
     </div>
   );
 }
+
