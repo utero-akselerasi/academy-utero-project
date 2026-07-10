@@ -5,7 +5,7 @@ export type RoleCode = "admin" | "school" | "intern";
 const rolePriority: RoleCode[] = ["admin", "school", "intern"];
 
 const dashboardByRole: Record<RoleCode, string> = {
-  admin: "/dashboard/admin/pendaftaran",
+  admin: "/dashboard/admin",
   school: "/dashboard/school",
   intern: "/dashboard/intern",
 };
