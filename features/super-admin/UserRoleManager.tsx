@@ -44,6 +44,7 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [] }: Pr
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [loginFilter, setLoginFilter] = useState("all");
 
   const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number } | null>(null);
 
@@ -102,7 +103,13 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [] }: Pr
       (statusFilter === "active" && profile.is_active) ||
       (statusFilter === "inactive" && !profile.is_active);
 
-    return matchesSearch && matchesRole && matchesStatus;
+    // Login filter match
+    const matchesLogin =
+      loginFilter === "all" ||
+      (loginFilter === "never" && !profile.last_sign_in_at) ||
+      (loginFilter === "active" && !!profile.last_sign_in_at);
+
+    return matchesSearch && matchesRole && matchesStatus && matchesLogin;
   });
 
   return (
@@ -146,6 +153,17 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [] }: Pr
               <option value="all">Semua Status</option>
               <option value="active">Aktif</option>
               <option value="inactive">Nonaktif</option>
+            </select>
+
+            {/* Filter Login */}
+            <select
+              value={loginFilter}
+              onChange={(e) => setLoginFilter(e.target.value)}
+              className="border border-slate-200 rounded-lg text-xs px-2.5 bg-white h-9 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none text-slate-850 font-bold"
+            >
+              <option value="all">Semua Login</option>
+              <option value="active">Pernah Login</option>
+              <option value="never">Belum Pernah Login</option>
             </select>
 
             {/* Total Badge */}

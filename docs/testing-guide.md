@@ -101,3 +101,16 @@ Sebelum mulai menguji di browser:
    - **Verifikasi Grafik:** Gulir ke bagian bawah ringkasan widget. Anda akan melihat dua grafik visual:
      - **Distribusi Kehadiran:** Menampilkan jumlah kehadiran fisik, izin, dan sakit secara visual.
      - **Status Penyelesaian Tugas:** Menampilkan progres tugas yang Selesai vs Pending dalam diagram batang.
+
+### Skenario G: Manajemen Pengguna Premium (Super Admin)
+1. **Verifikasi Filter Tambahan:**
+   - Login menggunakan akun `super_admin`.
+   - Masuk ke menu **User & Role** (`/dashboard/super-admin/users`).
+   - **Verifikasi Filter Login:** Coba gunakan dropdown **Filter Login** (Pernah Login vs Belum Pernah Login) untuk melihat efektivitas pencarian pengguna yang tidak aktif.
+2. **Verifikasi Aksi Premium Dropdown:**
+   - Klik ikon **tiga titik vertikal (...)** pada salah satu pengguna.
+   - **Verifikasi Dropdown React Portal:** Pastikan menu dropdown tidak terpotong oleh tabel (tampil mulus melayang di atas konten).
+   - Klik opsi **Edit Profil** untuk mencoba menonaktifkan pengguna sementara.
+   - Klik opsi **Ubah Password** untuk memicu modal popup peresetan kata sandi.
+   - Jika pengguna memiliki role `intern`, klik **Lihat Profil Detail** untuk memastikan halaman profil mendetail dimuat sempurna dengan visualisasi chart.
+   - Jika diperlukan, klik opsi **Hapus User** yang memicu peringatan merah penghapusan permanen (pastikan menggunakan data *dummy* jika ingin mengujinya hingga tuntas).

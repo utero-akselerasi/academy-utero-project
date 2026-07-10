@@ -438,6 +438,16 @@ Fitur-fitur baru yang telah diselesaikan dalam sprint terbaru:
 * **Penyelesaian:** Menambahkan grafik visual absensi pada halaman detail siswa portal sekolah (`app/dashboard/school/students/[studentId]/page.tsx`).
 * **Penyelesaian:** Mengintegrasikan grafik pada Dashboard Intern (`app/dashboard/intern/page.tsx`) untuk visualisasi data penyelesaian tugas dan diagram absensi kehadiran.
 
+### **AB. Manajemen Pengguna Premium (Super Admin)**
+* **Penyelesaian:** Menyempurnakan filter di halaman Manajemen Pengguna Super Admin (`features/super-admin/UserRoleManager.tsx`) dengan menambahkan filter **Semua Login** (Pernah Login vs Belum Pernah Login) selain filter Semua Role dan Semua Status.
+* **Penyelesaian:** Menyempurnakan dropdown aksi (...) visual menggunakan React Portal untuk memicu popup modal dinamis secara terpisah:
+  - **Edit Profil** (untuk mengubah Nama Lengkap, Nomor Telepon, dan Status Keaktifan Akun).
+  - **Ubah Role** (untuk tambah/hapus role dinamis).
+  - **Ubah Password** (untuk mereset sandi secara aman).
+  - **Lihat Profil Detail** (khusus role intern untuk memantau ringkasan tugas dan absensi detail).
+  - **Link Instansi / Sekolah** (khusus perwakilan sekolah/kampus).
+  - **Hapus User** (menghapus akun auth beserta data relasi terkait secara permanen).
+
 ### **AA. Visualisasi Grafik & Statistik Interaktif (Dashboard School & Intern)**
 * **Penyelesaian:** Membuat komponen `StatsVisualization.tsx` berbasis custom SVG untuk merender visual grafik garis (*line chart*) dan diagram batang (*bar chart*) tanpa menggunakan package external tambahan.
 * **Penyelesaian:** Mengintegrasikan grafik interaktif pada Dashboard Portal Sekolah (`app/dashboard/school/page.tsx`) untuk menampilkan statistik tren kehadiran siswa mingguan dan distribusi status akademik.
@@ -449,16 +459,7 @@ Fitur-fitur baru yang telah diselesaikan dalam sprint terbaru:
 
 Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah rancangan roadmap untuk tahap pengerjaan berikutnya:
 
-### **Bagian 1: Manajemen Pengguna Premium (dashboard/super-admin/users)**
-* **Tampilan Tabel Premium:** Merancang ulang antarmuka tabel pengguna agar memiliki fitur pencarian lanjutan, filter (Semua Role, Semua Status, Semua Login), serta kolom terstruktur: Nama, Email, Role, Login, Label/Kode, Status, Balance, Bergabung, dan Menu Aksi (...).
-* **Menu Aksi (... Dropdown):** Menyediakan pilihan dropdown yang memicu popup modal untuk:
-  - **Ubah Role** (penggantian role dinamis).
-  - **Ubah Password** (reset/ubah kata sandi secara aman).
-  - **Ubah Status** (mengaktifkan/menonaktifkan akun).
-  - **Lihat Profil Detail** (khusus role intern untuk melihat rangkuman task, absensi, dan data akademik di halaman terpisah).
-  - **Hapus User** (menghapus akun beserta data terkait).
-
-<!-- Bagian 2 dipindahkan ke 4.8 karena sudah selesai -->
+<!-- Bagian 1 dipindahkan ke 4.8 karena sudah selesai -->
 
 ### **Bagian 3: Deprecate Penempatan (dashboard/admin/penempatan)**
 * **Penyelesaian:** Menu penempatan mentor telah dinonaktifkan dan dihapus dari sidebar navigasi admin karena semua pengguna admin secara default dapat membimbing seluruh peserta magang secara global.
