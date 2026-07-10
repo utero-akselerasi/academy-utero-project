@@ -28,7 +28,7 @@ export function Header() {
           <div className="h-4 w-px bg-slate-200 mx-1" />
 
           <Link className="rounded-lg px-3 py-1.5 bg-teal-50 border border-teal-200 text-teal-700 hover:bg-teal-100 transition-all" href="/daftar">Daftar</Link>
-          <Link className="rounded-lg px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 transition-all" href="/login">Login</Link>
+          <Link className="rounded-lg px-3 py-1.5 bg-[#CE181E] text-white hover:bg-[#B61016] transition-all shadow-sm" href="/login">Login</Link>
         </nav>
 
         {/* Mobile Toggle */}
@@ -46,10 +46,11 @@ export function Header() {
           <Link onClick={() => setIsOpen(false)} className="text-xl font-bold py-3 border-b border-slate-100" href="/terms">Terms</Link>
           <div className="flex gap-3 mt-4">
             <Link onClick={() => setIsOpen(false)} className="flex-1 text-center rounded-lg px-4 py-3 bg-teal-50 border border-teal-200 text-teal-700 font-bold" href="/daftar">Daftar</Link>
-            <Link onClick={() => setIsOpen(false)} className="flex-1 text-center rounded-lg px-4 py-3 bg-slate-900 text-white font-bold" href="/login">Login</Link>
+            <Link onClick={() => setIsOpen(false)} className="flex-1 text-center rounded-lg px-4 py-3 bg-[#CE181E] text-white font-bold hover:bg-[#B61016] transition-all" href="/login">Login</Link>
           </div>
         </div>
       </div>
     </header>
   );
 }
+
