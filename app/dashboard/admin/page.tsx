@@ -33,7 +33,8 @@ export default async function AdminDashboardPage() {
     { label: "Selasa", value: 88 },
     { label: "Rabu", value: 92 },
     { label: "Kamis", value: 94 },
-    { label: "Jumat", value: metrics.attendanceRate },
+    { label: "Jumat", value: 96 },
+    { label: "Sabtu", value: metrics.attendanceRate },
   ];
 
   return (
@@ -63,7 +64,7 @@ export default async function AdminDashboardPage() {
       <section className="grid gap-6 md:grid-cols-2">
         <StatsVisualization 
           title="Keaktifan Absensi Mingguan" 
-          subtitle="Tingkat kehadiran harian (Senin - Jumat)" 
+          subtitle="Tingkat kehadiran harian (Senin - Sabtu)" 
           data={attendanceTrendData} 
           type="line" 
           color="#CE181E" 
@@ -138,4 +139,5 @@ export default async function AdminDashboardPage() {
     </main>
   );
 }
+
 
