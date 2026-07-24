@@ -1,4 +1,4 @@
-﻿# Roadmap Implementasi
+# Roadmap Implementasi
 
 ## Fase 1: Analisis
 
@@ -42,7 +42,7 @@
 9. [x] Implementasi absensi. (Selesai)
 10. [x] Implementasi daily report. (Selesai & Diperbaiki dengan Multi-Upload, Google Drive Fallback, Image Preview, & Edit Revisi)
 11. [x] Implementasi LMS (Pelajaran, Kuis, Tugas, Penilaian, & Pembuatan Modul). (Selesai)
-12. [ ] Implementasi assessment dan generate sertifikat. (Fase Berikutnya)
+12. [x] Implementasi assessment dan generate sertifikat. (Selesai - 24 Juli 2026)
 13. [x] Implementasi school portal. (MVP, Manajemen Instansi, Alumni, Cleanup Orphan - Selesai)
 
 ## Catatan Perancangan Fitur Berikutnya

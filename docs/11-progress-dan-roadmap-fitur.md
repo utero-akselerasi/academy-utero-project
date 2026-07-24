@@ -471,3 +471,39 @@ Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah
 
 <!-- Bagian 8: Dashboard Analitik Admin dipindahkan ke 4.8 karena sudah selesai -->
 
+
+### AC. Fitur Assessment & Generate Sertifikat Otomatis (24 Juli 2026)
+* **Penyelesaian - Database Schema:** Tabel `assessments` dan `certificates` sudah tersedia lengkap dengan relasi ke `intern_profiles` dan `mentor_profiles`.
+* **Penyelesaian - Halaman Penilaian Mentor:** Halaman `/dashboard/mentor/assessments` menampilkan daftar peserta magang aktif dengan status penilaian (Belum Dinilai, Draft, Finalized).
+* **Penyelesaian - Form Penilaian Dinamis:** Modal penilaian interaktif (`AssessmentModal.tsx`) dengan fitur:
+  - Kriteria penilaian custom yang dapat ditambah/hapus secara dinamis.
+  - Input skor (0-100) untuk setiap kriteria penilaian.
+  - Textarea feedback evaluasi untuk pembimbing.
+  - Tombol **Simpan Draft** untuk menyimpan penilaian sementara yang masih dapat diedit.
+  - Tombol **Finalisasi** untuk mengunci penilaian dan menerbitkan sertifikat otomatis.
+* **Penyelesaian - Kalkulasi Otomatis:** Sistem menghitung nilai final secara otomatis sebagai rata-rata dari semua kriteria penilaian.
+* **Penyelesaian - Upload Template Custom:** Admin dapat mengunggah gambar background template sertifikat custom melalui panel di halaman penilaian. Template disimpan di `attendance_settings.certificate_template_path`.
+* **Penyelesaian - Generate Sertifikat Otomatis:** Saat mentor melakukan finalisasi penilaian:
+  - Sistem otomatis membuat record di tabel `certificates` dengan nomor unik (format: `CERT/UA/[TAHUN]/[4-DIGIT-RANDOM]`).
+  - Status sertifikat langsung menjadi `issued` dengan timestamp `issued_at` dan `signed_at`.
+  - Sertifikat langsung dapat diakses oleh peserta magang.
+* **Penyelesaian - Halaman Sertifikat Intern:** Halaman `/dashboard/intern/certificate` menampilkan:
+  - Transkrip nilai evaluasi dengan progress bar visual untuk setiap kriteria penilaian.
+  - Feedback pembimbing dalam box khusus dengan style italic.
+  - Nilai akhir rata-rata ditampilkan besar dengan badge status "LULUS PROGRAM".
+  - Box sertifikat resmi dengan nomor unik, tanggal terbit, dan tombol cetak PDF.
+  - Jika sertifikat belum diterbitkan, tampil pesan informatif dengan icon peringatan.
+* **Penyelesaian - Cetak Sertifikat PDF:** Halaman `/dashboard/intern/certificate/print` dengan fitur:
+  - Layout A4 landscape (297mm x 210mm) yang otomatis memicu dialog print browser.
+  - Design elegan dengan border ganda teal, ornamen sudut emas, dan watermark graduation cap (jika tidak ada template custom).
+  - Jika template custom diupload, background menggunakan gambar tersebut dengan text overlay.
+  - Informasi lengkap: Nomor sertifikat, nama peserta, nilai akhir, predikat kelulusan, dan tanda tangan digital.
+  - CSS print optimal: full bleed, no margin, no header/footer browser, text terbaca jelas.
+* **Penyelesaian - Integrasi School Portal:** Halaman detail siswa di school portal menampilkan data penilaian akhir dan nomor sertifikat jika sudah diterbitkan.
+* **Penyelesaian - Integrasi Super Admin:** Profile detail intern di super admin menampilkan status penilaian, nilai final, dan nomor sertifikat.
+* **Penyelesaian - Validasi & Protection:** 
+  - Input validasi untuk skor (0-100) dan feedback wajib diisi.
+  - Penilaian yang sudah difinalisasi tidak dapat diedit lagi (read-only).
+  - Konfirmasi dialog saat finalisasi untuk mencegah kesalahan.
+  - Cascade delete protection untuk data assessment dan certificate.
+
