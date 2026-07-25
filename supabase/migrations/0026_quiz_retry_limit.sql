@@ -29,18 +29,34 @@ DECLARE
     v_attempts_count INTEGER;
     v_last_attempt TIMESTAMP WITH TIME ZONE;
     v_next_allowed TIMESTAMP WITH TIME ZONE;
+    v_intern_id UUID;
 BEGIN
+    -- Get intern_id from user_id
+    SELECT id INTO v_intern_id
+    FROM utero_academy.intern_profiles
+    WHERE user_id = p_user_id;
+    
+    IF v_intern_id IS NULL THEN
+        RETURN QUERY SELECT 
+            false,
+            'User is not an intern'::TEXT,
+            0,
+            0,
+            NULL::TIMESTAMP WITH TIME ZONE;
+        RETURN;
+    END IF;
+    
     -- Get quiz settings
     SELECT max_attempts, retry_delay_minutes
     INTO v_max_attempts, v_retry_delay
     FROM utero_academy.quizzes
     WHERE id = p_quiz_id;
     
-    -- Count user attempts
+    -- Count intern attempts
     SELECT COUNT(*), MAX(submitted_at)
     INTO v_attempts_count, v_last_attempt
     FROM utero_academy.quiz_attempts
-    WHERE user_id = p_user_id AND quiz_id = p_quiz_id;
+    WHERE intern_id = v_intern_id AND quiz_id = p_quiz_id;
     
     -- Check max attempts limit
     IF v_max_attempts IS NOT NULL AND v_attempts_count >= v_max_attempts THEN
@@ -83,7 +99,7 @@ $$ LANGUAGE plpgsql;
 -- ============================================
 CREATE OR REPLACE VIEW utero_academy.user_quiz_attempts_summary AS
 SELECT 
-    qa.user_id,
+    ip.user_id,
     qa.quiz_id,
     q.title as quiz_title,
     q.max_attempts,
@@ -94,10 +110,11 @@ SELECT
     END as attempts_remaining,
     MAX(qa.score) as best_score,
     MAX(qa.submitted_at) as last_attempt_at,
-    BOOL_OR(qa.passed) as ever_passed
+    BOOL_OR(qa.score >= q.passing_score) as ever_passed
 FROM utero_academy.quiz_attempts qa
 JOIN utero_academy.quizzes q ON q.id = qa.quiz_id
-GROUP BY qa.user_id, qa.quiz_id, q.title, q.max_attempts;
+JOIN utero_academy.intern_profiles ip ON ip.id = qa.intern_id
+GROUP BY ip.user_id, qa.quiz_id, q.title, q.max_attempts;
 
 COMMENT ON COLUMN utero_academy.quizzes.max_attempts IS 'Maximum number of attempts allowed (NULL = unlimited)';
 COMMENT ON COLUMN utero_academy.quizzes.retry_delay_minutes IS 'Minutes to wait between attempts';

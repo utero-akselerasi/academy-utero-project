@@ -170,7 +170,13 @@ DECLARE
     criteria_data JSONB;
     user_progress INTEGER;
     should_award BOOLEAN;
+    v_intern_id UUID;
 BEGIN
+    -- Get intern_id from user_id for quiz/assignment queries
+    SELECT id INTO v_intern_id
+    FROM utero_academy.intern_profiles
+    WHERE user_id = p_user_id;
+    
     FOR badge_record IN 
         SELECT * FROM utero_academy.badges 
         WHERE category = p_category AND is_active = true
@@ -192,33 +198,42 @@ BEGIN
             should_award := user_progress >= (criteria_data->>'count')::INTEGER;
             
         ELSIF criteria_data->>'type' = 'quiz_passed' THEN
-            SELECT COUNT(DISTINCT quiz_id) INTO user_progress
-            FROM utero_academy.quiz_attempts
-            WHERE user_id = p_user_id AND passed = true;
-            
-            should_award := user_progress >= (criteria_data->>'count')::INTEGER;
+            IF v_intern_id IS NOT NULL THEN
+                SELECT COUNT(DISTINCT quiz_id) INTO user_progress
+                FROM utero_academy.quiz_attempts qa
+                JOIN utero_academy.quizzes q ON q.id = qa.quiz_id
+                WHERE qa.intern_id = v_intern_id AND qa.score >= q.passing_score;
+                
+                should_award := user_progress >= (criteria_data->>'count')::INTEGER;
+            END IF;
             
         ELSIF criteria_data->>'type' = 'quiz_perfect' THEN
-            SELECT COUNT(DISTINCT quiz_id) INTO user_progress
-            FROM utero_academy.quiz_attempts
-            WHERE user_id = p_user_id 
-                AND score >= COALESCE((criteria_data->>'min_score')::INTEGER, 90);
-            
-            should_award := user_progress >= (criteria_data->>'count')::INTEGER;
+            IF v_intern_id IS NOT NULL THEN
+                SELECT COUNT(DISTINCT quiz_id) INTO user_progress
+                FROM utero_academy.quiz_attempts
+                WHERE intern_id = v_intern_id 
+                    AND score >= COALESCE((criteria_data->>'min_score')::INTEGER, 90);
+                
+                should_award := user_progress >= (criteria_data->>'count')::INTEGER;
+            END IF;
             
         ELSIF criteria_data->>'type' = 'quiz_perfect_score' THEN
-            should_award := EXISTS (
-                SELECT 1 FROM utero_academy.quiz_attempts
-                WHERE user_id = p_user_id AND score = 100
-                LIMIT 1
-            );
+            IF v_intern_id IS NOT NULL THEN
+                should_award := EXISTS (
+                    SELECT 1 FROM utero_academy.quiz_attempts
+                    WHERE intern_id = v_intern_id AND score = 100
+                    LIMIT 1
+                );
+            END IF;
             
         ELSIF criteria_data->>'type' = 'assignment_submitted' THEN
-            SELECT COUNT(*) INTO user_progress
-            FROM utero_academy.assignment_submissions
-            WHERE user_id = p_user_id AND submitted_at IS NOT NULL;
-            
-            should_award := user_progress >= (criteria_data->>'count')::INTEGER;
+            IF v_intern_id IS NOT NULL THEN
+                SELECT COUNT(*) INTO user_progress
+                FROM utero_academy.assignment_submissions
+                WHERE intern_id = v_intern_id AND submitted_at IS NOT NULL;
+                
+                should_award := user_progress >= (criteria_data->>'count')::INTEGER;
+            END IF;
             
         ELSIF criteria_data->>'type' = 'comments_posted' THEN
             SELECT COUNT(*) INTO user_progress
