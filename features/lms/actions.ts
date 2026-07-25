@@ -753,3 +753,269 @@ export async function deleteCommentAction(formData: FormData) {
   revalidatePath(`/dashboard/intern/lms/${courseId}/lessons/${comment.lesson_id}`);
   revalidatePath(`/dashboard/mentor/lms/${courseId}`);
 }
+
+// ============================================
+// PRIORITY 2: USER ENGAGEMENT ACTIONS
+// ============================================
+
+// Badges & Achievements
+export async function getUserBadges(userId: string) {
+  const { data, error } = await db
+    .from("user_badges")
+    .select(`
+      *,
+      badge:badges(*)
+    `)
+    .eq("user_id", userId)
+    .order("earned_at", { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getUserPoints(userId: string) {
+  const { data, error } = await db
+    .from("user_points")
+    .select("*")
+    .eq("user_id", userId)
+    .single();
+
+  if (error && error.code !== "PGRST116") throw error;
+  return data;
+}
+
+export async function getAllBadges() {
+  const { data, error } = await db
+    .from("badges")
+    .select("*")
+    .eq("is_active", true)
+    .order("category", { ascending: true })
+    .order("points", { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
+// Learning Analytics
+export async function getUserDailyActivity(userId: string, days: number = 30) {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  const { data, error } = await db
+    .from("daily_activity")
+    .select("*")
+    .eq("user_id", userId)
+    .gte("activity_date", startDate.toISOString().split("T")[0])
+    .order("activity_date", { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getUserStreak(userId: string) {
+  const { data, error } = await db
+    .from("user_streaks")
+    .select("*")
+    .eq("user_id", userId)
+    .single();
+
+  if (error && error.code !== "PGRST116") throw error;
+  return data;
+}
+
+export async function trackLearningSession(
+  userId: string,
+  lessonId: string,
+  courseId: string,
+  durationSeconds: number
+) {
+  const { error } = await db
+    .from("learning_sessions")
+    .insert({
+      user_id: userId,
+      lesson_id: lessonId,
+      course_id: courseId,
+      started_at: new Date(Date.now() - durationSeconds * 1000).toISOString(),
+      ended_at: new Date().toISOString(),
+      duration_seconds: durationSeconds,
+      activity_type: "lesson_view",
+    });
+
+  if (error) throw error;
+
+  // Update daily activity
+  await db.rpc("update_daily_activity", {
+    p_user_id: userId,
+    p_activity_type: "lesson_view",
+    p_time_seconds: durationSeconds,
+    p_points: 0,
+  });
+
+  // Update streak
+  await db.rpc("update_user_streak", { p_user_id: userId });
+}
+
+// Course Announcements
+export async function getCourseAnnouncements(courseId: string, userId: string) {
+  const { data, error } = await db
+    .from("course_announcements")
+    .select(`
+      *,
+      author:users!course_announcements_author_id_fkey(full_name),
+      reads:announcement_reads!left(user_id)
+    `)
+    .eq("course_id", courseId)
+    .eq("is_published", true)
+    .order("is_pinned", { ascending: false })
+    .order("published_at", { ascending: false });
+
+  if (error) throw error;
+
+  // Add is_read flag
+  return data.map((announcement) => ({
+    ...announcement,
+    is_read: announcement.reads?.some((r: any) => r.user_id === userId) || false,
+  }));
+}
+
+export async function createCourseAnnouncement(
+  courseId: string,
+  title: string,
+  content: string,
+  priority: string = "normal",
+  isPinned: boolean = false
+) {
+  const user = await getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { data: mentorProfileId } = await getMentorProfileId(user.id);
+  if (!mentorProfileId) {
+    throw new Error("Hanya mentor yang dapat membuat announcement.");
+  }
+
+  const { data, error } = await db
+    .from("course_announcements")
+    .insert({
+      course_id: courseId,
+      author_id: user.id,
+      title,
+      content,
+      priority,
+      is_pinned: isPinned,
+      is_published: true,
+      published_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  revalidatePath(`/dashboard/intern/lms/${courseId}`);
+  revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+  return data;
+}
+
+export async function markAnnouncementAsRead(announcementId: string) {
+  const user = await getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { error } = await db
+    .from("announcement_reads")
+    .insert({
+      announcement_id: announcementId,
+      user_id: user.id,
+    })
+    .onConflict("announcement_id,user_id")
+    .ignoreDuplicates();
+
+  if (error) throw error;
+}
+
+// Lesson Bookmarks
+export async function getUserBookmarks(userId: string) {
+  const { data, error } = await db
+    .from("lesson_bookmarks")
+    .select(`
+      *,
+      lesson:lessons(title, course_id)
+    `)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function toggleLessonBookmark(
+  lessonId: string,
+  note?: string
+) {
+  const user = await getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  // Check if already bookmarked
+  const { data: existing } = await db
+    .from("lesson_bookmarks")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("lesson_id", lessonId)
+    .single();
+
+  if (existing) {
+    // Remove bookmark
+    const { error } = await db
+      .from("lesson_bookmarks")
+      .delete()
+      .eq("id", existing.id);
+
+    if (error) throw error;
+    return { bookmarked: false };
+  } else {
+    // Add bookmark
+    const { error } = await db
+      .from("lesson_bookmarks")
+      .insert({
+        user_id: user.id,
+        lesson_id: lessonId,
+        note,
+      });
+
+    if (error) throw error;
+    return { bookmarked: true };
+  }
+}
+
+export async function deleteBookmark(bookmarkId: string) {
+  const user = await getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { error } = await db
+    .from("lesson_bookmarks")
+    .delete()
+    .eq("id", bookmarkId)
+    .eq("user_id", user.id);
+
+  if (error) throw error;
+}
+
+// Quiz Retry Limit
+export async function checkCanAttemptQuiz(userId: string, quizId: string) {
+  const { data, error } = await db.rpc("can_attempt_quiz", {
+    p_user_id: userId,
+    p_quiz_id: quizId,
+  });
+
+  if (error) throw error;
+  return data?.[0] || null;
+}
+
+export async function getQuizAttemptsSummary(userId: string, quizId: string) {
+  const { data, error } = await db
+    .from("user_quiz_attempts_summary")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("quiz_id", quizId)
+    .single();
+
+  if (error && error.code !== "PGRST116") throw error;
+  return data;
+}
