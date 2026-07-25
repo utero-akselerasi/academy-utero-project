@@ -7,7 +7,7 @@
 -- ============================================
 CREATE TABLE IF NOT EXISTS utero_academy.lesson_bookmarks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES utero_academy.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     lesson_id UUID NOT NULL REFERENCES utero_academy.lessons(id) ON DELETE CASCADE,
     note TEXT, -- Optional note untuk bookmark
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

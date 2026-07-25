@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS utero_academy.badges (
 -- ============================================
 CREATE TABLE IF NOT EXISTS utero_academy.user_badges (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES utero_academy.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     badge_id UUID NOT NULL REFERENCES utero_academy.badges(id) ON DELETE CASCADE,
     earned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     progress JSONB, -- tracking progress menuju badge
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS utero_academy.user_badges (
 -- ============================================
 CREATE TABLE IF NOT EXISTS utero_academy.user_points (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES utero_academy.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     total_points INTEGER DEFAULT 0,
     points_this_month INTEGER DEFAULT 0,
     points_this_week INTEGER DEFAULT 0,
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS utero_academy.user_points (
 -- ============================================
 CREATE TABLE IF NOT EXISTS utero_academy.point_transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES utero_academy.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     points INTEGER NOT NULL,
     activity_type VARCHAR(50) NOT NULL, -- 'lesson_completed', 'quiz_passed', 'assignment_submitted', etc.
     reference_id UUID, -- ID dari lesson/quiz/assignment

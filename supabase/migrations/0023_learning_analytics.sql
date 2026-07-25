@@ -7,7 +7,7 @@
 -- ============================================
 CREATE TABLE IF NOT EXISTS utero_academy.learning_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES utero_academy.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     lesson_id UUID REFERENCES utero_academy.lessons(id) ON DELETE CASCADE,
     course_id UUID REFERENCES utero_academy.courses(id) ON DELETE CASCADE,
     started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS utero_academy.learning_sessions (
 -- ============================================
 CREATE TABLE IF NOT EXISTS utero_academy.daily_activity (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES utero_academy.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     activity_date DATE NOT NULL,
     lessons_completed INTEGER DEFAULT 0,
     quizzes_taken INTEGER DEFAULT 0,
@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS utero_academy.daily_activity (
 -- ============================================
 CREATE TABLE IF NOT EXISTS utero_academy.user_streaks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES utero_academy.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     current_streak_days INTEGER DEFAULT 0,
     longest_streak_days INTEGER DEFAULT 0,
     last_activity_date DATE,

@@ -8,7 +8,7 @@
 CREATE TABLE IF NOT EXISTS utero_academy.course_announcements (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     course_id UUID NOT NULL REFERENCES utero_academy.courses(id) ON DELETE CASCADE,
-    author_id UUID NOT NULL REFERENCES utero_academy.users(id) ON DELETE CASCADE,
+    author_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     title VARCHAR(200) NOT NULL,
     content TEXT NOT NULL,
     priority VARCHAR(20) DEFAULT 'normal', -- 'low', 'normal', 'high', 'urgent'
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS utero_academy.course_announcements (
 CREATE TABLE IF NOT EXISTS utero_academy.announcement_reads (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     announcement_id UUID NOT NULL REFERENCES utero_academy.course_announcements(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES utero_academy.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     read_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(announcement_id, user_id)
