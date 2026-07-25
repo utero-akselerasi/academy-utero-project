@@ -104,6 +104,29 @@ export async function deleteLessonAction(formData: FormData) {
   revalidatePath("/dashboard/mentor/lms/" + courseId);
 }
 
+export async function toggleLessonPublishAction(formData: FormData) {
+  await requireUser();
+  const lessonId = formData.get("lessonId") as string;
+  const courseId = formData.get("courseId") as string;
+  const isPublished = formData.get("isPublished") === "true";
+
+  if (!lessonId) throw new Error("Lesson ID tidak valid.");
+
+  const db = await createUteroAcademyServiceRoleClient();
+
+  const { error } = await db
+    .from("lessons")
+    .update({ is_published: isPublished })
+    .eq("id", lessonId);
+
+  if (error) {
+    console.error("Gagal toggle lesson publish:", error);
+    throw new Error("Gagal mengubah status publish lesson.");
+  }
+
+  revalidatePath("/dashboard/mentor/lms/" + courseId);
+}
+
 export async function uploadLessonAttachmentAction(formData: FormData) {
   await requireUser();
   const lessonId = formData.get("lessonId") as string;
@@ -229,7 +252,6 @@ export async function markLessonCompletedAction(formData: FormData) {
     throw new Error("Gagal menandai pelajaran selesai.");
   }
 
-  // Cek apakah semua lesson sudah selesai
   const { data: lessons } = await db.from("lessons").select("id").eq("course_id", courseId);
   const { data: completed } = await db
     .from("lesson_progress")
@@ -238,14 +260,12 @@ export async function markLessonCompletedAction(formData: FormData) {
     .in("lesson_id", lessons?.map(l => l.id) || []);
 
   if (lessons && completed && lessons.length === completed.length) {
-    // Update course enrollment completed_at
     await db
       .from("course_enrollments")
       .update({ completed_at: new Date().toISOString() })
       .eq("course_id", courseId)
       .eq("intern_id", internProfileId);
 
-    // Generate sertifikat course completion
     await generateCourseCertificate(internProfileId, courseId);
   }
 
@@ -311,6 +331,29 @@ export async function submitQuizAttemptAction(formData: FormData) {
 
   revalidatePath(`/dashboard/intern/lms/${courseId}`);
   redirect(`/dashboard/intern/lms/${courseId}/quizzes/${quizId}`);
+}
+
+export async function toggleQuizPublishAction(formData: FormData) {
+  await requireUser();
+  const quizId = formData.get("quizId") as string;
+  const courseId = formData.get("courseId") as string;
+  const isPublished = formData.get("isPublished") === "true";
+
+  if (!quizId) throw new Error("Quiz ID tidak valid.");
+
+  const db = await createUteroAcademyServiceRoleClient();
+
+  const { error } = await db
+    .from("quizzes")
+    .update({ is_published: isPublished })
+    .eq("id", quizId);
+
+  if (error) {
+    console.error("Gagal toggle quiz publish:", error);
+    throw new Error("Gagal mengubah status publish quiz.");
+  }
+
+  revalidatePath("/dashboard/mentor/lms/" + courseId);
 }
 
 // ===== ASSIGNMENT ACTIONS =====
@@ -423,6 +466,29 @@ export async function gradeAssignmentAction(formData: FormData) {
   }
 
   revalidatePath("/dashboard/mentor/lms");
+}
+
+export async function toggleAssignmentPublishAction(formData: FormData) {
+  await requireUser();
+  const assignmentId = formData.get("assignmentId") as string;
+  const courseId = formData.get("courseId") as string;
+  const isPublished = formData.get("isPublished") === "true";
+
+  if (!assignmentId) throw new Error("Assignment ID tidak valid.");
+
+  const db = await createUteroAcademyServiceRoleClient();
+
+  const { error } = await db
+    .from("assignments")
+    .update({ is_published: isPublished })
+    .eq("id", assignmentId);
+
+  if (error) {
+    console.error("Gagal toggle assignment publish:", error);
+    throw new Error("Gagal mengubah status publish assignment.");
+  }
+
+  revalidatePath("/dashboard/mentor/lms/" + courseId);
 }
 
 // ===== COURSE ACTIONS =====
