@@ -1,9 +1,8 @@
-import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+﻿import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
 export async function getInternEnrollments(internProfileId: string) {
   const db = await createUteroAcademyServiceRoleClient();
   
-  // Dapatkan enrollment
   const { data: enrollments, error } = await db
     .from("course_enrollments")
     .select("course_id, enrolled_at, completed_at, courses(id, title, description, slug)")
@@ -31,7 +30,7 @@ export async function getCourseDetails(courseId: string, internProfileId: string
 
   const [courseRes, lessonsRes, quizzesRes, assignmentsRes, progressRes, quizAttemptsRes, submissionsRes] = await Promise.all([
     db.from("courses").select("id, title, description, slug").eq("id", courseId).maybeSingle(),
-    db.from("lessons").select("id, course_id, title, order_index, is_published").eq("course_id", courseId).order("order_index", { ascending: true }),
+    db.from("lessons").select("id, course_id, title, order_index, is_published, attachments").eq("course_id", courseId).order("order_index", { ascending: true }),
     db.from("quizzes").select("id, course_id, title, passing_score, is_published").eq("course_id", courseId),
     db.from("assignments").select("id, course_id, title, description, due_at, is_published").eq("course_id", courseId),
     db.from("lesson_progress").select("lesson_id, completed_at").eq("intern_id", internProfileId),
@@ -84,13 +83,12 @@ export async function getLesson(lessonId: string, internProfileId: string) {
 
   const { data: lesson, error } = await db
     .from("lessons")
-    .select("id, course_id, title, content, video_url, order_index, is_published")
+    .select("id, course_id, title, content, video_url, order_index, is_published, attachments")
     .eq("id", lessonId)
     .maybeSingle();
 
   if (error || !lesson || lesson.is_published === false) {
     return { data: null, error: error || new Error("Materi belum dipublikasikan.") };
-    return { data: null, error };
   }
 
   const { data: progress } = await db
@@ -120,7 +118,6 @@ export async function getQuiz(quizId: string, internProfileId: string) {
 
   if (error || !quiz || quiz.is_published === false) {
     return { data: null, error: error || new Error("Kuis belum dipublikasikan.") };
-    return { data: null, error };
   }
 
   const { data: attempts } = await db
@@ -150,7 +147,6 @@ export async function getAssignment(assignmentId: string, internProfileId: strin
 
   if (error || !assignment || assignment.is_published === false) {
     return { data: null, error: error || new Error("Tugas belum dipublikasikan.") };
-    return { data: null, error };
   }
 
   const { data: submission } = await db
@@ -172,7 +168,6 @@ export async function getAssignment(assignmentId: string, internProfileId: strin
 export async function getMentorSubmissions(mentorProfileId: string) {
   const db = await createUteroAcademyServiceRoleClient();
 
-  // Dapatkan intern-intern yang dibimbing mentor ini
   const { data: assignments } = await db
     .from("mentor_assignments")
     .select("intern_id")
@@ -184,7 +179,6 @@ export async function getMentorSubmissions(mentorProfileId: string) {
 
   const internIds = assignments.map(a => a.intern_id);
 
-  // Ambil semua submissions dari intern tersebut beserta profil intern & nama tugas
   const { data: submissions, error } = await db
     .from("assignment_submissions")
     .select("id, assignment_id, intern_id, content, attachment_path, score, feedback, submitted_at, reviewed_at, assignments(title), intern_profiles(full_name)")
@@ -232,7 +226,7 @@ export async function getMentorCourseDetails(courseId: string) {
 
   const [courseRes, lessonsRes, quizzesRes, assignmentsRes] = await Promise.all([
     db.from("courses").select("id, title, description, slug").eq("id", courseId).maybeSingle(),
-    db.from("lessons").select("id, course_id, title, order_index, is_published").eq("course_id", courseId).order("order_index", { ascending: true }),
+    db.from("lessons").select("id, course_id, title, content, video_url, order_index, is_published, attachments").eq("course_id", courseId).order("order_index", { ascending: true }),
     db.from("quizzes").select("id, course_id, title, passing_score, is_published").eq("course_id", courseId),
     db.from("assignments").select("id, course_id, title, description, due_at, is_published").eq("course_id", courseId)
   ]);

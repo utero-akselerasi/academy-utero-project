@@ -11,6 +11,11 @@
   "dependencies": {
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.91.0",
+    "@tiptap/extension-image": "^3.29.0",
+    "@tiptap/extension-link": "^3.29.0",
+    "@tiptap/extension-placeholder": "^3.29.0",
+    "@tiptap/react": "^3.29.0",
+    "@tiptap/starter-kit": "^3.29.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.561.0",
     "next": "^16.2.9",
@@ -30,4 +35,3 @@
     "typescript": "^5.9.3"
   }
 }
-
