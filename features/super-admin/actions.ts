@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { userHasAnyRole } from "@/features/auth/roles";
 import { createSupabaseServerClient, createUteroAcademyClient, createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
@@ -117,7 +117,10 @@ export async function createUserManualAction(formData: FormData) {
     email,
     password,
     email_confirm: true,
-    user_metadata: { full_name: fullName }
+    user_metadata: {
+      full_name: fullName,
+      source_app: "utero_academy",
+    }
   });
 
   if (authError) {

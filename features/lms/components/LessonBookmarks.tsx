@@ -1,13 +1,23 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Bookmark, BookmarkCheck, Trash2 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { id } from "date-fns/locale";
-
+function formatRelativeTime(date: Date) {
+  const diffSeconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  const units = [
+    { label: "tahun", seconds: 31536000 },
+    { label: "bulan", seconds: 2592000 },
+    { label: "hari", seconds: 86400 },
+    { label: "jam", seconds: 3600 },
+    { label: "menit", seconds: 60 },
+  ];
+  const unit = units.find((item) => diffSeconds >= item.seconds);
+  if (!unit) return "baru saja";
+  return `${Math.floor(diffSeconds / unit.seconds)} ${unit.label} lalu`;
+}
 interface LessonBookmark {
   id: string;
   lesson_id: string;
@@ -138,10 +148,7 @@ export function BookmarksList({ bookmarks, onDelete, onNavigate }: BookmarksList
                 )}
                 <p className="text-xs text-muted-foreground mt-2">
                   Bookmarked{" "}
-                  {formatDistanceToNow(new Date(bookmark.created_at), {
-                    addSuffix: true,
-                    locale: id,
-                  })}
+                  {formatRelativeTime(new Date(bookmark.created_at))}
                 </p>
               </div>
               <Button

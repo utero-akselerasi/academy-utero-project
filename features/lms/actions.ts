@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { createSupabaseServerClient, createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
@@ -760,6 +760,7 @@ export async function deleteCommentAction(formData: FormData) {
 
 // Badges & Achievements
 export async function getUserBadges(userId: string) {
+  const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("user_badges")
     .select(`
@@ -774,6 +775,7 @@ export async function getUserBadges(userId: string) {
 }
 
 export async function getUserPoints(userId: string) {
+  const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("user_points")
     .select("*")
@@ -785,6 +787,7 @@ export async function getUserPoints(userId: string) {
 }
 
 export async function getAllBadges() {
+  const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("badges")
     .select("*")
@@ -798,6 +801,7 @@ export async function getAllBadges() {
 
 // Learning Analytics
 export async function getUserDailyActivity(userId: string, days: number = 30) {
+  const db = await createUteroAcademyServiceRoleClient();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
@@ -813,6 +817,7 @@ export async function getUserDailyActivity(userId: string, days: number = 30) {
 }
 
 export async function getUserStreak(userId: string) {
+  const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("user_streaks")
     .select("*")
@@ -829,6 +834,7 @@ export async function trackLearningSession(
   courseId: string,
   durationSeconds: number
 ) {
+  const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db
     .from("learning_sessions")
     .insert({
@@ -857,6 +863,7 @@ export async function trackLearningSession(
 
 // Course Announcements
 export async function getCourseAnnouncements(courseId: string, userId: string) {
+  const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("course_announcements")
     .select(`
@@ -872,7 +879,7 @@ export async function getCourseAnnouncements(courseId: string, userId: string) {
   if (error) throw error;
 
   // Add is_read flag
-  return data.map((announcement) => ({
+  return data.map((announcement: any) => ({
     ...announcement,
     is_read: announcement.reads?.some((r: any) => r.user_id === userId) || false,
   }));
@@ -885,10 +892,10 @@ export async function createCourseAnnouncement(
   priority: string = "normal",
   isPinned: boolean = false
 ) {
-  const user = await getUser();
-  if (!user) throw new Error("Unauthorized");
+  const user = await requireUser();
+  const db = await createUteroAcademyServiceRoleClient();
 
-  const { data: mentorProfileId } = await getMentorProfileId(user.id);
+  const mentorProfileId = await getMentorProfileId(user.id);
   if (!mentorProfileId) {
     throw new Error("Hanya mentor yang dapat membuat announcement.");
   }
@@ -915,23 +922,28 @@ export async function createCourseAnnouncement(
 }
 
 export async function markAnnouncementAsRead(announcementId: string) {
-  const user = await getUser();
-  if (!user) throw new Error("Unauthorized");
+  const user = await requireUser();
+  const db = await createUteroAcademyServiceRoleClient();
 
   const { error } = await db
     .from("announcement_reads")
-    .insert({
-      announcement_id: announcementId,
-      user_id: user.id,
-    })
-    .onConflict("announcement_id,user_id")
-    .ignoreDuplicates();
+    .upsert(
+      {
+        announcement_id: announcementId,
+        user_id: user.id,
+      },
+      {
+        onConflict: "announcement_id,user_id",
+        ignoreDuplicates: true,
+      }
+    );
 
   if (error) throw error;
 }
 
 // Lesson Bookmarks
 export async function getUserBookmarks(userId: string) {
+  const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("lesson_bookmarks")
     .select(`
@@ -949,8 +961,8 @@ export async function toggleLessonBookmark(
   lessonId: string,
   note?: string
 ) {
-  const user = await getUser();
-  if (!user) throw new Error("Unauthorized");
+  const user = await requireUser();
+  const db = await createUteroAcademyServiceRoleClient();
 
   // Check if already bookmarked
   const { data: existing } = await db
@@ -985,8 +997,8 @@ export async function toggleLessonBookmark(
 }
 
 export async function deleteBookmark(bookmarkId: string) {
-  const user = await getUser();
-  if (!user) throw new Error("Unauthorized");
+  const user = await requireUser();
+  const db = await createUteroAcademyServiceRoleClient();
 
   const { error } = await db
     .from("lesson_bookmarks")
@@ -999,6 +1011,7 @@ export async function deleteBookmark(bookmarkId: string) {
 
 // Quiz Retry Limit
 export async function checkCanAttemptQuiz(userId: string, quizId: string) {
+  const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db.rpc("can_attempt_quiz", {
     p_user_id: userId,
     p_quiz_id: quizId,
@@ -1009,6 +1022,7 @@ export async function checkCanAttemptQuiz(userId: string, quizId: string) {
 }
 
 export async function getQuizAttemptsSummary(userId: string, quizId: string) {
+  const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("user_quiz_attempts_summary")
     .select("*")

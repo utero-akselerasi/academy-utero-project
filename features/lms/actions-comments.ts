@@ -1,4 +1,17 @@
-﻿// Tambahkan ke bagian akhir file actions.ts
+"use server";
+
+import { createSupabaseServerClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { getMentorProfileId } from "@/features/daily-reports/queries";
+
+async function requireUser() {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  return user;
+}
+// Tambahkan ke bagian akhir file actions.ts
 
 // ===== COMMENTS ACTIONS =====
 

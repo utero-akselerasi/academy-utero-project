@@ -1,13 +1,23 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Megaphone, Pin, AlertCircle, Info, AlertTriangle } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { id } from "date-fns/locale";
-
+function formatRelativeTime(date: Date) {
+  const diffSeconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  const units = [
+    { label: "tahun", seconds: 31536000 },
+    { label: "bulan", seconds: 2592000 },
+    { label: "hari", seconds: 86400 },
+    { label: "jam", seconds: 3600 },
+    { label: "menit", seconds: 60 },
+  ];
+  const unit = units.find((item) => diffSeconds >= item.seconds);
+  if (!unit) return "baru saja";
+  return `${Math.floor(diffSeconds / unit.seconds)} ${unit.label} lalu`;
+}
 interface Announcement {
   id: string;
   title: string;
@@ -110,10 +120,7 @@ export function CourseAnnouncements({ announcements, onMarkAsRead }: CourseAnnou
                   <CardTitle className="text-lg">{announcement.title}</CardTitle>
                   <p className="text-sm text-muted-foreground mt-1">
                     {announcement.author.full_name} •{" "}
-                    {formatDistanceToNow(new Date(announcement.published_at), {
-                      addSuffix: true,
-                      locale: id,
-                    })}
+                    {formatRelativeTime(new Date(announcement.published_at))}
                   </p>
                 </div>
               </div>
