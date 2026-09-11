@@ -21,3 +21,13 @@ out/
 Thumbs.db
 
 package-lock.json
+# local build/cache
+.next-stale-codex/
+
+# local agent/editor configuration
+.claude/settings.json
+.codex/config.toml
+.gemini/settings.json
+.kiro/settings/
+.mcp.json
+.vscode/mcp.json

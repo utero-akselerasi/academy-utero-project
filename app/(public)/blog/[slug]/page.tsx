@@ -2,6 +2,8 @@
 import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar, User } from "lucide-react";
 import Link from "next/link";
+import { ArticleAddons } from "@/features/public/article-addons/ArticleAddons";
+import { normalizeArticleAddons } from "@/features/public/article-addons/normalize";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -37,6 +39,7 @@ export default async function BlogDetailPage({ params }: Props) {
 
   const authorName = author?.full_name || "Admin Utero";
   const bodyText = (article.content as any)?.text || "";
+  const addons = normalizeArticleAddons(article.content);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12 space-y-6">
@@ -71,6 +74,8 @@ export default async function BlogDetailPage({ params }: Props) {
       <article className="prose prose-slate max-w-none text-slate-700 text-sm leading-relaxed whitespace-pre-wrap pt-4">
         {bodyText}
       </article>
+
+      <ArticleAddons addons={addons} />
     </main>
   );
 }
