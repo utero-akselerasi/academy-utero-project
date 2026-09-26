@@ -91,13 +91,41 @@ Total: **62 dari 62 tabel** `utero_academy` punya postur eksplisit.
 
 ### B0.2 Sisa pekerjaan sumber (belum dikerjakan)
 
-- [ ] B0.2a Kecilkan union `RoleCode` di `features/auth/roles.ts:3` jadi
-      `"super_admin" | "admin" | "school" | "intern"`, perbaiki semua situs yang
-      jadi error kompilasi, + `.eq("is_assignable", true)` di
-      `features/super-admin/queries.ts:14`. **`tsc` hijau setelah union dikecilkan
-      adalah bukti** tidak ada jalur kode `admin_academy`/`mentor` yang masih
-      terjangkau lewat sistem role bertipe — ini sinyal verifikasi terkuat di
-      seluruh batch. Jadikan kriteria keluar. Ini yang membuka B1.1/B1.3/B1.6
+- [x] B0.2a Union `RoleCode` dikecilkan jadi
+      `"super_admin" | "admin" | "school" | "intern"`. Sepuluh situs yang jadi
+      error kompilasi diperbaiki semua, **`tsc` hijau (`TSC_EXIT=0`)** — itulah
+      buktinya tidak ada jalur kode `admin_academy`/`mentor` yang masih
+      terjangkau lewat sistem role bertipe. Ini membuka B1.1/B1.3/B1.6.
+
+      Dua penyimpangan sadar dari rencana awal:
+
+      1. **`.eq("is_assignable", true)` TIDAK dipakai** di
+         `features/super-admin/queries.ts`. Kolom itu baru ada **setelah** 0028
+         dijalankan (B0.3a), dan filter PostgREST atas kolom yang belum ada
+         menggagalkan **seluruh** kueri — halaman super-admin akan mati total
+         sekarang. Penyaringan dipindah ke kode lewat `isActiveRoleCode()`.
+         Setelah 0028 diterapkan, filter database boleh ditambahkan sebagai
+         lapis kedua.
+      2. `tsc` hanya menjaga situs bertipe `RoleCode`. Situs bertipe `string`
+         (`Role.code`, `currentUserRole`, parameter `roleCode`) harus dicari
+         lewat grep dan disaring runtime — karena itu `isActiveRoleCode()`
+         diekspor dan dipakai di `app/dashboard/profile/page.tsx`,
+         `features/lms/components/LessonComments.tsx`, dan
+         `features/super-admin/queries.ts`.
+
+      Sekalian diperbaiki di luar rencana: `resolveActiveRole()` menggantikan
+      `.find()` + `|| allowedRoles[0]` di `ProtectedDashboardLayout`. Yang lama
+      bergantung pada urutan baris database (sidebar user `super_admin`+`admin`
+      bisa berganti sendiri antar-permintaan) dan fallback-nya merender sidebar
+      peran yang user belum tentu punya.
+
+      **Titik yang SENGAJA tetap menerima kode legacy** (jangan "diperbaiki"):
+      `provisionDomainProfile` (`features/super-admin/actions.ts:92`) dan
+      `detectMissingDomainProfiles` (`features/super-admin/queries.ts:204`).
+      Keduanya menyediakan baris data domain, bukan otorisasi — baris
+      `mentor_profiles` bukan bukti otorisasi (keputusan C-2) — dan user lama
+      yang cuma punya baris `mentor`/`admin_academy` tetap harus bisa
+      dilengkapi profilnya selama baris itu masih hidup.
 - [ ] B0.2b `lib/storage-urls.ts` + konversi **16 titik tulis** (simpan object
       path, bukan URL) & **~60 titik baca** (tanda tangani di server). Empat
       jebakan yang harus ditangani eksplisit: cek `.endsWith('.pdf')` harus pindah
@@ -139,12 +167,14 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
 
 ## Batch 1 — Konsolidasi RBAC (`admin` = mentor)
 
-- [ ] B1.1 Hapus `mentor` & `admin_academy` dari `RoleCode`, `rolePriority`, `dashboardByRole` di `features/auth/roles.ts` — **tertahan sampai migrasi `0028` jalan** (B0.3a), kalau tipe dihapus lebih dulu user lama kehilangan pemetaan dashboard. Dikerjakan di B0.2a
+- [x] B1.1 `mentor` & `admin_academy` dihapus dari `RoleCode`, `rolePriority`, `dashboardByRole` di `features/auth/roles.ts` (dikerjakan di B0.2a). Catatan TODO lama bahwa ini "tertahan sampai `0028` jalan" **tidak berlaku**: user lama tidak kehilangan pemetaan dashboard karena `getUserRoleCodes` menyaring kode legacy jadi array kosong, dan `requireRole` mengarahkannya ke `/dashboard/forbidden` — bukan ke halaman rusak. Yang memang masih tertahan sampai 0028 jalan adalah **kemampuan login mereka**: sampai assignment lama di-insert jadi `admin`, user yang cuma punya baris legacy akan kena 403. Itu asersi Tingkat-3 nomor 2
 - [x] B1.2 Helper otorisasi terpusat di `features/auth/guards.ts` (`requireUser`, `requireRole`, `requireAdmin`, `requireSuperAdmin`, `requireIntern`, `requireSchool`, + varian `requireRoute*` untuk route handler)
-- [ ] B1.3 Hapus entri `mentor` di `roleLabelMap` & `sidebarItemsMap` (`features/auth/ProtectedDashboardLayout.tsx`) — ikut B1.1
+- [x] B1.3 Entri `mentor` & `admin_academy` dihapus dari `roleLabelMap` & `sidebarItemsMap` (`features/auth/ProtectedDashboardLayout.tsx`). Array sidebar `admin_academy` ternyata **duplikat byte-identik** dari `admin`, dan `mentor: []` memang kosong — jadi tidak ada item navigasi yang hilang
 - [x] B1.4 Halaman 403 `app/dashboard/forbidden` untuk user login-tapi-tak-berwenang
 - [~] B1.5 Migrasi SQL `0028_consolidate_staff_roles.sql` — **sudah ditulis & ter-push, belum dijalankan** (lihat B0.1). Judul lama di TODO ini salah: berkasnya **tidak menghapus role apa pun**. `user_roles.role_id` adalah `ON DELETE CASCADE`, jadi `delete from roles` akan **menghapus senyap** seluruh riwayat assignment yang merujuknya — melanggar batasan tanpa-penghapusan. Yang dipakai: role `admin` di-insert (tidak pernah di-seed), assignment lama di-*insert* jadi `admin`, baris legacy dibiarkan utuh, dan kedua role lama ditandai `is_assignable = false`. Baris legacy jadi mati sendiri setelah B0.2a, karena `rolePriority` berfungsi sebagai allowlist yang menyaring kode di luar union
-- [ ] B1.6 Perbarui referensi string `"mentor"` / `"admin_academy"` di `app/dashboard/profile/page.tsx`, `features/auth/edit-profile-action.ts`, `features/lms/components/LessonComments.tsx` — ikut B1.1. **JANGAN** ubah identifier `mentor_profiles`/`mentor_assignments`/`mentor_id`, href `/dashboard/mentor/*`, atau teks "pembimbing": entitas domain tetap bernama begitu (lihat Keputusan Kebijakan)
+- [x] B1.6 Referensi string peran legacy diperbarui di `app/dashboard/profile/page.tsx` (badge disaring `isActiveRoleCode`), `features/lms/components/LessonComments.tsx` (`isMentorOrAdmin` + `getRoleBadge`; komponen ini terbukti **tidak pernah dirender** di repo — diperbaiki defensif saja), `features/lms/actions.ts`, `features/tasks/actions.ts`, `app/dashboard/intern/certificate/print/page.tsx`, `features/auth/guards.ts`, dan ketiga layout. `features/auth/edit-profile-action.ts` **tidak perlu diubah**: satu-satunya kemunculan "mentor" di sana adalah `getMentorProfileId` / `mentor_profiles`, yaitu identifier domain.
+
+      Identifier domain `mentor_profiles`/`mentor_assignments`/`mentor_id`, href `/dashboard/mentor/*`, dan teks "pembimbing" **tidak diubah** sesuai Keputusan Kebijakan. Yang tersisa dan memang dibiarkan: `features/tasks/ChecklistItem.tsx:15` (`segments.includes("mentor")` — itu segmen URL, bukan peran), komentar di `features/auth/scope.ts:23` dan `app/dashboard/school/reports/generate/download/route.ts:24`, serta dua titik provisioning di B0.2a
 - [x] B1.7 `0027_super_admin_role.sql` sudah ter-track (H-9). **Status penerapan ke DB produksi belum dikonfirmasi**
 
 ## Batch 2 — Tutup lubang otorisasi terbukti (C-2, C-3, C-4)
