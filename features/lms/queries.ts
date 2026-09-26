@@ -1,5 +1,31 @@
 ﻿import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
+/**
+ * True kalau peserta benar-benar terdaftar di course tersebut.
+ *
+ * Halaman LMS peserta sebelumnya hanya butuh sesi: dengan menukar UUID di URL,
+ * peserta mana pun bisa membaca isi materi, soal kuis (beserta jawabannya di
+ * kolom questions), dan detail tugas dari course yang belum/tidak pernah
+ * diikutinya - termasuk course berstatus draft.
+ */
+export async function internIsEnrolled(internProfileId: string, courseId: string) {
+  const db = await createUteroAcademyServiceRoleClient();
+
+  const { data, error } = await db
+    .from("course_enrollments")
+    .select("id")
+    .eq("course_id", courseId)
+    .eq("intern_id", internProfileId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Gagal memeriksa pendaftaran course:", error);
+    return false;
+  }
+
+  return !!data;
+}
+
 export async function getInternEnrollments(internProfileId: string) {
   const db = await createUteroAcademyServiceRoleClient();
   
@@ -27,6 +53,10 @@ export async function getInternEnrollments(internProfileId: string) {
 
 export async function getCourseDetails(courseId: string, internProfileId: string) {
   const db = await createUteroAcademyServiceRoleClient();
+
+  if (!(await internIsEnrolled(internProfileId, courseId))) {
+    return { data: null, error: new Error("Kamu belum terdaftar di course ini.") };
+  }
 
   const [courseRes, lessonsRes, quizzesRes, assignmentsRes, progressRes, quizAttemptsRes, submissionsRes] = await Promise.all([
     db.from("courses").select("id, title, description, slug").eq("id", courseId).maybeSingle(),
@@ -91,6 +121,12 @@ export async function getLesson(lessonId: string, internProfileId: string) {
     return { data: null, error: error || new Error("Materi belum dipublikasikan.") };
   }
 
+  // course_id diambil dari baris lesson, bukan dari URL: peserta tidak bisa
+  // memasangkan lessonId course lain dengan courseId yang ia ikuti.
+  if (!(await internIsEnrolled(internProfileId, lesson.course_id as string))) {
+    return { data: null, error: new Error("Kamu belum terdaftar di course ini.") };
+  }
+
   const { data: progress } = await db
     .from("lesson_progress")
     .select("completed_at")
@@ -120,6 +156,12 @@ export async function getQuiz(quizId: string, internProfileId: string) {
     return { data: null, error: error || new Error("Kuis belum dipublikasikan.") };
   }
 
+  // Kolom questions memuat kunci jawaban, jadi kuis hanya boleh dibaca peserta
+  // yang terdaftar di course pemilik kuis ini.
+  if (!(await internIsEnrolled(internProfileId, quiz.course_id as string))) {
+    return { data: null, error: new Error("Kamu belum terdaftar di course ini.") };
+  }
+
   const { data: attempts } = await db
     .from("quiz_attempts")
     .select("id, score, answers, submitted_at")
@@ -147,6 +189,10 @@ export async function getAssignment(assignmentId: string, internProfileId: strin
 
   if (error || !assignment || assignment.is_published === false) {
     return { data: null, error: error || new Error("Tugas belum dipublikasikan.") };
+  }
+
+  if (!(await internIsEnrolled(internProfileId, assignment.course_id as string))) {
+    return { data: null, error: new Error("Kamu belum terdaftar di course ini.") };
   }
 
   const { data: submission } = await db

@@ -8,6 +8,7 @@ import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/u
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getInternProfileId } from "@/features/daily-reports/queries";
+import { internIsEnrolled } from "./queries";
 import { generateCourseCertificate } from "./certificate-helper";
 
 /**
@@ -259,14 +260,36 @@ export async function deleteLessonAttachmentAction(formData: FormData) {
 export async function markLessonCompletedAction(formData: FormData) {
   const user = await requireUser();
   const lessonId = formData.get("lessonId") as string;
-  const courseId = formData.get("courseId") as string;
-  
+
   if (!lessonId) throw new Error("Lesson ID tidak valid.");
 
   const internProfileId = await getInternProfileId(user.id);
   if (!internProfileId) throw new Error("Profil peserta belum ditemukan.");
 
   const db = await createUteroAcademyServiceRoleClient();
+
+  // courseId diturunkan dari baris lesson, BUKAN dari formData. Versi lama
+  // memakai courseId kiriman klien untuk menghitung kelengkapan course, jadi
+  // peserta bisa mengirim courseId course kosong: jumlah lesson 0 == jumlah
+  // lesson selesai 0, course ditandai lulus, dan sertifikat diterbitkan tanpa
+  // menyelesaikan materi apa pun.
+  const { data: lesson, error: lessonError } = await db
+    .from("lessons")
+    .select("id, course_id")
+    .eq("id", lessonId)
+    .maybeSingle();
+
+  if (lessonError) {
+    console.error("Gagal membaca lesson:", lessonError);
+    throw new Error("Gagal memverifikasi pelajaran.");
+  }
+  if (!lesson) throw new Error("Pelajaran tidak ditemukan.");
+
+  const courseId = lesson.course_id as string;
+
+  if (!(await internIsEnrolled(internProfileId, courseId))) {
+    throw new Error("Kamu belum terdaftar di course ini.");
+  }
 
   const { error } = await db.from("lesson_progress").insert({
     lesson_id: lessonId,
@@ -280,14 +303,31 @@ export async function markLessonCompletedAction(formData: FormData) {
     throw new Error("Gagal menandai pelajaran selesai.");
   }
 
-  const { data: lessons } = await db.from("lessons").select("id").eq("course_id", courseId);
-  const { data: completed } = await db
-    .from("lesson_progress")
-    .select("lesson_id")
-    .eq("intern_id", internProfileId)
-    .in("lesson_id", lessons?.map(l => l.id) || []);
+  // Hanya lesson yang dipublikasikan yang dihitung: lesson draft tidak bisa
+  // dibuka peserta, jadi memasukkannya membuat course mustahil selesai.
+  const { data: lessons } = await db
+    .from("lessons")
+    .select("id")
+    .eq("course_id", courseId)
+    .neq("is_published", false);
 
-  if (lessons && completed && lessons.length === completed.length) {
+  const lessonIds = (lessons ?? []).map((l) => l.id as string);
+
+  // completed_at wajib terisi. Filter lama hanya mencocokkan keberadaan baris
+  // lesson_progress, padahal baris bisa ada dengan completed_at null.
+  const { data: completed } = lessonIds.length
+    ? await db
+        .from("lesson_progress")
+        .select("lesson_id")
+        .eq("intern_id", internProfileId)
+        .not("completed_at", "is", null)
+        .in("lesson_id", lessonIds)
+    : { data: [] as { lesson_id: string }[] };
+
+  const completedIds = new Set((completed ?? []).map((row) => row.lesson_id as string));
+
+  // lessonIds.length > 0: course tanpa materi tidak pernah "lulus".
+  if (lessonIds.length > 0 && lessonIds.every((id) => completedIds.has(id))) {
     await db
       .from("course_enrollments")
       .update({ completed_at: new Date().toISOString() })
@@ -306,8 +346,7 @@ export async function markLessonCompletedAction(formData: FormData) {
 export async function submitQuizAttemptAction(formData: FormData) {
   const user = await requireUser();
   const quizId = formData.get("quizId") as string;
-  const courseId = formData.get("courseId") as string;
-  
+
   if (!quizId) throw new Error("Quiz ID tidak valid.");
 
   const internProfileId = await getInternProfileId(user.id);
@@ -317,12 +356,25 @@ export async function submitQuizAttemptAction(formData: FormData) {
 
   const { data: quiz, error: quizErr } = await db
     .from("quizzes")
-    .select("questions")
+    .select("course_id, questions, is_published")
     .eq("id", quizId)
     .maybeSingle();
 
   if (quizErr || !quiz) {
     throw new Error("Kuis tidak ditemukan.");
+  }
+
+  if (quiz.is_published === false) {
+    throw new Error("Kuis belum dipublikasikan.");
+  }
+
+  // courseId dari baris kuis, bukan dari formData, dan pendaftaran diverifikasi:
+  // sebelumnya siapa pun dengan sesi peserta bisa mengumpulkan kuis course yang
+  // tidak diikutinya.
+  const courseId = quiz.course_id as string;
+
+  if (!(await internIsEnrolled(internProfileId, courseId))) {
+    throw new Error("Kamu belum terdaftar di course ini.");
   }
 
   const questions = Array.isArray(quiz.questions) ? quiz.questions : [];
@@ -389,7 +441,6 @@ export async function toggleQuizPublishAction(formData: FormData) {
 export async function submitAssignmentAction(formData: FormData) {
   const user = await requireUser();
   const assignmentId = formData.get("assignmentId") as string;
-  const courseId = formData.get("courseId") as string;
   const content = formData.get("content") as string;
   const file = formData.get("attachment") as File;
 
@@ -399,6 +450,28 @@ export async function submitAssignmentAction(formData: FormData) {
   if (!internProfileId) throw new Error("Profil peserta belum ditemukan.");
 
   const db = await createUteroAcademyServiceRoleClient();
+
+  // courseId dari baris assignment, bukan dari formData, plus verifikasi
+  // pendaftaran. Sebelumnya peserta bisa mengumpulkan tugas course mana pun.
+  const { data: assignment, error: assignmentError } = await db
+    .from("assignments")
+    .select("id, course_id, is_published")
+    .eq("id", assignmentId)
+    .maybeSingle();
+
+  if (assignmentError) {
+    console.error("Gagal membaca assignment:", assignmentError);
+    throw new Error("Gagal memverifikasi tugas.");
+  }
+  if (!assignment) throw new Error("Tugas tidak ditemukan.");
+  if (assignment.is_published === false) throw new Error("Tugas belum dipublikasikan.");
+
+  const courseId = assignment.course_id as string;
+
+  if (!(await internIsEnrolled(internProfileId, courseId))) {
+    throw new Error("Kamu belum terdaftar di course ini.");
+  }
+
   let attachmentUrl: string | null = null;
 
   if (file && file.size > 0) {
@@ -610,12 +683,29 @@ export async function enrollCourseAction(formData: FormData) {
 
   const db = await createUteroAcademyServiceRoleClient();
 
+  // Hanya course terbit boleh didaftar. Tanpa cek ini peserta bisa mendaftar ke
+  // course draft (yang tidak muncul di daftar) dan membaca materinya.
+  const { data: course, error: courseError } = await db
+    .from("courses")
+    .select("id, status")
+    .eq("id", courseId)
+    .maybeSingle();
+
+  if (courseError) {
+    console.error("Gagal membaca course:", courseError);
+    throw new Error("Gagal memverifikasi course.");
+  }
+  if (!course || course.status !== "published") {
+    throw new Error("Course tidak tersedia untuk pendaftaran.");
+  }
+
   const { error } = await db.from("course_enrollments").insert({
     course_id: courseId,
     intern_id: internProfileId
   });
 
-  if (error) {
+  // 23505 = sudah terdaftar; idempoten, bukan kegagalan.
+  if (error && error.code !== "23505") {
     console.error("Gagal enroll course:", error);
     throw new Error("Gagal mendaftar ke course.");
   }
