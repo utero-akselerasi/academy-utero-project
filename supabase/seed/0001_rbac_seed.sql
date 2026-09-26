@@ -1,8 +1,19 @@
+-- Peran login: super_admin, admin, school, intern. Sesuai
+-- docs/05-rbac-permission-matrix.md.
+--
+-- `admin_academy` dan `mentor` SENGAJA tidak ada di sini lagi. Keduanya
+-- dikonsolidasikan ke `admin` oleh migrations/0028_consolidate_staff_roles.sql
+-- (admin = administrator sekaligus pembimbing), dan berkas ini ada di luar
+-- migrations/ sehingga runner migrasi tidak memutarnya: satu kali seed ulang
+-- akan menghidupkan kembali kedua role kalau mereka masih terdaftar di sini.
+--
+-- Baris legacy yang sudah ada di database lama tidak dihapus oleh siapa pun —
+-- 0028 hanya menandainya is_assignable = false, karena FK user_roles.role_id
+-- adalah ON DELETE CASCADE dan menghapus role akan menghapus riwayat assignment.
 insert into utero_academy.roles (code, name, description)
 values
   ('super_admin', 'Super Admin', 'Full system access'),
-  ('admin_academy', 'Admin Academy', 'Academy operational administrator'),
-  ('mentor', 'Mentor', 'Mentor for assigned interns and classes'),
+  ('admin', 'Admin', 'Administrator sistem sekaligus pembimbing magang'),
   ('school', 'School or Campus', 'School monitoring portal user'),
   ('intern', 'Peserta Magang', 'Intern participant'),
   ('visitor', 'Visitor', 'Public unauthenticated visitor role reference')
@@ -49,6 +60,15 @@ cross join utero_academy.permissions p
 where r.code = 'super_admin'
 on conflict do nothing;
 
+-- `admin` memegang gabungan permission admin_academy dan mentor yang lama.
+-- Gabungannya sama dengan daftar admin_academy: seluruh delapan permission
+-- mentor ('interns.read', 'lms.read', 'tasks.read', 'tasks.manage',
+-- 'attendance.review', 'daily_reports.review', 'assessments.write',
+-- 'certificates.read') sudah termuat di dalamnya.
+--
+-- Perhatikan yang TIDAK diberikan, sesuai matriks: 'attendance.submit',
+-- 'daily_reports.submit', 'tasks.submit', dan 'school_portal.read'. Admin
+-- mereview, bukan mengirim absensi atau laporan atas nama peserta.
 insert into utero_academy.role_permissions (role_id, permission_id)
 select r.id, p.id
 from utero_academy.roles r
@@ -75,23 +95,7 @@ join utero_academy.permissions p on p.code in (
   'certificates.read',
   'audit_logs.read'
 )
-where r.code = 'admin_academy'
-on conflict do nothing;
-
-insert into utero_academy.role_permissions (role_id, permission_id)
-select r.id, p.id
-from utero_academy.roles r
-join utero_academy.permissions p on p.code in (
-  'interns.read',
-  'lms.read',
-  'tasks.read',
-  'tasks.manage',
-  'attendance.review',
-  'daily_reports.review',
-  'assessments.write',
-  'certificates.read'
-)
-where r.code = 'mentor'
+where r.code = 'admin'
 on conflict do nothing;
 
 insert into utero_academy.role_permissions (role_id, permission_id)
