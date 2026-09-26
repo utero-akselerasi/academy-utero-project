@@ -1,4 +1,42 @@
-﻿import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+﻿import { resolveStorageUrl, resolveStorageUrls } from "@/lib/storage-urls";
+import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+
+/**
+ * Menandatangani kunci `path` di JSONB `lessons.attachments`.
+ *
+ * Bentuknya JSONB, bukan tabel, jadi tidak ada tipe yang bisa dilebarkan ke
+ * `string | null` untuk memaksa `tsc` menemukan titik render yang lupa
+ * menanganinya. Karena itu penandatanganannya ditaruh di lapisan query untuk
+ * ketiga kueri yang membaca kolom ini (`getCourseDetails`, `getLesson`,
+ * `getMentorCourseDetails`) — bukan di komponen.
+ *
+ * Nilai yang gagal ditandatangani jadi `null`; `LessonAttachments` merender
+ * `href` apa adanya, jadi tautannya mati alih-alih membocorkan object path.
+ */
+/**
+ * Apakah lampiran itu gambar, dinilai dari OBJECT PATH.
+ *
+ * Harus dievaluasi sebelum `resolveStorageUrl()`: signed URL menambahkan
+ * `?token=...`, jadi `path.split(".").pop()` pada URL final mengembalikan token,
+ * bukan ekstensi. Nilai lama yang masih berupa URL publik penuh juga ditangani —
+ * query string dipangkas dulu — karena backfill belum dijalankan.
+ */
+function isImageObjectPath(value: string | null | undefined) {
+  if (!value) return false;
+  const ext = value.split("?")[0].split(".").pop()?.toLowerCase();
+  return ["jpg", "jpeg", "png", "gif", "webp"].includes(ext || "");
+}
+
+async function signLessonAttachments(attachments: unknown) {
+  if (!Array.isArray(attachments) || attachments.length === 0) return attachments ?? [];
+
+  const urls = await resolveStorageUrls(
+    "learning",
+    attachments.map((att: any) => att?.path ?? null),
+  );
+
+  return attachments.map((att: any, index) => ({ ...att, path: urls[index] }));
+}
 
 /**
  * True kalau peserta benar-benar terdaftar di course tersebut.
@@ -76,10 +114,13 @@ export async function getCourseDetails(courseId: string, internProfileId: string
   const quizMap = new Map(quizAttemptsRes.data?.map(q => [q.quiz_id, q.score]));
   const submissionMap = new Map(submissionsRes.data?.map(s => [s.assignment_id, s]));
 
-  const lessons = (lessonsRes.data || []).filter(l => l.is_published !== false).map(l => ({
-    ...l,
-    is_completed: progressMap.has(l.id)
-  }));
+  const lessons = await Promise.all(
+    (lessonsRes.data || []).filter(l => l.is_published !== false).map(async l => ({
+      ...l,
+      attachments: await signLessonAttachments(l.attachments),
+      is_completed: progressMap.has(l.id)
+    })),
+  );
 
   const quizzes = (quizzesRes.data || []).filter(q => q.is_published !== false).map(q => ({
     ...q,
@@ -137,6 +178,7 @@ export async function getLesson(lessonId: string, internProfileId: string) {
   return {
     data: {
       ...lesson,
+      attachments: await signLessonAttachments(lesson.attachments),
       is_completed: !!progress?.completed_at
     },
     error: null
@@ -205,7 +247,14 @@ export async function getAssignment(assignmentId: string, internProfileId: strin
   return {
     data: {
       ...assignment,
-      submission: submission ?? null
+      submission: submission
+        ? {
+            ...submission,
+            // Bucket `learning` privat (0032b), jadi lampiran pengumpulan tugas
+            // ditandatangani di server.
+            attachment_path: await resolveStorageUrl("learning", submission.attachment_path as string | null),
+          }
+        : null
     },
     error: null
   };
@@ -246,23 +295,30 @@ export async function getMentorSubmissions(allowedInternIds: string[] | null) {
     return { data: [], error };
   }
 
-  const mapped = submissions.map(s => {
-    const a = Array.isArray(s.assignments) ? s.assignments[0] : s.assignments;
-    const ip = Array.isArray(s.intern_profiles) ? s.intern_profiles[0] : s.intern_profiles;
-    return {
-      id: s.id,
-      assignment_id: s.assignment_id,
-      intern_id: s.intern_id,
-      content: s.content,
-      attachment_path: s.attachment_path,
-      score: s.score,
-      feedback: s.feedback,
-      submitted_at: s.submitted_at,
-      reviewed_at: s.reviewed_at,
-      assignment_title: a?.title || "Tugas Tanpa Judul",
-      intern_name: ip?.full_name || "Peserta"
-    };
-  });
+  const mapped = await Promise.all(
+    submissions.map(async s => {
+      const a = Array.isArray(s.assignments) ? s.assignments[0] : s.assignments;
+      const ip = Array.isArray(s.intern_profiles) ? s.intern_profiles[0] : s.intern_profiles;
+      return {
+        id: s.id,
+        assignment_id: s.assignment_id,
+        intern_id: s.intern_id,
+        content: s.content,
+        attachment_path: await resolveStorageUrl("learning", s.attachment_path),
+        // Keputusan "gambar atau bukan" diambil dari OBJECT PATH, sebelum
+        // ditandatangani. Signed URL membawa `?token=...` di belakang nama
+        // berkas, jadi cek ekstensi pada URL final selalu gagal dan setiap
+        // gambar akan dirender sebagai tautan unduh.
+        attachment_is_image: isImageObjectPath(s.attachment_path),
+        score: s.score,
+        feedback: s.feedback,
+        submitted_at: s.submitted_at,
+        reviewed_at: s.reviewed_at,
+        assignment_title: a?.title || "Tugas Tanpa Judul",
+        intern_name: ip?.full_name || "Peserta"
+      };
+    }),
+  );
 
   return { data: mapped, error: null };
 }
@@ -313,7 +369,12 @@ export async function getMentorCourseDetails(courseId: string) {
   return {
     data: {
       course: courseRes.data,
-      lessons: lessonsRes.data || [],
+      lessons: await Promise.all(
+        (lessonsRes.data || []).map(async l => ({
+          ...l,
+          attachments: await signLessonAttachments(l.attachments),
+        })),
+      ),
       quizzes: quizzesRes.data || [],
       assignments: assignmentsRes.data || []
     },

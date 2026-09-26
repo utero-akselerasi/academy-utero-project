@@ -1,4 +1,5 @@
-﻿import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+﻿import { resolveStorageUrl } from "@/lib/storage-urls";
+import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import type {
   SchoolAttendance,
   SchoolDailyReport,
@@ -57,19 +58,35 @@ function mapAttendanceRows(rows: any[], internMap: Map<string, string>): SchoolA
   }));
 }
 
-function mapDailyReportRows(rows: any[], internMap: Map<string, string>): SchoolDailyReport[] {
-  return (rows || []).map((row) => ({
-    id: row.id,
-    intern_id: row.intern_id,
-    intern_name: internMap.get(row.intern_id) || "Peserta",
-    report_date: row.report_date,
-    today_work: row.today_work,
-    progress: row.progress ?? null,
-    blockers: row.blockers ?? null,
-    tomorrow_plan: row.tomorrow_plan ?? null,
-    status: row.status,
-    daily_report_attachments: row.daily_report_attachments || [],
-  }));
+/**
+ * Portal sekolah membaca `daily_report_attachments` lewat kueri sendiri, bukan
+ * lewat `features/daily-reports/queries.ts`, jadi penandatanganannya harus
+ * diulang di sini — tanpa ini kolom "Lampiran" di
+ * `/dashboard/school/reports` akan menunjuk object path mentah.
+ *
+ * Baris `mime_type === "url"` dilewati: itu tautan Google Drive yang disimpan di
+ * kolom yang sama, bukan objek storage.
+ */
+async function mapDailyReportRows(rows: any[], internMap: Map<string, string>): Promise<SchoolDailyReport[]> {
+  return Promise.all(
+    (rows || []).map(async (row) => ({
+      id: row.id,
+      intern_id: row.intern_id,
+      intern_name: internMap.get(row.intern_id) || "Peserta",
+      report_date: row.report_date,
+      today_work: row.today_work,
+      progress: row.progress ?? null,
+      blockers: row.blockers ?? null,
+      tomorrow_plan: row.tomorrow_plan ?? null,
+      status: row.status,
+      daily_report_attachments: await Promise.all(
+        ((row.daily_report_attachments || []) as any[]).map(async (att) => {
+          if (att.mime_type === "url") return att;
+          return { ...att, file_path: await resolveStorageUrl("daily-report", att.file_path) };
+        }),
+      ),
+    })),
+  );
 }
 
 function getAttendanceHours(attendance: Pick<SchoolAttendance, "check_in_at" | "check_out_at" | "attendance_type">) {
@@ -144,7 +161,7 @@ export async function getSchoolInternsDailyReports(schoolId: string): Promise<{ 
     .in("intern_id", internIds)
     .order("report_date", { ascending: false });
 
-  return { data: mapDailyReportRows(data || [], internMap), error };
+  return { data: await mapDailyReportRows(data || [], internMap), error };
 }
 
 export async function getSchoolDashboardStats(schoolId: string): Promise<{ data: SchoolDashboardStats; error: any }> {

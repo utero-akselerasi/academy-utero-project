@@ -58,7 +58,11 @@ export type SchoolDailyReport = {
   status: string;
   daily_report_attachments?: Array<{
     id: string;
-    file_path: string;
+    /**
+     * Sudah ditandatangani di `queries.ts`; `null` kalau penandatanganan gagal.
+     * Lihat catatan sejenis di `features/daily-reports/types.ts`.
+     */
+    file_path: string | null;
     file_name: string;
     mime_type: string | null;
   }>;

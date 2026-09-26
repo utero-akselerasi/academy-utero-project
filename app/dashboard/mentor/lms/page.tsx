@@ -10,11 +10,10 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date(value));
 }
 
-function isImageAttachment(path: string | null) {
-  if (!path) return false;
-  const ext = path.split(".").pop()?.toLowerCase();
-  return ["jpg", "jpeg", "png", "gif", "webp"].includes(ext || "");
-}
+// `isImageAttachment()` lokal dihapus: ia menilai dari `attachment_path`, dan
+// nilai itu kini signed URL ber-`?token=` sehingga cek ekstensinya selalu gagal.
+// Keputusannya sekarang diambil di `getMentorSubmissions()` dari object path
+// sebelum ditandatangani, lewat flag `attachment_is_image`.
 
 type PageProps = {
   searchParams: Promise<{ detailSubId?: string; status?: string; q?: string; cQ?: string; showCreateCourse?: string }>;
@@ -327,7 +326,7 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
               {detailSub.attachment_path && (
                 <div className="border-t border-slate-100 pt-3">
                   <span className="text-[10px] text-slate-400 font-bold block uppercase mb-1">Bukti File Pengerjaan</span>
-                  {isImageAttachment(detailSub.attachment_path) ? (
+                  {detailSub.attachment_is_image ? (
                     <ImagePreview src={detailSub.attachment_path} alt="File Tugas" />
                   ) : (
                     <a href={detailSub.attachment_path} target="_blank" rel="noopener noreferrer" className="button-secondary text-xs inline-flex items-center gap-1.5">

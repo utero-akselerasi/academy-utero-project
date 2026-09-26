@@ -185,8 +185,6 @@ export async function uploadLessonAttachmentAction(formData: FormData) {
     throw new Error("Gagal mengunggah file.");
   }
 
-  const { data: { publicUrl } } = supabase.storage.from("learning").getPublicUrl(filePath);
-
   const { data: lesson } = await db
     .from("lessons")
     .select("attachments")
@@ -195,10 +193,14 @@ export async function uploadLessonAttachmentAction(formData: FormData) {
 
   const currentAttachments = Array.isArray(lesson?.attachments) ? lesson.attachments : [];
   
+  // Kunci `path` menyimpan OBJECT PATH, bukan URL publik. Bucket `learning`
+  // memang sudah privat di seed `0002_storage_buckets.sql`; 0007 yang memaksanya
+  // publik. Pembacaannya lewat `signLessonAttachments()` di
+  // `features/lms/queries.ts`.
   const newAttachment = {
     id: crypto.randomUUID(),
     name: attachment.displayName,
-    path: publicUrl,
+    path: filePath,
     size: attachment.size,
     type: attachment.contentType,
     uploaded_at: new Date().toISOString()
@@ -472,10 +474,14 @@ export async function submitAssignmentAction(formData: FormData) {
     throw new Error("Kamu belum terdaftar di course ini.");
   }
 
-  let attachmentUrl: string | null = null;
+  let attachmentPath: string | null = null;
 
   if (file && file.size > 0) {
-    // Tipe & ekstensi dari isi berkas; bucket "learning" publik.
+    // Tipe & ekstensi tetap ditentukan dari isi berkas, bukan dari nama/MIME
+    // klien. Alasan aslinya (bucket publik → .html/.svg jadi stored XSS) hilang
+    // setelah 0032b memprivatkan bucket, tapi validasinya tetap: berkas tetap
+    // terlayani lewat signed URL, dan itu sama saja mengeksekusi HTML di origin
+    // Storage.
     let submission;
     try {
       submission = await validateUpload(file, ["image", "document"]);
@@ -500,8 +506,9 @@ export async function submitAssignmentAction(formData: FormData) {
       throw new Error("Gagal mengunggah file bukti tugas.");
     }
 
-    const { data: { publicUrl } } = supabase.storage.from("learning").getPublicUrl(filePath);
-    attachmentUrl = publicUrl;
+    // Object path, bukan URL publik. Dibaca lewat `resolveStorageUrl("learning", …)`
+    // di `features/lms/queries.ts`.
+    attachmentPath = filePath;
   }
 
   const { data: existing } = await db
@@ -516,7 +523,7 @@ export async function submitAssignmentAction(formData: FormData) {
       .from("assignment_submissions")
       .update({
         content: content || null,
-        attachment_path: attachmentUrl || undefined,
+        attachment_path: attachmentPath || undefined,
         submitted_at: new Date().toISOString()
       })
       .eq("id", existing.id);
@@ -530,7 +537,7 @@ export async function submitAssignmentAction(formData: FormData) {
       assignment_id: assignmentId,
       intern_id: internProfileId,
       content: content || null,
-      attachment_path: attachmentUrl
+      attachment_path: attachmentPath
     });
 
     if (error) {
