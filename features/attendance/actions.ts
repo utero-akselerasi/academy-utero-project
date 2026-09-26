@@ -1,10 +1,31 @@
 ﻿"use server";
 
+import { requireAdmin, requireUser } from "@/features/auth/guards";
+import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createSupabaseServerClient, createUteroAcademyClient, createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { getInternProfileId } from "@/features/daily-reports/queries";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { checkInSchema, checkOutSchema, reviewAttendanceSchema } from "./schemas";
+
+/**
+ * Aksi review/pengaturan absensi hanya untuk staff.
+ * Guard lama cuma cek sesi, sehingga peserta bisa memanggil langsung lewat
+ * action ID dan menyetujui absensinya sendiri atau mengubah geofencing.
+ */
+const requireStaff = requireAdmin;
+
+/** Admin hanya boleh mereview intern yang dibimbingnya; super_admin bebas. */
+async function requireInternInScope(userId: string, internId: string | null) {
+  const scope = await resolveStaffInternScope(userId);
+
+  if (scope.kind === "global") return;
+  if (scope.kind === "setup_required") {
+    throw new Error("Profil pembimbing belum disiapkan. Hubungi super admin.");
+  }
+  if (!internId || !scope.internIds.includes(internId)) {
+    throw new Error("Kamu tidak membimbing peserta ini.");
+  }
+}
 
 function getTodayDateLocal() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -45,9 +66,9 @@ async function uploadSelfieBase64(supabase: any, userId: string, base64Data: str
 }
 
 export async function checkInAction(_: FormState, formData: FormData): Promise<FormState> {
+  // Aksi peserta: kepemilikan ditentukan lewat intern_profiles.user_id.
+  const user = await requireUser();
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
   const internId = await getInternProfileId(user.id);
   if (!internId) return { ok: false, message: "Profil peserta tidak ditemukan." };
   const latStr = formData.get("latitude");
@@ -142,9 +163,9 @@ export async function checkInAction(_: FormState, formData: FormData): Promise<F
 }
 
 export async function checkOutAction(_: FormState, formData: FormData): Promise<FormState> {
+  // Aksi peserta: kepemilikan ditentukan lewat intern_profiles.user_id.
+  const user = await requireUser();
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
   const internId = await getInternProfileId(user.id);
   if (!internId) return { ok: false, message: "Profil peserta tidak ditemukan." };
   const latStr = formData.get("latitude");
@@ -192,11 +213,26 @@ export async function checkOutAction(_: FormState, formData: FormData): Promise<
 }
 
 export async function reviewAttendanceAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const user = await requireStaff();
   const parsed = reviewAttendanceSchema.safeParse({ attendanceId: formData.get("attendanceId"), status: formData.get("status"), note: formData.get("note") });
   if (!parsed.success) throw new Error("Data review absensi tidak valid.");
+
+  // Pastikan baris absensi memang milik intern yang dibimbing user ini.
+  const lookup = await createUteroAcademyServiceRoleClient();
+  const { data: row, error: rowError } = await lookup
+    .from("attendances")
+    .select("id, intern_id")
+    .eq("id", parsed.data.attendanceId)
+    .maybeSingle();
+
+  if (rowError) {
+    console.error("Gagal membaca absensi:", rowError);
+    throw new Error("Gagal memverifikasi data absensi.");
+  }
+  if (!row) throw new Error("Data absensi tidak ditemukan.");
+
+  await requireInternInScope(user.id, row.intern_id as string | null);
+
   const db = await createUteroAcademyClient();
   const { error } = await db.from("attendances").update({ status: parsed.data.status, review_note: parsed.data.note || null, reviewed_by: user.id, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", parsed.data.attendanceId);
   if (error) {
@@ -207,9 +243,8 @@ export async function reviewAttendanceAction(formData: FormData) {
 }
 
 export async function submitPermitAction(_: FormState, formData: FormData): Promise<FormState> {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Aksi peserta: kepemilikan ditentukan lewat intern_profiles.user_id.
+  const user = await requireUser();
 
   const internId = await getInternProfileId(user.id);
   if (!internId) return { ok: false, message: "Profil peserta tidak ditemukan." };
@@ -283,9 +318,8 @@ export async function submitPermitAction(_: FormState, formData: FormData): Prom
 
 
 export async function saveAttendanceSettingsAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Pengaturan global absensi (jam kerja + geofencing) hanya boleh diubah staff.
+  await requireStaff();
 
   const checkInTime = formData.get("checkInTime") as string;
   const checkOutTime = formData.get("checkOutTime") as string;
@@ -320,9 +354,7 @@ export async function saveAttendanceSettingsAction(formData: FormData) {
 
 
 export async function reviewPermitAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const user = await requireStaff();
 
   const permitId = formData.get("permitId") as string;
   const status = formData.get("status") as string; // 'approved' | 'rejected'
@@ -333,8 +365,11 @@ export async function reviewPermitAction(formData: FormData) {
   const db = await createUteroAcademyServiceRoleClient();
 
   // Ambil data permit
-  const { data: permit } = await db.from("permits").select("*").eq("id", permitId).single();
+  const { data: permit } = await db.from("permits").select("*").eq("id", permitId).maybeSingle();
   if (!permit) throw new Error("Permit tidak ditemukan.");
+
+  // Admin hanya boleh menyetujui izin intern yang dibimbingnya.
+  await requireInternInScope(user.id, permit.intern_id as string | null);
 
   // Update permit status and optionally endDate
   const newEndDate = endDate || permit.end_date;
