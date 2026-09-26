@@ -3,6 +3,7 @@
 import { requireUser } from "@/features/auth/guards";
 import { createSupabaseServiceRoleClient, createUteroAcademyClient } from "@/lib/supabase/server";
 import { getInternProfileId, getMentorProfileId } from "@/features/daily-reports/queries";
+import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
 
 export type ProfileFormState = {
@@ -20,15 +21,30 @@ export async function updateProfileAction(_: ProfileFormState, formData: FormDat
   const db = await createUteroAcademyClient();
   let avatarUrl = null;
   if (avatarFile && avatarFile.size > 0) {
-    const ext = avatarFile.name.split(".").pop() || "jpg";
-    const filePath = user.id + "/avatar_" + Date.now() + "." + ext;
-    const arrayBuffer = await avatarFile.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
-    const serviceRoleSupabase = createSupabaseServiceRoleClient(); const { error: uploadErr } = await serviceRoleSupabase.storage.from("avatars").upload(filePath, buffer, { contentType: avatarFile.type, upsert: true });
-    if (!uploadErr) {
-      const { data: { publicUrl } } = serviceRoleSupabase.storage.from("avatars").getPublicUrl(filePath);
-      avatarUrl = publicUrl;
+    // Tipe & ekstensi ditentukan dari isi berkas, bukan dari nama/MIME klien:
+    // bucket "avatars" publik, jadi .html/.svg di sini jadi stored XSS.
+    let avatar;
+    try {
+      avatar = await validateUpload(avatarFile, ["image"]);
+    } catch (error) {
+      if (error instanceof UploadValidationError) {
+        return { ok: false, message: error.message };
+      }
+      console.error("Gagal memvalidasi avatar:", error);
+      return { ok: false, message: "Foto profil tidak dapat diproses." };
     }
+
+    const filePath = buildStoragePath(user.id, avatar.ext);
+    const serviceRoleSupabase = createSupabaseServiceRoleClient();
+    const { error: uploadErr } = await serviceRoleSupabase.storage
+      .from("avatars")
+      .upload(filePath, avatar.buffer, { contentType: avatar.contentType, upsert: false });
+    if (uploadErr) {
+      console.error("Gagal upload avatar:", uploadErr);
+      return { ok: false, message: "Gagal mengunggah foto profil." };
+    }
+    const { data: { publicUrl } } = serviceRoleSupabase.storage.from("avatars").getPublicUrl(filePath);
+    avatarUrl = publicUrl;
   }
   const updateData: any = { full_name: fullName, phone: phone || null, updated_at: new Date().toISOString() };
   if (avatarUrl) updateData.avatar_path = avatarUrl;

@@ -1,6 +1,7 @@
 "use server";
 
 import { createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { z } from "zod";
 
 const registrationSchema = z.object({
@@ -44,18 +45,33 @@ export async function submitRegistrationAction(
     return { ok: false, message: "Berkas CV wajib diunggah." };
   }
 
+  // Endpoint ini publik (tanpa sesi), jadi berkas harus divalidasi dari
+  // isinya. Sebelumnya ekstensi & contentType diambil dari klien sehingga
+  // siapa pun bisa menaruh .html/.svg di bucket publik (stored XSS).
+  let cv;
+  let portfolio = null;
+  try {
+    cv = await validateUpload(cvFile, ["document", "image"]);
+    if (portfolioFile && portfolioFile.size > 0) {
+      portfolio = await validateUpload(portfolioFile, ["document", "image"]);
+    }
+  } catch (error) {
+    if (error instanceof UploadValidationError) {
+      return { ok: false, message: error.message };
+    }
+    console.error("Gagal memvalidasi berkas pendaftaran:", error);
+    return { ok: false, message: "Berkas tidak dapat diproses. Coba lagi." };
+  }
+
   try {
     const supabase = createSupabaseServiceRoleClient();
     const db = await createUteroAcademyServiceRoleClient();
 
     // 1. Upload CV
-    const cvExt = cvFile.name.split(".").pop() || "pdf";
-    const cvPath = "cv/" + Date.now() + "_" + Math.random().toString(36).substring(2, 8) + "." + cvExt;
-    const cvBuffer = new Uint8Array(await cvFile.arrayBuffer());
-    
+    const cvPath = buildStoragePath("cv", cv.ext);
     const { error: cvUploadError } = await supabase.storage
       .from("avatars")
-      .upload(cvPath, cvBuffer, { contentType: cvFile.type, upsert: true });
+      .upload(cvPath, cv.buffer, { contentType: cv.contentType, upsert: false });
 
     if (cvUploadError) {
       console.error("Gagal upload CV:", cvUploadError);
@@ -66,14 +82,11 @@ export async function submitRegistrationAction(
 
     // 2. Upload Portfolio (opsional)
     let portfolioPublicUrl = null;
-    if (portfolioFile && portfolioFile.size > 0) {
-      const portExt = portfolioFile.name.split(".").pop() || "pdf";
-      const portPath = "portfolio/" + Date.now() + "_" + Math.random().toString(36).substring(2, 8) + "." + portExt;
-      const portBuffer = new Uint8Array(await portfolioFile.arrayBuffer());
-
+    if (portfolio) {
+      const portPath = buildStoragePath("portfolio", portfolio.ext);
       const { error: portUploadError } = await supabase.storage
         .from("avatars")
-        .upload(portPath, portBuffer, { contentType: portfolioFile.type, upsert: true });
+        .upload(portPath, portfolio.buffer, { contentType: portfolio.contentType, upsert: false });
 
       if (portUploadError) {
         console.error("Gagal upload Portfolio:", portUploadError);
@@ -97,10 +110,11 @@ export async function submitRegistrationAction(
     });
 
     if (error) {
+      // Pesan error database tidak dibocorkan ke endpoint publik.
       console.error("Gagal submit pendaftaran:", error);
       return {
         ok: false,
-        message: "Pendaftaran belum berhasil disimpan. Detail: " + error.message,
+        message: "Pendaftaran belum berhasil disimpan. Silakan coba lagi.",
       };
     }
   } catch (error) {

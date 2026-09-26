@@ -1,7 +1,13 @@
-﻿"use server";
+﻿import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
-import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
-
+/**
+ * Helper internal, BUKAN server action.
+ * Sebelumnya file ini memakai "use server" sehingga fungsi ini terekspos
+ * sebagai action ID tanpa guard apa pun: siapa saja bisa memanggilnya dengan
+ * internProfileId/courseId sembarang dan menerbitkan sertifikat palsu.
+ * Pemanggil (features/lms/actions.ts) yang bertanggung jawab memverifikasi
+ * kepemilikan dan penyelesaian course sebelum memanggil ini.
+ */
 export async function generateCourseCertificate(internProfileId: string, courseId: string) {
   const db = await createUteroAcademyServiceRoleClient();
 

@@ -2,6 +2,7 @@
 
 import { requireAdmin, requireUser } from "@/features/auth/guards";
 import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
 
 // Guard terpusat: cek role lewat semua baris user_roles (guard lama pakai
@@ -78,18 +79,24 @@ export async function createTestimonialAction(formData: FormData) {
   let photoUrl: string | null = null;
 
   if (file && file.size > 0) {
-    const supabase = createSupabaseServiceRoleClient();
-    const ext = file.name.split(".").pop() || "jpg";
-    const filePath = `testimonial/${Date.now()}.${ext}`;
+    // Ekstensi & MIME dari isi berkas; bucket "gallery" publik.
+    let photo;
+    try {
+      photo = await validateUpload(file, ["image"]);
+    } catch (error) {
+      if (error instanceof UploadValidationError) throw new Error(error.message);
+      console.error("Gagal memvalidasi foto testimoni:", error);
+      throw new Error("Foto testimoni tidak dapat diproses.");
+    }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
+    const supabase = createSupabaseServiceRoleClient();
+    const filePath = buildStoragePath("testimonial", photo.ext);
 
     const { error: uploadError } = await supabase.storage
       .from("gallery")
-      .upload(filePath, buffer, {
-        contentType: file.type,
-        upsert: true
+      .upload(filePath, photo.buffer, {
+        contentType: photo.contentType,
+        upsert: false
       });
 
     if (uploadError) {
@@ -157,18 +164,24 @@ export async function createGalleryAction(formData: FormData) {
     throw new Error("Judul dan file gambar wajib diunggah.");
   }
 
-  const supabase = createSupabaseServiceRoleClient();
-  const ext = file.name.split(".").pop() || "jpg";
-  const filePath = `gallery/${Date.now()}.${ext}`;
+  // Ekstensi & MIME dari isi berkas; bucket "gallery" publik.
+  let image;
+  try {
+    image = await validateUpload(file, ["image"]);
+  } catch (error) {
+    if (error instanceof UploadValidationError) throw new Error(error.message);
+    console.error("Gagal memvalidasi gambar galeri:", error);
+    throw new Error("Gambar galeri tidak dapat diproses.");
+  }
 
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = new Uint8Array(arrayBuffer);
+  const supabase = createSupabaseServiceRoleClient();
+  const filePath = buildStoragePath("gallery", image.ext);
 
   const { error: uploadError } = await supabase.storage
     .from("gallery")
-    .upload(filePath, buffer, {
-      contentType: file.type,
-      upsert: true
+    .upload(filePath, image.buffer, {
+      contentType: image.contentType,
+      upsert: false
     });
 
   if (uploadError) {
@@ -238,18 +251,24 @@ export async function createArticleAction(formData: FormData) {
   let coverUrl: string | null = null;
 
   if (file && file.size > 0) {
-    const supabase = createSupabaseServiceRoleClient();
-    const ext = file.name.split(".").pop() || "jpg";
-    const filePath = `article/${Date.now()}.${ext}`;
+    // Ekstensi & MIME dari isi berkas; bucket "article" publik.
+    let cover;
+    try {
+      cover = await validateUpload(file, ["image"]);
+    } catch (error) {
+      if (error instanceof UploadValidationError) throw new Error(error.message);
+      console.error("Gagal memvalidasi cover artikel:", error);
+      throw new Error("Gambar cover tidak dapat diproses.");
+    }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
+    const supabase = createSupabaseServiceRoleClient();
+    const filePath = buildStoragePath("article", cover.ext);
 
     const { error: uploadError } = await supabase.storage
       .from("article")
-      .upload(filePath, buffer, {
-        contentType: file.type,
-        upsert: true
+      .upload(filePath, cover.buffer, {
+        contentType: cover.contentType,
+        upsert: false
       });
 
     if (uploadError) {
@@ -339,12 +358,21 @@ export async function submitInternTestimonialAction(formData: FormData) {
 
   let photoUrl = null;
   if (file && file.size > 0) {
+    // Ekstensi & MIME dari isi berkas; bucket "gallery" publik.
+    let photo;
+    try {
+      photo = await validateUpload(file, ["image"]);
+    } catch (error) {
+      if (error instanceof UploadValidationError) throw new Error(error.message);
+      console.error("Gagal memvalidasi foto testimoni peserta:", error);
+      throw new Error("Foto testimoni tidak dapat diproses.");
+    }
+
     const supabaseService = createSupabaseServiceRoleClient();
-    const ext = file.name.split(".").pop() || "jpg";
-    const filePath = "testimonial/" + Date.now() + "." + ext;
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
-    const { error: uploadError } = await supabaseService.storage.from("gallery").upload(filePath, buffer, { contentType: file.type, upsert: true });
+    const filePath = buildStoragePath("testimonial", photo.ext);
+    const { error: uploadError } = await supabaseService.storage
+      .from("gallery")
+      .upload(filePath, photo.buffer, { contentType: photo.contentType, upsert: false });
     if (!uploadError) {
       const { data: { publicUrl } } = supabaseService.storage.from("gallery").getPublicUrl(filePath);
       photoUrl = publicUrl;
@@ -449,18 +477,24 @@ export async function uploadCmsFileAction(formData: FormData): Promise<string> {
     throw new Error("File tidak ditemukan.");
   }
 
-  const supabase = createSupabaseServiceRoleClient();
-  const ext = file.name.split(".").pop() || "jpg";
-  const filePath = "expert/" + Date.now() + "_" + Math.random().toString(36).substring(2, 8) + "." + ext;
+  // Ekstensi & MIME dari isi berkas; bucket "gallery" publik.
+  let asset;
+  try {
+    asset = await validateUpload(file, ["image"]);
+  } catch (error) {
+    if (error instanceof UploadValidationError) throw new Error(error.message);
+    console.error("Gagal memvalidasi berkas CMS:", error);
+    throw new Error("Berkas tidak dapat diproses.");
+  }
 
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = new Uint8Array(arrayBuffer);
+  const supabase = createSupabaseServiceRoleClient();
+  const filePath = buildStoragePath("expert", asset.ext);
 
   const { error: uploadError } = await supabase.storage
     .from("gallery")
-    .upload(filePath, buffer, {
-      contentType: file.type,
-      upsert: true
+    .upload(filePath, asset.buffer, {
+      contentType: asset.contentType,
+      upsert: false
     });
 
   if (uploadError) {

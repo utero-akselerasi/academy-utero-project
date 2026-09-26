@@ -3,6 +3,7 @@
 import { requireAdmin, requireUser } from "@/features/auth/guards";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
 import { getInternProfileId, getMentorProfileId } from "./queries";
 import { dailyReportSchema, reviewReportSchema } from "./schemas";
@@ -102,14 +103,26 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
     return { ok: false, message: "Laporan gagal disimpan." };
   }
 
-  // Upload file-file lampiran ke storage Supabase
+  // Upload file-file lampiran ke storage Supabase.
+  // Tipe/ekstensi/MIME diambil dari isi berkas, bukan dari klien.
   for (const file of files) {
     if (file && file.size > 0) {
-      const ext = file.name.split(".").pop() || "jpg";
-      const filePath = finalReportId + "/" + Date.now() + "_" + Math.random().toString(36).substring(2, 8) + "." + ext;
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = new Uint8Array(arrayBuffer);
-      const serviceRoleSupabase = createSupabaseServiceRoleClient(); const { error: uploadError } = await serviceRoleSupabase.storage.from("daily-report").upload(filePath, buffer, { contentType: file.type, upsert: true });
+      let attachment;
+      try {
+        attachment = await validateUpload(file, ["image", "document"]);
+      } catch (error) {
+        if (error instanceof UploadValidationError) {
+          return { ok: false, message: `Lampiran ditolak: ${error.message}` };
+        }
+        console.error("Gagal memvalidasi lampiran daily-report:", error);
+        return { ok: false, message: "Lampiran tidak dapat diproses." };
+      }
+
+      const filePath = buildStoragePath(finalReportId, attachment.ext);
+      const serviceRoleSupabase = createSupabaseServiceRoleClient();
+      const { error: uploadError } = await serviceRoleSupabase.storage
+        .from("daily-report")
+        .upload(filePath, attachment.buffer, { contentType: attachment.contentType, upsert: false });
       if (uploadError) {
         console.error("Gagal upload attachment daily-report:", uploadError);
       } else {
@@ -117,9 +130,9 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
         await db.from("daily_report_attachments").insert({
           report_id: finalReportId,
           file_path: publicUrl,
-          file_name: file.name,
-          mime_type: file.type,
-          size_bytes: file.size
+          file_name: attachment.displayName,
+          mime_type: attachment.contentType,
+          size_bytes: attachment.size
         });
       }
     }

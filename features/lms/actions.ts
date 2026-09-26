@@ -4,6 +4,7 @@ import { requireAdmin, requireUser } from "@/features/auth/guards";
 import { getUserRoleCodes } from "@/features/auth/roles";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getInternProfileId } from "@/features/daily-reports/queries";
@@ -155,19 +156,26 @@ export async function uploadLessonAttachmentAction(formData: FormData) {
 
   if (!lessonId || !file) throw new Error("Lesson ID dan file wajib diisi.");
 
+  // Tipe & ekstensi dari isi berkas. Path lama menyisipkan file.name mentah
+  // dari klien, jadi nama berkas bisa menyuntikkan segmen path ke bucket.
+  let attachment;
+  try {
+    attachment = await validateUpload(file, ["image", "document"]);
+  } catch (error) {
+    if (error instanceof UploadValidationError) throw new Error(error.message);
+    console.error("Gagal memvalidasi attachment lesson:", error);
+    throw new Error("Berkas materi tidak dapat diproses.");
+  }
+
   const supabase = createSupabaseServiceRoleClient();
   const db = await createUteroAcademyServiceRoleClient();
 
-  const ext = file.name.split(".").pop() || "pdf";
-  const filePath = `lessons/${lessonId}/${Date.now()}_${file.name}`;
-
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = new Uint8Array(arrayBuffer);
+  const filePath = buildStoragePath(`lessons/${lessonId}`, attachment.ext);
 
   const { error: uploadError } = await supabase.storage
     .from("learning")
-    .upload(filePath, buffer, {
-      contentType: file.type,
+    .upload(filePath, attachment.buffer, {
+      contentType: attachment.contentType,
       upsert: false
     });
 
@@ -188,10 +196,10 @@ export async function uploadLessonAttachmentAction(formData: FormData) {
   
   const newAttachment = {
     id: crypto.randomUUID(),
-    name: file.name,
+    name: attachment.displayName,
     path: publicUrl,
-    size: file.size,
-    type: file.type,
+    size: attachment.size,
+    type: attachment.contentType,
     uploaded_at: new Date().toISOString()
   };
 
@@ -394,18 +402,24 @@ export async function submitAssignmentAction(formData: FormData) {
   let attachmentUrl: string | null = null;
 
   if (file && file.size > 0) {
-    const supabase = createSupabaseServiceRoleClient();
-    const ext = file.name.split(".").pop() || "jpg";
-    const filePath = `assignment/${assignmentId}/${internProfileId}_${Date.now()}.${ext}`;
+    // Tipe & ekstensi dari isi berkas; bucket "learning" publik.
+    let submission;
+    try {
+      submission = await validateUpload(file, ["image", "document"]);
+    } catch (error) {
+      if (error instanceof UploadValidationError) throw new Error(error.message);
+      console.error("Gagal memvalidasi bukti tugas:", error);
+      throw new Error("Berkas bukti tugas tidak dapat diproses.");
+    }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
+    const supabase = createSupabaseServiceRoleClient();
+    const filePath = buildStoragePath(`assignment/${assignmentId}/${internProfileId}`, submission.ext);
 
     const { error: uploadError } = await supabase.storage
       .from("learning")
-      .upload(filePath, buffer, {
-        contentType: file.type,
-        upsert: true
+      .upload(filePath, submission.buffer, {
+        contentType: submission.contentType,
+        upsert: false
       });
 
     if (uploadError) {

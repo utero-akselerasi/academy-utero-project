@@ -4,6 +4,7 @@ import { requireAdmin, requireUser } from "@/features/auth/guards";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createSupabaseServerClient, createUteroAcademyClient, createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { getInternProfileId } from "@/features/daily-reports/queries";
+import { UploadValidationError, buildStoragePath, validateBase64Image, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
 import { checkInSchema, checkOutSchema, reviewAttendanceSchema } from "./schemas";
 
@@ -50,13 +51,31 @@ export type FormState = {
   isOutOfRange?: boolean;
 };
 
-async function uploadSelfieBase64(supabase: any, userId: string, base64Data: string, type: 'in' | 'out'): Promise<string | null> {
-  const base64Image = base64Data.split(";base64,").pop();
-  if (!base64Image) return null;
+/**
+ * Selfie absensi diunggah dengan service role setelah divalidasi dari isinya.
+ * Sebelumnya fungsi ini menerima `supabase: any` milik sesi dan memaksa
+ * contentType "image/jpeg" atas data base64 apa pun, jadi berkas non-gambar
+ * (mis. HTML) bisa masuk bucket publik, dan tidak ada batas ukuran.
+ */
+async function uploadSelfieBase64(userId: string, base64Data: string, type: 'in' | 'out'): Promise<string | null> {
+  let selfie;
+  try {
+    selfie = validateBase64Image(base64Data);
+  } catch (error) {
+    if (error instanceof UploadValidationError) {
+      console.error("Selfie absensi ditolak:", error.message);
+    } else {
+      console.error("Gagal memvalidasi selfie absensi:", error);
+    }
+    return null;
+  }
+
   const today = getTodayDateLocal();
-  const filePath = userId + "/attendance_" + today + "_" + type + "_" + Date.now() + ".jpg";
-  const buffer = Buffer.from(base64Image, "base64");
-  const { error } = await supabase.storage.from("avatars").upload(filePath, buffer, { contentType: "image/jpeg", upsert: true });
+  const supabase = createSupabaseServiceRoleClient();
+  const filePath = buildStoragePath(`${userId}/attendance_${today}_${type}`, selfie.ext);
+  const { error } = await supabase.storage
+    .from("avatars")
+    .upload(filePath, selfie.buffer, { contentType: selfie.contentType, upsert: false });
   if (error) {
     console.error("Gagal upload selfie base64:", error);
     return null;
@@ -119,15 +138,24 @@ export async function checkInAction(_: FormState, formData: FormData): Promise<F
         };
       }
       
+      // Tipe & ekstensi ditentukan dari isi berkas, bukan dari klien.
+      let proof;
+      try {
+        proof = await validateUpload(proofFile, ["image", "document"]);
+      } catch (error) {
+        if (error instanceof UploadValidationError) {
+          return { ok: false, message: error.message, isOutOfRange: true };
+        }
+        console.error("Gagal memvalidasi bukti kegiatan luar:", error);
+        return { ok: false, message: "Dokumen bukti tidak dapat diproses.", isOutOfRange: true };
+      }
+
       const serviceClient = createSupabaseServiceRoleClient();
-      const ext = proofFile.name.split(".").pop() || "pdf";
-      const filePath = user.id + "/proof_" + Date.now() + "." + ext;
-      const arrayBuffer = await proofFile.arrayBuffer();
-      const buffer = new Uint8Array(arrayBuffer);
+      const filePath = buildStoragePath(`${user.id}/proof`, proof.ext);
       const { error: uploadError } = await serviceClient.storage
         .from("avatars")
-        .upload(filePath, buffer, { contentType: proofFile.type, upsert: true });
-        
+        .upload(filePath, proof.buffer, { contentType: proof.contentType, upsert: false });
+
       if (uploadError) {
         return { ok: false, message: "Gagal mengunggah dokumen bukti kegiatan luar." };
       }
@@ -137,7 +165,7 @@ export async function checkInAction(_: FormState, formData: FormData): Promise<F
     }
   }
 
-  const selfieUrl = await uploadSelfieBase64(supabase, user.id, selfieBase64, "in");
+  const selfieUrl = await uploadSelfieBase64(user.id, selfieBase64, "in");
   if (!selfieUrl) return { ok: false, message: "Gagal mengunggah foto selfie." };
   const db = await createUteroAcademyClient();
   const today = getTodayDateLocal();
@@ -199,7 +227,7 @@ export async function checkOutAction(_: FormState, formData: FormData): Promise<
     }
   }
 
-  const selfieUrl = await uploadSelfieBase64(supabase, user.id, selfieBase64, "out");
+  const selfieUrl = await uploadSelfieBase64(user.id, selfieBase64, "out");
   if (!selfieUrl) return { ok: false, message: "Gagal mengunggah foto selfie." };
   const db = await createUteroAcademyClient();
   const today = getTodayDateLocal();
@@ -273,17 +301,26 @@ export async function submitPermitAction(_: FormState, formData: FormData): Prom
       return { ok: false, message: "Keterangan Surat Dokter wajib diunggah untuk status Sakit." };
     }
 
+    // Surat dokter: tipe & ekstensi dari isi berkas, bukan dari klien.
+    let certificate;
+    try {
+      certificate = await validateUpload(file, ["image", "document"]);
+    } catch (error) {
+      if (error instanceof UploadValidationError) {
+        return { ok: false, message: error.message };
+      }
+      console.error("Gagal memvalidasi surat dokter:", error);
+      return { ok: false, message: "Surat dokter tidak dapat diproses." };
+    }
+
     const serviceClient = createSupabaseServiceRoleClient();
-    const ext = file.name.split(".").pop() || "jpg";
-    const filePath = user.id + "/sick_cert_" + Date.now() + "." + ext;
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
+    const filePath = buildStoragePath(`${user.id}/sick_cert`, certificate.ext);
 
     const { error: uploadError } = await serviceClient.storage
       .from("avatars")
-      .upload(filePath, buffer, {
-        contentType: file.type,
-        upsert: true
+      .upload(filePath, certificate.buffer, {
+        contentType: certificate.contentType,
+        upsert: false
       });
 
     if (uploadError) {

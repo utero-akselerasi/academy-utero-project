@@ -5,6 +5,7 @@ import { getUserRoleCodes } from "@/features/auth/roles";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { getInternProfileId } from "@/features/daily-reports/queries";
 import { createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
 import {
   createBoardSchema,
@@ -308,18 +309,27 @@ export async function addTaskAttachmentAction(formData: FormData) {
 
   await requireCardAccess(user.id, cardId);
 
+  // Tipe & ekstensi ditentukan dari isi berkas: bucket "task" publik, jadi
+  // .html/.svg dari klien akan jadi stored XSS.
+  let attachment;
+  try {
+    attachment = await validateUpload(file, ["image", "document"]);
+  } catch (error) {
+    if (error instanceof UploadValidationError) {
+      throw new Error(error.message);
+    }
+    console.error("Gagal memvalidasi lampiran task:", error);
+    throw new Error("Lampiran tidak dapat diproses.");
+  }
+
   const supabase = createSupabaseServiceRoleClient(); // Gunakan service role untuk storage upload
-  const ext = file.name.split(".").pop() || "jpg";
-  const filePath = `${cardId}/${Date.now()}.${ext}`;
-  
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = new Uint8Array(arrayBuffer);
+  const filePath = buildStoragePath(cardId, attachment.ext);
 
   const { error: uploadError } = await supabase.storage
     .from("task")
-    .upload(filePath, buffer, {
-      contentType: file.type,
-      upsert: true
+    .upload(filePath, attachment.buffer, {
+      contentType: attachment.contentType,
+      upsert: false
     });
 
   if (uploadError) {
@@ -335,9 +345,9 @@ export async function addTaskAttachmentAction(formData: FormData) {
     card_id: cardId,
     uploaded_by: user.id,
     file_path: publicUrl,
-    file_name: file.name,
-    mime_type: file.type,
-    size_bytes: file.size
+    file_name: attachment.displayName,
+    mime_type: attachment.contentType,
+    size_bytes: attachment.size
   });
 
   if (error) {

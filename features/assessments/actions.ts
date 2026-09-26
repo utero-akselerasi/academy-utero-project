@@ -3,6 +3,7 @@
 import { requireAdmin } from "@/features/auth/guards";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
 
 // Guard terpusat: cek role lewat semua baris user_roles dan izinkan super_admin.
@@ -170,18 +171,24 @@ export async function uploadCertificateTemplateAction(formData: FormData) {
     throw new Error("File template wajib diunggah.");
   }
 
-  const supabase = createSupabaseServiceRoleClient();
-  const ext = file.name.split(".").pop() || "jpg";
-  const filePath = "settings/certificate_template_" + Date.now() + "." + ext;
+  // Template sertifikat adalah gambar; tipe & ekstensi dari isi berkas.
+  let template;
+  try {
+    template = await validateUpload(file, ["image"]);
+  } catch (error) {
+    if (error instanceof UploadValidationError) throw new Error(error.message);
+    console.error("Gagal memvalidasi template sertifikat:", error);
+    throw new Error("Template sertifikat tidak dapat diproses.");
+  }
 
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = new Uint8Array(arrayBuffer);
+  const supabase = createSupabaseServiceRoleClient();
+  const filePath = buildStoragePath("settings", template.ext);
 
   const { error: uploadError } = await supabase.storage
     .from("avatars")
-    .upload(filePath, buffer, {
-      contentType: file.type,
-      upsert: true
+    .upload(filePath, template.buffer, {
+      contentType: template.contentType,
+      upsert: false
     });
 
   if (uploadError) {
