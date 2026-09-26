@@ -32,8 +32,19 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
+/**
+ * `api/health` dikecualikan dengan sengaja.
+ *
+ * `updateSession()` memanggil `supabase.auth.getUser()` — satu permintaan
+ * jaringan ke Supabase — untuk setiap path yang cocok. Kalau healthcheck
+ * container ikut lewat sini, gangguan sesaat di Supabase akan membuat Docker
+ * menganggap aplikasi mati lalu me-restart-nya, padahal restart tidak
+ * memperbaiki Supabase. Yang didapat cuma loop restart saat gangguan.
+ *
+ * Endpoint itu memasang header keamanannya sendiri; lihat catatan di sana.
+ */
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!api/health|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

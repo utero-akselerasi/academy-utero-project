@@ -10,7 +10,7 @@ diterapkan.
 Untuk migrasi, `[~]` berarti **berkasnya ditulis dan ter-push, tapi belum dijalankan di DB mana pun.**
 Tidak satu pun migrasi di dokumen ini sudah diterapkan.
 
-Terakhir diperbarui: 2026-09-27 (Batch 0 ditambahkan; B1.5, B4.4, B6.1, B6.3, B6.5 dikoreksi).
+Terakhir diperbarui: 2026-09-27 (Batch 0 ditambahkan; B1.5, B4.4, B6.1, B6.3, B6.5 dikoreksi; B6.2/B6.3/B6.4 selesai).
 
 Referensi ID temuan mengikuti Master Deep Audit Report (C-x kritis, H-x tinggi, M-x sedang).
 
@@ -319,9 +319,25 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
 ## Batch 6 — Release engineering & CI (C-9, H-7, H-8, M-14, M-16)
 
 - [ ] B6.1 Satu lockfile + `packageManager` konsisten (C-9). Saat ini ada `pnpm-lock.yaml` & `pnpm-workspace.yaml` belum ter-track. **Bagian `recharts` usang** — sudah dideklarasikan di `package.json`
-- [ ] B6.2 Perbaiki Dockerfile: base image dipin, prune dev deps (C-9)
-- [ ] B6.3 Hapus publish port `3000:3000` di `docker-compose.yml:10`; healthcheck (H-7). **Bagian TLS sudah terjawab**: `nginx.conf:44` memakai `$http_cf_connecting_ip`, jadi Cloudflare ada di depan dan menerminasi TLS — sisa pekerjaannya hanya menutup port yang terpublikasi
-- [ ] B6.4 Endpoint `/api/health` (M-16)
+- [x] B6.2 Perbaiki Dockerfile: base image dipin, prune dev deps (C-9)
+  - **Temuan yang lebih berat dari isi item ini: base image-nya EOL.** `node:20-alpine` — Node 20 berakhir **2026-04-30** (jadwal resmi `nodejs/Release/schedule.json`), yaitu **lima bulan sebelum hari ini**. Image itu sudah tidak menerima perbaikan keamanan sama sekali. Ini eksposur hidup, bukan kebersihan repo.
+  - Dipin ke `node:24.20.0-alpine3.24@sha256:e67514e5...` — tag **dan** digest. Tag sendiri bergerak: isi image bisa berubah antar-build tanpa terlihat di diff. Node 24 LTS aktif sampai **2028-04-30**, dan `next@16` hanya mensyaratkan `node >= 20.9.0`, jadi kenaikannya tidak terhalang apa pun.
+  - Prune lewat **stage `prod-deps` terpisah** (`npm ci --omit=dev`), bukan `npm prune --production` di runner. `prune` membuang dari `node_modules` yang sudah ada sehingga hasilnya bergantung keadaan sebelumnya; `npm ci` membangun dari lockfile sehingga hasilnya sama setiap kali.
+  - **Kenapa prune aman padahal `next.config.ts` berkas TypeScript:** terverifikasi dari sumber `next@16.2.9` — `next/dist/server/config.js:47` memanggil `../build/next-config-ts/transpile-config`, yang memakai SWC bawaan Next (`loadBindings`, `syntax: 'typescript'`) atau type-stripping native Node. Daftar dependensi `next` **tidak memuat `typescript`** sama sekali. Jadi `typescript` boleh ikut terbuang tanpa mematahkan `next start`.
+  - `COPY package.json package-lock.json` — bintang pada `package-lock.json*` dihapus. Dengan bintang, lockfile yang hilang tidak menggagalkan `COPY`; kegagalannya baru muncul di `npm ci` sebagai error yang tidak menunjuk ke penyebabnya.
+- [x] B6.3 Hapus publish port `3000:3000` di `docker-compose.yml:10`; healthcheck (H-7). **Bagian TLS sudah terjawab**: `nginx.conf:45` memakai `$http_cf_connecting_ip`, jadi Cloudflare ada di depan dan menerminasi TLS — sisa pekerjaannya hanya menutup port yang terpublikasi
+  - `ports: ["3000:3000"]` → `expose: ["3000"]`. nginx tetap menjangkau service lewat `utero_network` dengan hostname `web` (`proxy_pass http://web:3000`); jaringan Docker internal tidak butuh port yang dipublikasikan ke host.
+  - **Yang dilewati pintu samping itu lebih dari TLS.** `nginx.conf:45` menetapkan `X-Real-IP` dari `$http_cf_connecting_ip` — header yang hanya ada kalau permintaan benar-benar lewat Cloudflare. Permintaan yang masuk langsung ke port 3000 karena itu tidak punya IP asli yang benar **sama sekali**, bukan cuma tanpa enkripsi.
+  - Healthcheck dijalankan dengan `node -e` + `fetch`, bukan curl/wget: image runner-nya alpine tanpa keduanya, dan menambah paket hanya untuk healthcheck memperbesar permukaan image. `start_period: 40s` supaya boot Next.js tidak dianggap mati.
+  - nginx dipin `nginx:alpine` → `nginx:1.27-alpine`, dan `depends_on` dinaikkan ke `condition: service_healthy`. `depends_on: [web]` saja hanya menunggu container **dibuat**, bukan menunggu aplikasinya siap — jadi nginx bisa mulai menyalurkan trafik ke proses yang masih boot.
+  - `version: '3.8'` dihapus (usang di Compose v2, memicu peringatan).
+  - Terverifikasi `docker compose config` → `EXIT=0`.
+- [x] B6.4 Endpoint `/api/health` (M-16)
+  - `app/api/health/route.ts`. **Sengaja tidak menyentuh database, Supabase, atau layanan luar apa pun.** Healthcheck Docker menentukan keputusan restart: kalau endpoint ini ikut memanggil database, satu gangguan sesaat di database membuat Docker me-restart aplikasi yang sehat — dan restart tidak memperbaiki database, jadi yang didapat cuma loop restart tepat saat gangguan. Yang dibuktikan endpoint ini cuma satu: proses Next.js hidup dan bisa melayani permintaan.
+  - **Ditegakkan secara struktural, bukan cuma lewat niat**: `api/health` dikecualikan dari matcher `proxy.ts`. `updateSession()` memanggil `supabase.auth.getUser()` (`lib/supabase/middleware.ts:71`) untuk setiap path yang cocok, jadi tanpa pengecualian ini independensi dari Supabase-nya palsu.
+  - Responsnya `{ status: "ok" }` saja — **tanpa versi, commit, hostname, atau isi environment.** Endpoint ini tak terautentikasi dan terekspos ke internet lewat nginx; versi paket adalah informasi yang memudahkan pemilihan exploit.
+  - `dynamic = "force-dynamic"` + `cache-control: no-store` — respons ter-cache akan melaporkan "sehat" dari container yang sudah mati.
+  - Karena dikecualikan dari matcher, header keamanan dipasang sendiri di route ini lewat `applySecurityHeaders` — pengecualian matcher tidak boleh sekalian jadi pengecualian header.
 - [ ] B6.5 Ganti `apply-migration.js` dengan runner berurutan yang gagal-keras (M-14) — **dipindah ke B0.2c sebagai prasyarat**, bukan lagi item Batch 6: tanpa runner yang gagal-keras, menerapkan migrasi B0.1 ke produksi tidak aman
 - [ ] B6.6 Script `lint` + CI: install → lint → typecheck → build → test (H-8)
 - [ ] B6.7 **Tidak ada test framework sama sekali** (`package.json` hanya `dev`/`build`/`start`/`typecheck`). Matriks test otorisasi per role × action/route (H-8) — ini yang membuat semua `[~]` di atas tidak bisa naik jadi `[x]`
