@@ -1,7 +1,7 @@
 import { logoutAction } from "@/features/auth/actions";
-import { type RoleCode, userHasAnyRole, getUserRoleCodes } from "@/features/auth/roles";
-import { createSupabaseServerClient, createUteroAcademyClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { requireRole } from "@/features/auth/guards";
+import { type RoleCode, getUserRoleCodes } from "@/features/auth/roles";
+import { createUteroAcademyClient } from "@/lib/supabase/server";
 import { Award, Globe } from "lucide-react";
 import { DashboardShell } from "./DashboardShell";
 
@@ -40,8 +40,6 @@ const sidebarItemsMap: Record<RoleCode, { label: string; href: string; icon: str
   admin: [
     { label: "Dashboard", href: "/dashboard/admin", icon: "LayoutDashboard" },
     { label: "Pendaftaran Masuk", href: "/dashboard/admin/pendaftaran", icon: "FileSpreadsheet" },
-
-    { label: "User & Role", href: "/dashboard/super-admin/users", icon: "Users" },
     { label: "Task Board", href: "/dashboard/mentor/tasks", icon: "Kanban" },
     { label: "LMS Penilaian", href: "/dashboard/mentor/lms", icon: "BookOpen" },
     { label: "Review Absensi", href: "/dashboard/mentor/attendance", icon: "Clock" },
@@ -53,7 +51,6 @@ const sidebarItemsMap: Record<RoleCode, { label: string; href: string; icon: str
   admin_academy: [
     { label: "Dashboard", href: "/dashboard/admin", icon: "LayoutDashboard" },
     { label: "Pendaftaran Masuk", href: "/dashboard/admin/pendaftaran", icon: "FileSpreadsheet" },
-    { label: "User & Role", href: "/dashboard/super-admin/users", icon: "Users" },
     { label: "Task Board", href: "/dashboard/mentor/tasks", icon: "Kanban" },
     { label: "LMS Penilaian", href: "/dashboard/mentor/lms", icon: "BookOpen" },
     { label: "Review Absensi", href: "/dashboard/mentor/attendance", icon: "Clock" },
@@ -77,19 +74,7 @@ const sidebarItemsMap: Record<RoleCode, { label: string; href: string; icon: str
 };
 
 export async function ProtectedDashboardLayout({ allowedRoles, homeHref, children }: Props) {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const allowed = await userHasAnyRole(user.id, allowedRoles);
-  if (!allowed) {
-    redirect("/login");
-  }
+  const user = await requireRole(allowedRoles);
 
   const db = await createUteroAcademyClient();
 

@@ -1,8 +1,11 @@
 ﻿import Link from "next/link";
 import { detectOrphanData } from "@/features/super-admin/queries";
 import { cleanupOrphanDataAction } from "@/features/super-admin/actions";
+import { requireSuperAdmin } from "@/features/auth/guards";
 
 export default async function SuperAdminOrphanCleanupPage() {
+  await requireSuperAdmin();
+
   const { orphanContacts, orphanInterns, total, error } = await detectOrphanData();
 
   return (

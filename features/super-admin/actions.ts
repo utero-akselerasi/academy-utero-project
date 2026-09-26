@@ -1,10 +1,10 @@
 "use server";
 
-import { userIsAdminOrSuperAdmin, userIsSuperAdmin } from "@/features/auth/roles";
-import { createSupabaseServerClient, createUteroAcademyClient, createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin, requireSuperAdmin } from "@/features/auth/guards";
+import { userIsSuperAdmin } from "@/features/auth/roles";
+import { createUteroAcademyClient, createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { writeAuditLog } from "./audit";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 
 const assignRoleSchema = z.object({
@@ -22,35 +22,9 @@ const schoolSchema = z.object({
   logoPath: z.string().nullable().optional(),
 });
 
-async function requireSuperAdmin() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const allowed = await userIsSuperAdmin(user.id);
-
-  if (!allowed) {
-    redirect("/login");
-  }
-
-  return user;
-}
-
-async function requireUserManagementAccess() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user || !(await userIsAdminOrSuperAdmin(user.id))) {
-    redirect("/login");
-  }
-
-  return user;
-}
+// Guard terpusat dipakai supaya Server Action ini tetap terlindungi meski
+// dipanggil langsung lewat action ID, bukan hanya lewat layout/page.
+const requireUserManagementAccess = requireAdmin;
 
 export async function assignUserRoleAction(formData: FormData) {
   const user = await requireSuperAdmin();

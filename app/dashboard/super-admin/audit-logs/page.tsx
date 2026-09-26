@@ -1,8 +1,5 @@
 ﻿import { getAuditLogs } from "@/features/super-admin/audit";
-
-import { userIsSuperAdmin } from "@/features/auth/roles";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { requireSuperAdmin } from "@/features/auth/guards";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("id-ID", {
@@ -12,9 +9,7 @@ function formatDate(value: string) {
 }
 
 export default async function AuditLogsPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user || !(await userIsSuperAdmin(user.id))) redirect("/login");
+  await requireSuperAdmin();
 
   const { data: logs, error } = await getAuditLogs();
 

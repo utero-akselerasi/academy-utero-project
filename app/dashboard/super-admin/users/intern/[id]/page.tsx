@@ -1,4 +1,5 @@
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { requireSuperAdmin } from "@/features/auth/guards";
 import { getInternCards } from "@/features/tasks/queries";
 import { getInternDailyReports } from "@/features/daily-reports/queries";
 import { getInternAttendances } from "@/features/attendance/queries";
@@ -24,36 +25,55 @@ function formatTime(value: string | null) {
   return new Intl.DateTimeFormat("id-ID", { timeStyle: "short" }).format(new Date(value));
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function NotFoundUser() {
+  return (
+    <main className="mx-auto max-w-4xl px-4 py-12">
+      <div className="surface rounded-xl border border-red-200 bg-red-50/50 p-8 text-center">
+        <p className="font-bold text-red-600">User tidak ditemukan.</p>
+        <Link href="/dashboard/super-admin/users" className="button-primary mt-4 inline-block">
+          Kembali ke Daftar
+        </Link>
+      </div>
+    </main>
+  );
+}
+
 export default async function InternProfileDetailPage({ params }: Props) {
+  await requireSuperAdmin();
+
   const { id: userId } = await params;
+  if (!isUuid(userId)) return <NotFoundUser />;
+
   const db = await createUteroAcademyServiceRoleClient();
 
-  // 1. Fetch user profile
-  const { data: userProfile } = await db
+  // 1. Fetch user profile after authorization and input validation.
+  const { data: userProfile, error: userProfileError } = await db
     .from("user_profiles")
-    .select("*")
+    .select("id, full_name, phone, avatar_path, is_active, created_at, updated_at")
     .eq("id", userId)
     .maybeSingle();
 
-  if (!userProfile) {
-    return (
-      <main className="mx-auto max-w-4xl px-4 py-12">
-        <div className="surface p-8 text-center border border-red-200 bg-red-50/50 rounded-xl">
-          <p className="text-red-600 font-bold">User tidak ditemukan.</p>
-          <Link href="/dashboard/super-admin/users" className="button-primary mt-4 inline-block">
-            Kembali ke Daftar
-          </Link>
-        </div>
-      </main>
-    );
+  if (userProfileError) {
+    console.error("Gagal membaca profil user:", userProfileError);
+    return <NotFoundUser />;
   }
 
+  if (!userProfile) return <NotFoundUser />;
+
   // 2. Fetch intern profile with school
-  const { data: internProfile } = await db
+  const { data: internProfile, error: internProfileError } = await db
     .from("intern_profiles")
-    .select("*, schools(name)")
+    .select("id, user_id, full_name, email, phone, major, status, created_at, schools(name)")
     .eq("user_id", userId)
     .maybeSingle();
+
+  if (internProfileError) {
+    console.error("Gagal membaca profil peserta:", internProfileError);
+  }
 
   if (!internProfile) {
     return (
@@ -118,7 +138,7 @@ export default async function InternProfileDetailPage({ params }: Props) {
           </div>
           <div className="space-y-1">
             <h1 className="text-2xl font-black text-slate-950 leading-tight">{internProfile.full_name}</h1>
-            <p className="text-sm font-medium text-slate-500">{userProfile.email}</p>
+            <p className="text-sm font-medium text-slate-500">{internProfile.email || "Email tidak tersedia"}</p>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 mt-2 font-medium">
               <span className="flex items-center gap-1">
                 <GraduationCap size={14} className="text-slate-400" />

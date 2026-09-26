@@ -7,6 +7,7 @@ import {
   updateSchoolAction,
 } from "@/features/super-admin/actions";
 import { getSuperAdminSchoolsData } from "@/features/super-admin/queries";
+import { requireSuperAdmin } from "@/features/auth/guards";
 import { SchoolInternSelector } from "@/features/super-admin/components/SchoolInternSelector";
 
 function TextInput({ name, defaultValue, placeholder, required = false }: { name: string; defaultValue?: string | null; placeholder: string; required?: boolean }) {
@@ -19,6 +20,8 @@ function formatPeriod(startDate: string | null, endDate: string | null) {
 }
 
 export default async function SuperAdminSchoolsPage() {
+  await requireSuperAdmin();
+
   const { schools, contacts, interns, unassignedInterns, error } = await getSuperAdminSchoolsData();
 
   return (

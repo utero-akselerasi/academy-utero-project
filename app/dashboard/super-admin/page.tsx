@@ -1,6 +1,9 @@
-﻿import Link from "next/link";
+import { requireSuperAdmin } from "@/features/auth/guards";
+import Link from "next/link";
 
-export default function SuperAdminDashboardPage() {
+export default async function SuperAdminDashboardPage() {
+  await requireSuperAdmin();
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
       <div className="mb-6">
@@ -30,7 +33,13 @@ export default function SuperAdminDashboardPage() {
             Tambah sekolah/kampus partner dan cek perwakilan yang terhubung ke School Portal.
           </p>
         </Link>
-        <Link className="surface block p-5 hover:border-teal-500" href="/dashboard/super-admin/orphan-cleanup">\n          <h2 className="font-bold text-slate-950">Cleanup Orphan</h2>\n          <p className="mt-2 text-sm leading-6 text-slate-600">\n            Deteksi dan bersihkan relasi data yang sudah tidak valid.\n          </p>\n        </Link>\n        <Link className="surface block p-5 hover:border-teal-500" href="/dashboard/super-admin/audit-logs">
+        <Link className="surface block p-5 hover:border-teal-500" href="/dashboard/super-admin/orphan-cleanup">
+          <h2 className="font-bold text-slate-950">Cleanup Orphan</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Deteksi dan bersihkan relasi data yang sudah tidak valid.
+          </p>
+        </Link>
+        <Link className="surface block p-5 hover:border-teal-500" href="/dashboard/super-admin/audit-logs">
           <h2 className="font-bold text-slate-950">Audit Log</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             Lihat riwayat log aktivitas penting dari admin, mentor, dan sistem untuk audit keamanan.
@@ -40,5 +49,3 @@ export default function SuperAdminDashboardPage() {
     </main>
   );
 }
-
-

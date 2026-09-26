@@ -1,16 +1,16 @@
 export const dynamic = "force-dynamic";
 
-﻿import { UserRoleManager } from "@/features/super-admin/UserRoleManager";
+import { UserRoleManager } from "@/features/super-admin/UserRoleManager";
 import { getSuperAdminUserManagementData } from "@/features/super-admin/queries";
-import { userIsSuperAdmin } from "@/features/auth/roles";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireSuperAdmin } from "@/features/auth/guards";
 import Link from "next/link";
 
 export default async function SuperAdminUsersPage() {
+  // Guard sebelum fetch: data user/role dibaca via service role, jadi layout
+  // saja tidak cukup sebagai batas keamanan.
+  await requireSuperAdmin();
+
   const { profiles, roles, userRoles, schools, error } = await getSuperAdminUserManagementData();
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const isSuperAdmin = user ? await userIsSuperAdmin(user.id) : false;
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
@@ -38,9 +38,7 @@ export default async function SuperAdminUsersPage() {
         </div>
       ) : null}
 
-      <UserRoleManager profiles={profiles} roles={roles} userRoles={userRoles} schools={schools} isSuperAdmin={isSuperAdmin} />
+      <UserRoleManager profiles={profiles} roles={roles} userRoles={userRoles} schools={schools} isSuperAdmin />
     </main>
   );
 }
-
-

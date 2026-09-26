@@ -1,3 +1,4 @@
+import { userHasAnyRole } from "@/features/auth/roles";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { type DailyReport, type DailyReportWithDetails, type DailyReportReview, type DailyReportWithIntern } from "./types";
 
@@ -10,6 +11,11 @@ export async function getInternProfileId(userId: string): Promise<string | null>
     .maybeSingle();
 
   if (data?.id) return data.id;
+
+  // Provisioning hanya untuk user yang memang ber-role intern. Tanpa cek ini,
+  // pemanggilan dari user lain membuat profil domain baru dan bisa dipakai
+  // sebagai bukti otorisasi.
+  if (!(await userHasAnyRole(userId, ["intern"]))) return null;
 
   const { data: userProfile } = await db
     .from("user_profiles")
@@ -39,25 +45,18 @@ export async function getInternProfileId(userId: string): Promise<string | null>
 
 export async function getMentorProfileId(userId: string): Promise<string | null> {
   const db = await createUteroAcademyServiceRoleClient();
-  const { data } = await db
+  const { data, error } = await db
     .from("mentor_profiles")
     .select("id")
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (data?.id) return data.id;
-
-  const { data: newProfile, error } = await db
-    .from("mentor_profiles")
-    .insert({ user_id: userId })
-    .select("id")
-    .maybeSingle();
-
   if (error) {
-    console.error("Gagal auto-provision mentor profile:", error);
+    console.error("Gagal membaca profil admin pembimbing:", error);
     return null;
   }
-  return newProfile?.id ?? null;
+
+  return data?.id ?? null;
 }
 
 export async function getInternDailyReports(internProfileId: string) {

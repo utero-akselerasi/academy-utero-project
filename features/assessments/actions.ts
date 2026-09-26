@@ -1,29 +1,13 @@
 "use server";
 
-import { createSupabaseServerClient, createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/features/auth/guards";
+import { resolveStaffInternScope } from "@/features/auth/scope";
+import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
-async function requireAdminUser() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  // Verifikasi role admin
-  const { data: userRole } = await supabase
-    .schema("utero_academy")
-    .from("user_roles")
-    .select("roles(code)")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  const roleObj = Array.isArray(userRole?.roles) ? userRole.roles[0] : userRole?.roles;
-  if (roleObj?.code !== "admin") {
-    redirect("/login");
-  }
-
-  return user;
-}
+// Guard terpusat: cek role lewat semua baris user_roles dan izinkan super_admin.
+// Guard lama pakai maybeSingle() sehingga user multi-role gagal.
+const requireAdminUser = requireAdmin;
 
 export async function saveAssessmentAction(formData: FormData) {
   const user = await requireAdminUser();
@@ -34,6 +18,17 @@ export async function saveAssessmentAction(formData: FormData) {
   const submitType = formData.get("submitType") as "draft" | "finalize";
 
   if (!internId) throw new Error("Intern ID tidak valid.");
+
+  // Admin hanya boleh menilai intern yang memang dibimbingnya (mentor_assignments
+  // aktif). super_admin bebas. Tanpa ini, admin mana pun bisa menilai dan
+  // menerbitkan sertifikat untuk intern siapa pun lewat action ID.
+  const scope = await resolveStaffInternScope(user.id);
+  if (scope.kind === "setup_required") {
+    throw new Error("Profil pembimbing belum disiapkan. Hubungi super admin.");
+  }
+  if (scope.kind === "scoped" && !scope.internIds.includes(internId)) {
+    throw new Error("Kamu tidak membimbing peserta ini, jadi tidak bisa menilainya.");
+  }
 
   let scoreJson: Record<string, number> = {};
   let totalScore = 0;

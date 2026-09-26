@@ -1,27 +1,14 @@
 "use server";
 
-import { createSupabaseServerClient, createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin, requireUser } from "@/features/auth/guards";
+import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
-async function requireAdminUser() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: userRole } = await supabase
-    .schema("utero_academy")
-    .from("user_roles")
-    .select("roles(code)")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  const roleObj = Array.isArray(userRole?.roles) ? userRole.roles[0] : userRole?.roles;
-  if (roleObj?.code !== "admin") {
-    redirect("/login");
-  }
-  return user;
-}
+// Guard terpusat: cek role lewat semua baris user_roles (guard lama pakai
+// maybeSingle() sehingga user multi-role gagal, dan super_admin ikut ditolak).
+// Server Action wajib punya guard sendiri karena bisa dipanggil langsung lewat
+// action ID tanpa melewati layout/page.
+const requireAdminUser = requireAdmin;
 
 // === FAQ ACTIONS ===
 export async function createFaqAction(formData: FormData) {
@@ -329,9 +316,9 @@ export async function publishTestimonialAction(formData: FormData) {
 }
 
 export async function submitInternTestimonialAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Aksi ini memang untuk user login biasa; kepemilikan divalidasi lewat
+  // intern_profiles.user_id, bukan lewat role.
+  const user = await requireUser();
 
   const db = await createUteroAcademyServiceRoleClient();
   const { data: internProfile } = await db
