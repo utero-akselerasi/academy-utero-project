@@ -154,6 +154,12 @@ with check (
 -- atau super_admin; all: super_admin). Yang dibersihkan adalah policy 0002/0003
 -- yang tumpang tindih — 0027 sudah men-drop varian "admin dapat ...", tapi
 -- membiarkan trio 0003 hidup berdampingan.
+--
+-- RLS-nya diaktifkan 0001:645, tapi ditegaskan ulang di sini: DB produksi sudah
+-- terbukti menyimpang dari berkas migrasi, dan tabel inilah yang menentukan
+-- peran setiap user.
+alter table utero_academy.user_roles enable row level security;
+
 drop policy if exists "user dapat membaca role sendiri" on utero_academy.user_roles;
 drop policy if exists "super admin dapat membaca semua user role" on utero_academy.user_roles;
 drop policy if exists "super admin dapat assign role" on utero_academy.user_roles;
