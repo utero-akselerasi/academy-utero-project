@@ -19,10 +19,13 @@ export async function updateProfileAction(_: ProfileFormState, formData: FormDat
   const avatarFile = formData.get("avatar") as File;
   if (!fullName) return { ok: false, message: "Nama lengkap wajib diisi." };
   const db = await createUteroAcademyClient();
-  let avatarUrl = null;
+  let avatarPath = null;
   if (avatarFile && avatarFile.size > 0) {
-    // Tipe & ekstensi ditentukan dari isi berkas, bukan dari nama/MIME klien:
-    // bucket "avatars" publik, jadi .html/.svg di sini jadi stored XSS.
+    // Tipe & ekstensi tetap ditentukan dari isi berkas, bukan dari nama/MIME
+    // klien. Alasan aslinya (bucket publik → .html/.svg jadi stored XSS) sudah
+    // hilang setelah 0032b memprivatkan bucket, tapi validasinya tetap: berkas
+    // tetap terlayani lewat signed URL, dan signed URL sama saja mengeksekusi
+    // HTML di origin Storage.
     let avatar;
     try {
       avatar = await validateUpload(avatarFile, ["image"]);
@@ -43,11 +46,12 @@ export async function updateProfileAction(_: ProfileFormState, formData: FormDat
       console.error("Gagal upload avatar:", uploadErr);
       return { ok: false, message: "Gagal mengunggah foto profil." };
     }
-    const { data: { publicUrl } } = serviceRoleSupabase.storage.from("avatars").getPublicUrl(filePath);
-    avatarUrl = publicUrl;
+    // Object path, bukan URL. Ditandatangani saat dibaca di
+    // `ProtectedDashboardLayout`.
+    avatarPath = filePath;
   }
   const updateData: any = { full_name: fullName, phone: phone || null, updated_at: new Date().toISOString() };
-  if (avatarUrl) updateData.avatar_path = avatarUrl;
+  if (avatarPath) updateData.avatar_path = avatarPath;
   const { error: profileErr } = await db.from("user_profiles").update(updateData).eq("id", user.id);
   if (profileErr) {
     console.error("Gagal update user profile:", profileErr);

@@ -1,6 +1,7 @@
 import { logoutAction } from "@/features/auth/actions";
 import { requireRole } from "@/features/auth/guards";
 import { type RoleCode, getUserRoleCodes, resolveActiveRole } from "@/features/auth/roles";
+import { resolveStorageUrl } from "@/lib/storage-urls";
 import { createUteroAcademyClient } from "@/lib/supabase/server";
 import { Award, Globe } from "lucide-react";
 import { DashboardShell } from "./DashboardShell";
@@ -72,8 +73,19 @@ export async function ProtectedDashboardLayout({ allowedRoles, homeHref, childre
     .maybeSingle();
 
   const userName = profile?.full_name || user.email || "Pengguna";
-  const avatarUrl = profile?.avatar_path || null;
-  
+
+  // Avatar ikut privat karena bucket `avatars` adalah keranjang campur: di
+  // dalamnya ada CV, portofolio, selfie absensi, dan surat sakit. Satu flag
+  // `public` tidak bisa memisahkan avatar dari keempatnya, jadi seluruh bucket
+  // dijadikan privat (0032b) dan avatar pun butuh tanda tangan.
+  //
+  // Ditandatangani DI SINI, bukan di komponen yang merendernya. `DashboardShell`
+  // menampilkan avatar dua kali (header + menu) dan ia komponen klien, jadi tidak
+  // bisa menandatangani sendiri. Layout ini satu-satunya titik yang sudah membaca
+  // `avatar_path` dan membungkus setiap halaman dashboard untuk setiap peran —
+  // menandatangani di tempat lain berarti mengulanginya di setiap halaman.
+  const avatarUrl = await resolveStorageUrl("avatars", profile?.avatar_path);
+
   const userRolesList = await getUserRoleCodes(user.id);
 
   // Peran aktif dipilih menurut rolePriority, bukan urutan baris dari database:

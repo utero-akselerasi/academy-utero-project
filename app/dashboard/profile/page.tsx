@@ -2,6 +2,7 @@ import { createUteroAcademyClient } from "@/lib/supabase/server";
 import { getInternProfileId, getMentorProfileId } from "@/features/daily-reports/queries";
 import { requireUser } from "@/features/auth/guards";
 import { isActiveRoleCode } from "@/features/auth/roles";
+import { resolveStorageUrl } from "@/lib/storage-urls";
 import { ProfileFormWrapper } from "./ProfileFormWrapper";
 
 export default async function EditProfilePage() {
@@ -37,6 +38,9 @@ export default async function EditProfilePage() {
   const roles = (userRoles || [])
     .map((ur) => (Array.isArray(ur.roles) ? ur.roles[0] : ur.roles))
     .filter((roleObj) => roleObj && isActiveRoleCode(roleObj.code));
+
+  const avatarUrl = await resolveStorageUrl("avatars", userProfile?.avatar_path);
+
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <div className="mb-6">
@@ -47,8 +51,8 @@ export default async function EditProfilePage() {
       <div className="grid gap-8 lg:grid-cols-[240px_1fr]">
         <div className="flex flex-col items-center text-center surface p-6 h-fit bg-white">
           <div className="relative h-24 w-24 overflow-hidden rounded-full border-2 border-teal-500 bg-slate-100 mb-4">
-            {userProfile?.avatar_path ? (
-              <img src={userProfile.avatar_path} alt="Avatar" className="h-full w-full object-cover" />
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-teal-50 text-teal-700 font-bold text-2xl">
                 {userProfile?.full_name?.charAt(0).toUpperCase() || "?"}
