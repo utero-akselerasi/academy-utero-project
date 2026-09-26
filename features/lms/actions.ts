@@ -1,22 +1,42 @@
 "use server";
 
-import { createSupabaseServerClient, createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin, requireUser } from "@/features/auth/guards";
+import { getUserRoleCodes } from "@/features/auth/roles";
+import { resolveStaffInternScope } from "@/features/auth/scope";
+import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getInternProfileId, getMentorProfileId } from "@/features/daily-reports/queries";
+import { getInternProfileId } from "@/features/daily-reports/queries";
 import { generateCourseCertificate } from "./certificate-helper";
 
-async function requireUser() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  return user;
+/**
+ * Pengelolaan course/lesson/quiz/assignment adalah pekerjaan staff.
+ * Guard lama hanya memeriksa sesi, sehingga peserta bisa membuat/menghapus
+ * materi dan menilai tugas lewat pemanggilan action ID langsung.
+ */
+const requireStaff = requireAdmin;
+
+async function userIsStaff(userId: string) {
+  const roles = await getUserRoleCodes(userId);
+  return roles.includes("super_admin") || roles.includes("admin") || roles.includes("admin_academy");
+}
+
+/**
+ * Data per-user hanya boleh dibaca oleh pemiliknya atau staff.
+ * Tanpa ini, setiap fungsi eksport di file "use server" bisa dipanggil dengan
+ * userId orang lain dan membaca datanya lewat service role (IDOR).
+ */
+async function requireSelfOrStaff(targetUserId: string) {
+  const user = await requireUser();
+  if (user.id === targetUserId) return user;
+  if (await userIsStaff(user.id)) return user;
+  throw new Error("Kamu tidak punya akses ke data pengguna ini.");
 }
 
 // ===== LESSON ACTIONS =====
 
 export async function createLessonAction(formData: FormData) {
-  await requireUser();
+  await requireStaff();
   const courseId = formData.get("courseId") as string;
   const title = formData.get("title") as string;
   const content = formData.get("content") as string;
@@ -53,7 +73,7 @@ export async function createLessonAction(formData: FormData) {
 }
 
 export async function updateLessonAction(formData: FormData) {
-  await requireUser();
+  await requireStaff();
   const lessonId = formData.get("lessonId") as string;
   const courseId = formData.get("courseId") as string;
   const title = formData.get("title") as string;
@@ -83,7 +103,7 @@ export async function updateLessonAction(formData: FormData) {
 }
 
 export async function deleteLessonAction(formData: FormData) {
-  await requireUser();
+  await requireStaff();
   const lessonId = formData.get("lessonId") as string;
   const courseId = formData.get("courseId") as string;
 
@@ -105,7 +125,7 @@ export async function deleteLessonAction(formData: FormData) {
 }
 
 export async function toggleLessonPublishAction(formData: FormData) {
-  await requireUser();
+  await requireStaff();
   const lessonId = formData.get("lessonId") as string;
   const courseId = formData.get("courseId") as string;
   const isPublished = formData.get("isPublished") === "true";
@@ -128,7 +148,7 @@ export async function toggleLessonPublishAction(formData: FormData) {
 }
 
 export async function uploadLessonAttachmentAction(formData: FormData) {
-  await requireUser();
+  await requireStaff();
   const lessonId = formData.get("lessonId") as string;
   const courseId = formData.get("courseId") as string;
   const file = formData.get("file") as File;
@@ -192,7 +212,7 @@ export async function uploadLessonAttachmentAction(formData: FormData) {
 }
 
 export async function deleteLessonAttachmentAction(formData: FormData) {
-  await requireUser();
+  await requireStaff();
   const lessonId = formData.get("lessonId") as string;
   const courseId = formData.get("courseId") as string;
   const attachmentId = formData.get("attachmentId") as string;
@@ -334,7 +354,7 @@ export async function submitQuizAttemptAction(formData: FormData) {
 }
 
 export async function toggleQuizPublishAction(formData: FormData) {
-  await requireUser();
+  await requireStaff();
   const quizId = formData.get("quizId") as string;
   const courseId = formData.get("courseId") as string;
   const isPublished = formData.get("isPublished") === "true";
@@ -437,7 +457,7 @@ export async function submitAssignmentAction(formData: FormData) {
 }
 
 export async function gradeAssignmentAction(formData: FormData) {
-  const user = await requireUser();
+  const user = await requireStaff();
   const submissionId = formData.get("submissionId") as string;
   const scoreRaw = formData.get("score") as string;
   const feedback = formData.get("feedback") as string;
@@ -450,6 +470,27 @@ export async function gradeAssignmentAction(formData: FormData) {
   }
 
   const db = await createUteroAcademyServiceRoleClient();
+
+  // Admin hanya boleh menilai peserta yang dibimbingnya; super_admin bebas.
+  const { data: submission, error: submissionError } = await db
+    .from("assignment_submissions")
+    .select("id, intern_id")
+    .eq("id", submissionId)
+    .maybeSingle();
+
+  if (submissionError) {
+    console.error("Gagal membaca submission:", submissionError);
+    throw new Error("Gagal memverifikasi data tugas.");
+  }
+  if (!submission) throw new Error("Pengumpulan tugas tidak ditemukan.");
+
+  const scope = await resolveStaffInternScope(user.id);
+  if (scope.kind === "setup_required") {
+    throw new Error("Profil pembimbing belum disiapkan. Hubungi super admin.");
+  }
+  if (scope.kind === "scoped" && !scope.internIds.includes(submission.intern_id as string)) {
+    throw new Error("Kamu tidak membimbing peserta ini, jadi tidak bisa menilainya.");
+  }
 
   const { error } = await db
     .from("assignment_submissions")
@@ -469,7 +510,7 @@ export async function gradeAssignmentAction(formData: FormData) {
 }
 
 export async function toggleAssignmentPublishAction(formData: FormData) {
-  await requireUser();
+  await requireStaff();
   const assignmentId = formData.get("assignmentId") as string;
   const courseId = formData.get("courseId") as string;
   const isPublished = formData.get("isPublished") === "true";
@@ -494,7 +535,7 @@ export async function toggleAssignmentPublishAction(formData: FormData) {
 // ===== COURSE ACTIONS =====
 
 export async function createCourseAction(formData: FormData) {
-  await requireUser();
+  await requireStaff();
   const title = formData.get("title") as string;
   const description = formData.get("description") as string;
 
@@ -523,7 +564,7 @@ export async function createCourseAction(formData: FormData) {
 }
 
 export async function updateCourseStatusAction(formData: FormData) {
-  await requireUser();
+  await requireStaff();
   const courseId = formData.get("courseId") as string;
   const status = formData.get("status") as string;
 
@@ -570,7 +611,7 @@ export async function enrollCourseAction(formData: FormData) {
 }
 
 export async function createAssignmentAction(formData: FormData) {
-  await requireUser();
+  await requireStaff();
   const courseId = formData.get("courseId") as string;
   const title = formData.get("title") as string;
   const description = formData.get("description") as string;
@@ -596,7 +637,7 @@ export async function createAssignmentAction(formData: FormData) {
 }
 
 export async function createQuizAction(formData: FormData) {
-  await requireUser();
+  await requireStaff();
   const courseId = formData.get("courseId") as string;
   const title = formData.get("title") as string;
   const passingScore = formData.get("passingScore") as string;
@@ -687,17 +728,13 @@ export async function replyCommentAction(formData: FormData) {
 }
 
 export async function pinCommentAction(formData: FormData) {
-  const user = await requireUser();
+  // Pin komentar adalah moderasi: role, bukan keberadaan mentor_profiles.
+  await requireStaff();
   const commentId = formData.get("commentId") as string;
   const courseId = formData.get("courseId") as string;
   const isPinned = formData.get("isPinned") === "true";
 
   if (!commentId) throw new Error("Comment ID tidak valid.");
-
-  const mentorProfileId = await getMentorProfileId(user.id);
-  if (!mentorProfileId) {
-    throw new Error("Hanya mentor/admin yang dapat pin komentar.");
-  }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -732,11 +769,10 @@ export async function deleteCommentAction(formData: FormData) {
 
   if (!comment) throw new Error("Komentar tidak ditemukan.");
 
-  const mentorProfileId = await getMentorProfileId(user.id);
+  // Pemilik komentar, atau staff sebagai moderator. mentor_profiles bukan
+  // bukti otorisasi (baris tersebut bisa ada tanpa role staff).
   const isOwner = comment.user_id === user.id;
-  const isMentor = !!mentorProfileId;
-
-  if (!isOwner && !isMentor) {
+  if (!isOwner && !(await userIsStaff(user.id))) {
     throw new Error("Anda tidak memiliki akses untuk menghapus komentar ini.");
   }
 
@@ -760,6 +796,7 @@ export async function deleteCommentAction(formData: FormData) {
 
 // Badges & Achievements
 export async function getUserBadges(userId: string) {
+  await requireSelfOrStaff(userId);
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("user_badges")
@@ -775,6 +812,7 @@ export async function getUserBadges(userId: string) {
 }
 
 export async function getUserPoints(userId: string) {
+  await requireSelfOrStaff(userId);
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("user_points")
@@ -787,6 +825,7 @@ export async function getUserPoints(userId: string) {
 }
 
 export async function getAllBadges() {
+  await requireUser();
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("badges")
@@ -801,6 +840,7 @@ export async function getAllBadges() {
 
 // Learning Analytics
 export async function getUserDailyActivity(userId: string, days: number = 30) {
+  await requireSelfOrStaff(userId);
   const db = await createUteroAcademyServiceRoleClient();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
@@ -817,6 +857,7 @@ export async function getUserDailyActivity(userId: string, days: number = 30) {
 }
 
 export async function getUserStreak(userId: string) {
+  await requireSelfOrStaff(userId);
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("user_streaks")
@@ -834,6 +875,8 @@ export async function trackLearningSession(
   courseId: string,
   durationSeconds: number
 ) {
+  // Sesi belajar hanya boleh dicatat untuk diri sendiri.
+  await requireSelfOrStaff(userId);
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db
     .from("learning_sessions")
@@ -863,6 +906,7 @@ export async function trackLearningSession(
 
 // Course Announcements
 export async function getCourseAnnouncements(courseId: string, userId: string) {
+  await requireSelfOrStaff(userId);
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("course_announcements")
@@ -892,13 +936,8 @@ export async function createCourseAnnouncement(
   priority: string = "normal",
   isPinned: boolean = false
 ) {
-  const user = await requireUser();
+  const user = await requireStaff();
   const db = await createUteroAcademyServiceRoleClient();
-
-  const mentorProfileId = await getMentorProfileId(user.id);
-  if (!mentorProfileId) {
-    throw new Error("Hanya mentor yang dapat membuat announcement.");
-  }
 
   const { data, error } = await db
     .from("course_announcements")
@@ -943,6 +982,7 @@ export async function markAnnouncementAsRead(announcementId: string) {
 
 // Lesson Bookmarks
 export async function getUserBookmarks(userId: string) {
+  await requireSelfOrStaff(userId);
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("lesson_bookmarks")
@@ -1011,6 +1051,7 @@ export async function deleteBookmark(bookmarkId: string) {
 
 // Quiz Retry Limit
 export async function checkCanAttemptQuiz(userId: string, quizId: string) {
+  await requireSelfOrStaff(userId);
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db.rpc("can_attempt_quiz", {
     p_user_id: userId,
@@ -1022,6 +1063,7 @@ export async function checkCanAttemptQuiz(userId: string, quizId: string) {
 }
 
 export async function getQuizAttemptsSummary(userId: string, quizId: string) {
+  await requireSelfOrStaff(userId);
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("user_quiz_attempts_summary")
