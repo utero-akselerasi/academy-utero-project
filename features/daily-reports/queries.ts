@@ -71,16 +71,30 @@ export async function getInternDailyReports(internProfileId: string) {
   return { data: data ?? [], error };
 }
 
-export async function getMentorDailyReports(mentorProfileId: string) {
+/**
+ * Laporan harian untuk staf.
+ *
+ * `allowedInternIds` adalah scope pemanggil: null berarti global (super_admin),
+ * array berarti hanya intern tersebut. Sebelumnya fungsi ini selalu memuat
+ * SELURUH intern aktif, jadi admin bisa membaca laporan peserta yang bukan
+ * bimbingannya padahal aksi review-nya sendiri sudah dibatasi
+ * resolveStaffInternScope. Bacaan dan tulisan sekarang memakai scope yang sama.
+ */
+export async function getMentorDailyReports(allowedInternIds: string[] | null) {
   const db = await createUteroAcademyServiceRoleClient();
 
-  // Load all active interns globally (since penempatan bimbingan is global/deprecated)
-  const { data: activeInterns } = await db
-    .from("intern_profiles")
-    .select("id")
-    .eq("status", "active");
+  let internIds: string[];
 
-  const internIds = (activeInterns || []).map(i => i.id);
+  if (allowedInternIds === null) {
+    const { data: activeInterns } = await db
+      .from("intern_profiles")
+      .select("id")
+      .eq("status", "active");
+
+    internIds = (activeInterns || []).map(i => i.id);
+  } else {
+    internIds = allowedInternIds;
+  }
 
   if (internIds.length === 0) {
     return { data: [], error: null };

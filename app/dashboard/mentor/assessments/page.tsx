@@ -3,8 +3,8 @@ import { uploadCertificateTemplateAction } from "@/features/assessments/actions"
 import { Upload } from "lucide-react";
 import { AssessmentModal } from "@/features/assessments/AssessmentModal";
 import { UploadTemplateButton } from "@/features/assessments/UploadTemplateButton";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { requireAdmin } from "@/features/auth/guards";
+import { resolveStaffInternScope } from "@/features/auth/scope";
 import Link from "next/link";
 import { Search } from "lucide-react";
 
@@ -15,11 +15,25 @@ type PageProps = {
 export default async function MentorAssessmentsPage({ searchParams }: PageProps) {
   const { detailInternId, q: searchQuery = "" } = await searchParams;
 
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const user = await requireAdmin();
 
-  const { data: interns, error } = await getInternsForAssessment();
+  // Penilaian menerbitkan sertifikat, jadi daftarnya harus sebatas peserta
+  // bimbingan. Sebelumnya halaman ini memuat seluruh peserta aktif.
+  const scope = await resolveStaffInternScope(user.id);
+
+  if (scope.kind === "setup_required") {
+    return (
+      <main className="mx-auto max-w-6xl px-4 py-8">
+        <div className="surface p-6 text-sm font-semibold text-red-700">
+          Profil pembimbing belum ditemukan. Hubungi super admin untuk setup profil.
+        </div>
+      </main>
+    );
+  }
+
+  const { data: interns, error } = await getInternsForAssessment(
+    scope.kind === "global" ? null : scope.internIds,
+  );
   const settings = await getAttendanceSettings();
 
   // Filter pencarian nama

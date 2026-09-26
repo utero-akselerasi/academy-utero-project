@@ -1,34 +1,30 @@
-import { getMentorDailyReports, getMentorProfileId } from "@/features/daily-reports/queries";
+import { requireAdmin } from "@/features/auth/guards";
+import { resolveStaffInternScope } from "@/features/auth/scope";
+import { getMentorDailyReports } from "@/features/daily-reports/queries";
 import { MentorReportsManager } from "@/features/daily-reports/MentorReportsManager";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 
-type PageProps = {
-  searchParams: Promise<{ status?: string }>;
-};
+export default async function MentorDailyReportsPage() {
+  const user = await requireAdmin();
 
-export default async function MentorDailyReportsPage({ searchParams }: PageProps) {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // Bacaan dibatasi scope yang sama dengan aksi review-nya: admin hanya melihat
+  // peserta bimbingannya, super_admin global. Sebelumnya halaman ini memuat
+  // laporan seluruh peserta aktif.
+  const scope = await resolveStaffInternScope(user.id);
 
-  if (!user) {
-    redirect("/login");
-  }
-
-  const mentorProfileId = await getMentorProfileId(user.id);
-
-  if (!mentorProfileId) {
+  if (scope.kind === "setup_required") {
     return (
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="surface p-6 text-sm font-semibold text-red-700">
-          Profil mentor belum ditemukan. Hubungi admin untuk setup profil.
+          Profil pembimbing belum ditemukan. Hubungi super admin untuk setup profil.
         </div>
       </main>
     );
   }
 
-  const { data: reports, error } = await getMentorDailyReports(mentorProfileId);
+  const { data: reports, error } = await getMentorDailyReports(
+    scope.kind === "global" ? null : scope.internIds,
+  );
 
   const pendingCount = (reports || []).filter((r) => r.status === "submitted").length;
 

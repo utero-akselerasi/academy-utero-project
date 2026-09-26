@@ -7,8 +7,9 @@ import { AttendanceMap } from "@/features/attendance/AttendanceMap";
 import { DatePickerFilter } from "@/features/attendance/DatePickerFilter";
 import { ImagePreview } from "@/features/daily-reports/ImagePreview";
 import { saveAttendanceSettingsAction } from "@/features/attendance/actions";
-import { createSupabaseServerClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { requireAdmin } from "@/features/auth/guards";
+import { resolveStaffInternScope } from "@/features/auth/scope";
+import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { Clock, Settings, User, X, CheckCircle, AlertTriangle, Play, HelpCircle, MapPin, Eye, Download } from "lucide-react";
 
@@ -28,9 +29,24 @@ function formatDate(value: string) {
 export default async function MentorAttendancePage({ searchParams }: Props) {
   const { detailInternId, showSettings, date: filterDate } = await searchParams;
 
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const user = await requireAdmin();
+
+  // Presensi memuat selfie, titik lokasi, dan surat sakit peserta: batasi ke
+  // peserta bimbingan. Sebelumnya halaman ini menarik seluruh peserta aktif
+  // beserta SELURUH baris attendances dan permits.
+  const scope = await resolveStaffInternScope(user.id);
+
+  if (scope.kind === "setup_required") {
+    return (
+      <main className="mx-auto max-w-6xl px-4 py-8">
+        <div className="surface p-6 text-sm font-semibold text-red-700">
+          Profil pembimbing belum ditemukan. Hubungi super admin untuk setup profil.
+        </div>
+      </main>
+    );
+  }
+
+  const scopedInternIds = scope.kind === "global" ? null : scope.internIds;
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -59,28 +75,40 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
     })
     .map(ur => ur.user_id);
 
-  // 2. Fetch all active interns having role 'intern'
-  const { data: internsData } = await db
+  // 2. Fetch active interns having role 'intern', dibatasi scope
+  let internQuery = db
     .from("intern_profiles")
     .select("id, full_name, user_id, status, start_date, major, phone, email")
     .eq("status", "active")
-    .in("user_id", internUserIds.length > 0 ? internUserIds : ["00000000-0000-0000-0000-000000000000"])
-    .order("full_name", { ascending: true });
+    .in("user_id", internUserIds.length > 0 ? internUserIds : ["00000000-0000-0000-0000-000000000000"]);
+
+  if (scopedInternIds !== null) {
+    internQuery = internQuery.in("id", scopedInternIds);
+  }
+
+  const { data: internsData } = await internQuery.order("full_name", { ascending: true });
 
   const interns = internsData || [];
+  const visibleInternIds = interns.map((intern) => intern.id);
 
-  // 3. Fetch all attendances
-  const { data: attendances } = await db
-    .from("attendances")
-    .select("*")
-    .order("attendance_date", { ascending: false });
+  // 3. Fetch attendances milik peserta yang terlihat saja
+  const { data: attendances } = visibleInternIds.length
+    ? await db
+        .from("attendances")
+        .select("*")
+        .in("intern_id", visibleInternIds)
+        .order("attendance_date", { ascending: false })
+    : { data: [] as any[] };
 
-  // 3.5. Fetch pending permits
-  const { data: pendingPermits } = await db
-    .from("permits")
-    .select("*, intern_profiles(full_name)")
-    .eq("status", "pending")
-    .order("created_at", { ascending: false });
+  // 3.5. Fetch pending permits milik peserta yang terlihat saja
+  const { data: pendingPermits } = visibleInternIds.length
+    ? await db
+        .from("permits")
+        .select("*, intern_profiles(full_name)")
+        .eq("status", "pending")
+        .in("intern_id", visibleInternIds)
+        .order("created_at", { ascending: false })
+    : { data: [] as any[] };
 
   // 4. Calculate stats for each intern
   const [setHour, setMin] = checkInTime.split(":").map(Number);

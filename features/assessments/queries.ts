@@ -1,7 +1,19 @@
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
-export async function getInternsForAssessment() {
+/**
+ * Daftar peserta untuk halaman penilaian staf.
+ *
+ * `allowedInternIds` adalah scope pemanggil: null berarti global (super_admin),
+ * array berarti hanya intern tersebut. Sebelumnya fungsi ini selalu
+ * mengembalikan seluruh intern aktif, sehingga admin melihat (dan bisa menilai)
+ * peserta di luar bimbingannya.
+ */
+export async function getInternsForAssessment(allowedInternIds: string[] | null) {
   const db = await createUteroAcademyServiceRoleClient();
+
+  if (allowedInternIds !== null && allowedInternIds.length === 0) {
+    return { data: [], error: null };
+  }
 
   // Fetch user ids having role 'intern'
   const { data: internRoleUsers } = await db
@@ -16,13 +28,18 @@ export async function getInternsForAssessment() {
     })
     .map(ur => ur.user_id);
 
-  // Ambil semua anak magang aktif
-  const { data: interns, error: internErr } = await db
+  // Ambil anak magang aktif dalam scope pemanggil
+  let internQuery = db
     .from("intern_profiles")
     .select("id, full_name, email, major, status, user_id")
     .eq("status", "active")
-    .in("user_id", internUserIds.length > 0 ? internUserIds : ["00000000-0000-0000-0000-000000000000"])
-    .order("full_name", { ascending: true });
+    .in("user_id", internUserIds.length > 0 ? internUserIds : ["00000000-0000-0000-0000-000000000000"]);
+
+  if (allowedInternIds !== null) {
+    internQuery = internQuery.in("id", allowedInternIds);
+  }
+
+  const { data: interns, error: internErr } = await internQuery.order("full_name", { ascending: true });
 
   if (internErr || !interns) {
     return { data: [], error: internErr };
