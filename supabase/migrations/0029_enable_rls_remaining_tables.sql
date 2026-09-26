@@ -1,23 +1,23 @@
 -- Aktifkan Row Level Security pada 14 tabel yang terlewat.
 --
--- Di PostgreSQL, policy pada tabel yang RLS-nya belum diaktifkan TIDAK
--- dievaluasi sama sekali. Delapan dari empat belas tabel di bawah sudah punya
--- policy yang ditulis dengan benar, tapi policy itu inert karena `alter table
--- ... enable row level security` tidak pernah dijalankan untuk tabelnya:
+-- Keempat belas tabel di bawah tidak punya RLS DAN tidak punya policy sama
+-- sekali. Migrasi yang membuatnya (0006, 0009, 0017, 0020, 0022, 0024, 0025)
+-- tidak memuat satu pun `enable row level security` maupun `create policy`
+-- untuk tabel-tabel ini — terverifikasi: grep "create policy" pada 0017, 0020,
+-- 0022, 0024, 0025 mengembalikan nol baris.
 --
---   badges              policy di 0022      tidak pernah aktif
---   user_points         policy di 0022      tidak pernah aktif
---   user_streaks        policy di 0022      tidak pernah aktif
---   daily_activity      policy di 0022      tidak pernah aktif
---   lesson_comments     policy di 0020      tidak pernah aktif
---   lesson_bookmarks    policy di 0025      tidak pernah aktif
---   course_announcements policy di 0024     tidak pernah aktif
---   permits             policy di 0017      tidak pernah aktif
+--   0017  permits
+--   0020  lesson_comments
+--   0022  badges, user_badges, user_points, point_transactions,
+--         learning_sessions, daily_activity, user_streaks
+--   0024  course_announcements, announcement_reads
+--   0025  lesson_bookmarks
+--   0006  attendance_settings
+--   0009  landing_page_settings
 --
--- Enam sisanya tidak punya policy maupun RLS:
---
---   attendance_settings, landing_page_settings, user_badges,
---   point_transactions, learning_sessions, announcement_reads
+-- Karena 0007:12 memasang `alter default privileges ... grant all ... to anon`,
+-- setiap tabel di atas lahir terbuka penuh untuk kunci anon publik: tanpa RLS,
+-- tanpa policy, dengan grant penuh.
 --
 -- attendance_settings adalah yang paling berbahaya: 0006:31-32 memberi
 -- SELECT/INSERT/UPDATE/DELETE ke `authenticated` DAN `anon` secara eksplisit,
@@ -26,12 +26,13 @@
 -- dan radius_meters. Tanpa RLS, siapa pun yang punya kunci anon publik dapat
 -- mematikan geofence absensi untuk seluruh peserta.
 --
--- BERKAS INI HANYA MENGAKTIFKAN RLS. Policy-nya menyusul di 0030*. Akibatnya,
--- untuk enam tabel tanpa policy, RLS aktif tanpa policy berarti MENOLAK SEMUA
--- BARIS bagi klien sesi. Itu aman di aplikasi ini karena seluruh titik baca
--- keenam tabel memakai service role, yang punya BYPASSRLS — tapi urutan
--- penerapannya tetap penting: jalankan 0030* bersama atau segera setelah berkas
--- ini, dan 0031 (pencabutan grant) hanya setelah keduanya terbukti benar.
+-- BERKAS INI HANYA MENGAKTIFKAN RLS. Policy-nya menyusul di 0030*. Di sela
+-- keduanya, RLS aktif tanpa policy berarti MENOLAK SEMUA BARIS bagi klien sesi
+-- pada keempat belas tabel. Itu aman di aplikasi ini karena tidak satu pun dari
+-- keempat belas tabel disentuh klien sesi (createUteroAcademyClient) — seluruh
+-- titik bacanya memakai service role, yang punya BYPASSRLS. Urutan penerapan
+-- tetap penting: jalankan 0030* bersama atau segera setelah berkas ini, dan
+-- 0031 (pencabutan grant) hanya setelah keduanya terbukti benar.
 
 -- Sapuan dijalankan lewat loop dengan penjaga keberadaan tabel, bukan daftar
 -- ALTER TABLE keras. DB produksi sudah terbukti menyimpang dari berkas migrasi,
@@ -43,7 +44,6 @@ declare
   touched int := 0;
 begin
   foreach target_table in array array[
-    -- punya policy, tapi RLS-nya tidak pernah aktif
     'badges',
     'user_points',
     'user_streaks',
@@ -52,7 +52,6 @@ begin
     'lesson_bookmarks',
     'course_announcements',
     'permits',
-    -- tanpa policy dan tanpa RLS
     'attendance_settings',
     'landing_page_settings',
     'user_badges',
