@@ -5,6 +5,7 @@ import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar, User } from "lucide-react";
 import Link from "next/link";
+import { sanitizeRichText } from "@/lib/sanitize";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -47,7 +48,13 @@ export default async function BlogDetailPage({ params }: Props) {
       {article.cover_path && <div className="w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50"><img src={article.cover_path} alt={article.title} className="w-full h-auto max-h-[450px] object-cover mx-auto" /></div>}
       <ArticleAddons addons={addons} placement="before_content" />
       <article className="prose prose-slate max-w-none text-slate-700 text-sm leading-relaxed pt-4">
-        {typeof body === "string" && body.trim().startsWith("<") ? <div dangerouslySetInnerHTML={{ __html: body }} /> : <div className="whitespace-pre-wrap">{body}</div>}
+        {typeof body === "string" && body.trim().startsWith("<") ? (
+          // Body artikel ditulis staf lewat editor kaya dan dibaca publik, jadi
+          // harus disanitasi di server sebelum masuk innerHTML.
+          <div dangerouslySetInnerHTML={{ __html: sanitizeRichText(body) }} />
+        ) : (
+          <div className="whitespace-pre-wrap">{body}</div>
+        )}
       </article>
       <ArticleAddons addons={addons} placement="after_content" />
     </main>
