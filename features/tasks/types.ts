@@ -55,7 +55,12 @@ export type TaskAttachment = {
   id: string;
   card_id: string;
   uploaded_by: string | null;
-  file_path: string;
+  /**
+   * Sengaja `string | null` — nilai dari `queries.ts` sudah ditandatangani, dan
+   * penandatanganan bisa gagal untuk objek yatim (baris ada, berkasnya tidak).
+   * Null memaksa titik render menangani "lampiran tidak dapat dibuka".
+   */
+  file_path: string | null;
   file_name: string;
   mime_type: string | null;
   size_bytes: number | null;

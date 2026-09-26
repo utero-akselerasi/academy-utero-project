@@ -1,5 +1,26 @@
+import { resolveStorageUrls } from "@/lib/storage-urls";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
-import { type TaskBoard, type TaskBoardWithLists, type TaskCardWithDetails } from "./types";
+import { type TaskAttachment, type TaskBoard, type TaskBoardWithLists, type TaskCardWithDetails } from "./types";
+
+/**
+ * Menandatangani `file_path` setiap lampiran task.
+ *
+ * Ditaruh di lapisan query karena dua bentuk kueri membaca lampiran yang sama
+ * dengan sarang berbeda: `getInternCards` mengembalikan kartu datar, sedangkan
+ * `getBoardWithLists` menyarangkannya tiga tingkat
+ * (`task_lists` → `task_cards` → `task_attachments`). Menandatangani di halaman
+ * berarti menulis dua kali penelusuran sarang yang berbeda.
+ *
+ * Ditandatangani per kartu secara paralel lewat `resolveStorageUrls`; satu kartu
+ * bisa punya banyak lampiran dan berurutan akan menaikkan latensi papan
+ * sebanding jumlah seluruh lampiran di papan itu.
+ */
+async function signCardAttachments(attachments: TaskAttachment[] | null | undefined) {
+  if (!attachments || attachments.length === 0) return [];
+
+  const urls = await resolveStorageUrls("task", attachments.map((att) => att.file_path));
+  return attachments.map((att, index) => ({ ...att, file_path: urls[index] }));
+}
 
 export async function getMentorBoards(userId: string) {
   const db = await createUteroAcademyServiceRoleClient();
@@ -45,7 +66,27 @@ export async function getBoardWithLists(boardId: string) {
     .maybeSingle()
     .returns<TaskBoardWithLists>();
 
-  return { data, error };
+  if (error || !data) {
+    return { data, error };
+  }
+
+  // Sarang tiga tingkat: papan → list → kartu → lampiran.
+  const signed: TaskBoardWithLists = {
+    ...data,
+    task_lists: await Promise.all(
+      (data.task_lists ?? []).map(async (list) => ({
+        ...list,
+        task_cards: await Promise.all(
+          (list.task_cards ?? []).map(async (card) => ({
+            ...card,
+            task_attachments: await signCardAttachments(card.task_attachments),
+          })),
+        ),
+      })),
+    ),
+  };
+
+  return { data: signed, error };
 }
 
 export async function getInternCards(internProfileId: string) {
@@ -59,5 +100,16 @@ export async function getInternCards(internProfileId: string) {
     .order("created_at", { referencedTable: "task_attachments", ascending: false })
     .returns<TaskCardWithDetails[]>();
 
-  return { data: data ?? [], error };
+  if (error || !data) {
+    return { data: [], error };
+  }
+
+  const signed = await Promise.all(
+    data.map(async (card) => ({
+      ...card,
+      task_attachments: await signCardAttachments(card.task_attachments),
+    })),
+  );
+
+  return { data: signed, error };
 }

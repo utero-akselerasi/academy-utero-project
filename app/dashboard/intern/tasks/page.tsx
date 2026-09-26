@@ -165,6 +165,16 @@ export default async function InternTasksPage({ searchParams }: Props) {
                   <div className="grid gap-2 sm:grid-cols-2">
                     {card.task_attachments.map((att) => {
                       const isImg = isImageAttachment(att);
+
+                      if (!att.file_path) {
+                        return (
+                          <div key={att.id} className="surface p-2 border border-slate-200 rounded-lg bg-white flex flex-col gap-1">
+                            <span className="text-[10px] font-bold text-slate-700 truncate block" title={att.file_name}>{att.file_name}</span>
+                            <span className="text-[10px] text-slate-400">Berkas tidak dapat dibuka.</span>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div key={att.id} className="surface p-2 border border-slate-200 rounded-lg bg-white flex flex-col justify-between">
                           {isImg ? (

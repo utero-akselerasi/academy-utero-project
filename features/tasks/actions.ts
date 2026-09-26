@@ -337,14 +337,14 @@ export async function addTaskAttachmentAction(formData: FormData) {
     throw new Error("Gagal mengunggah file lampiran.");
   }
 
-  // Get public URL or media link
-  const { data: { publicUrl } } = supabase.storage.from("task").getPublicUrl(filePath);
-
+  // Object path, bukan URL publik. Bucket `task` memang sudah privat di seed
+  // `0002_storage_buckets.sql`; 0007 yang memaksanya publik. Pembacaannya lewat
+  // `resolveStorageUrl()` di `features/tasks/queries.ts`.
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db.from("task_attachments").insert({
     card_id: cardId,
     uploaded_by: user.id,
-    file_path: publicUrl,
+    file_path: filePath,
     file_name: attachment.displayName,
     mime_type: attachment.contentType,
     size_bytes: attachment.size
