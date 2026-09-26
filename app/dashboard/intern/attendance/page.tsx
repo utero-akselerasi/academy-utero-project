@@ -5,6 +5,7 @@ import { getInternAttendances, getTodayAttendance } from "@/features/attendance/
 import { getInternProfileId } from "@/features/daily-reports/queries";
 import { AttendanceStatusBadge } from "@/features/attendance/AttendanceStatusBadge";
 import { requireIntern } from "@/features/auth/guards";
+import { resolveStorageUrl } from "@/lib/storage-urls";
 import Link from "next/link";
 
 type Props = {
@@ -39,6 +40,19 @@ export default async function InternAttendancePage({ searchParams }: Props) {
 
   const todayData = await getTodayAttendance(internProfileId);
   const { data: history } = await getInternAttendances(internProfileId);
+
+  // Selfie dan surat dokter ada di bucket privat `avatars`, jadi harus
+  // ditandatangani di server. Ditandatangani sekali per baris secara paralel —
+  // `resolveStorageUrl` mengembalikan null untuk nilai kosong maupun objek yatim,
+  // jadi cabang `&&` di bawah tetap berfungsi seperti sebelumnya.
+  const historyUrls = await Promise.all(
+    history.map(async (record) => ({
+      checkIn: await resolveStorageUrl("avatars", record.check_in_selfie_path),
+      checkOut: await resolveStorageUrl("avatars", record.check_out_selfie_path),
+      sickCertificate: await resolveStorageUrl("avatars", record.sick_certificate_path),
+    })),
+  );
+
   const hasCheckedIn = !!todayData?.check_in_at;
   const hasCheckedOut = !!todayData?.check_out_at;
   const isPermitOrSick = todayData?.attendance_type === "permit" || todayData?.attendance_type === "sick";
@@ -111,18 +125,18 @@ export default async function InternAttendancePage({ searchParams }: Props) {
         <div>
           <h2 className="mb-4 text-lg font-bold text-slate-950">Riwayat Absensi</h2>
           <div className="grid gap-3">
-            {history.map((record) => (
+            {history.map((record, index) => (
               <article className="surface p-4 flex flex-col md:flex-row md:items-center justify-between gap-4" key={record.id}>
                 <div className="flex gap-4 items-start">
                   <div className="flex flex-col gap-2">
-                    {record.check_in_selfie_path && (
+                    {historyUrls[index].checkIn && (
                       <div className="relative h-16 w-16 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-                        <img src={record.check_in_selfie_path} alt="Selfie Masuk" className="h-full w-full object-cover" />
+                        <img src={historyUrls[index].checkIn!} alt="Selfie Masuk" className="h-full w-full object-cover" />
                       </div>
                     )}
-                    {record.check_out_selfie_path && (
+                    {historyUrls[index].checkOut && (
                       <div className="relative h-16 w-16 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-                        <img src={record.check_out_selfie_path} alt="Selfie Pulang" className="h-full w-full object-cover" />
+                        <img src={historyUrls[index].checkOut!} alt="Selfie Pulang" className="h-full w-full object-cover" />
                       </div>
                     )}
                   </div>
@@ -141,8 +155,8 @@ export default async function InternAttendancePage({ searchParams }: Props) {
                           </span>
                         )}
                         
-                        {record.sick_certificate_path && (
-                          <a href={record.sick_certificate_path} target="_blank" rel="noopener noreferrer" className="text-teal-600 font-bold underline hover:text-teal-800">
+                        {historyUrls[index].sickCertificate && (
+                          <a href={historyUrls[index].sickCertificate!} target="_blank" rel="noopener noreferrer" className="text-teal-600 font-bold underline hover:text-teal-800">
                             Lihat Surat Dokter
                           </a>
                         )}

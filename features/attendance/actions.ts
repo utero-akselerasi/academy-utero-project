@@ -80,8 +80,9 @@ async function uploadSelfieBase64(userId: string, base64Data: string, type: 'in'
     console.error("Gagal upload selfie base64:", error);
     return null;
   }
-  const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(filePath);
-  return publicUrl;
+  // Object path, BUKAN URL publik. Bucket `avatars` jadi privat (0032b), dan
+  // pembacaannya lewat `resolveStorageUrl()` yang menandatangani di server.
+  return filePath;
 }
 
 export async function checkInAction(_: FormState, formData: FormData): Promise<FormState> {
@@ -108,7 +109,7 @@ export async function checkInAction(_: FormState, formData: FormData): Promise<F
 
   let isOutOfRange = false;
   let outOfRangeReason = null;
-  let outOfRangeProofUrl = null;
+  let outOfRangeProofPath = null;
 
   if (settingsIn?.allow_geofencing) {
     const distance = getDistanceMeters(
@@ -159,14 +160,14 @@ export async function checkInAction(_: FormState, formData: FormData): Promise<F
       if (uploadError) {
         return { ok: false, message: "Gagal mengunggah dokumen bukti kegiatan luar." };
       }
-      const { data: { publicUrl } } = serviceClient.storage.from("avatars").getPublicUrl(filePath);
-      outOfRangeProofUrl = publicUrl;
+      // Object path, bukan URL — lihat catatan di uploadSelfieBase64.
+      outOfRangeProofPath = filePath;
       outOfRangeReason = reason;
     }
   }
 
-  const selfieUrl = await uploadSelfieBase64(user.id, selfieBase64, "in");
-  if (!selfieUrl) return { ok: false, message: "Gagal mengunggah foto selfie." };
+  const selfiePath = await uploadSelfieBase64(user.id, selfieBase64, "in");
+  if (!selfiePath) return { ok: false, message: "Gagal mengunggah foto selfie." };
   const db = await createUteroAcademyClient();
   const today = getTodayDateLocal();
   const { error } = await db.from("attendances").insert({ 
@@ -176,11 +177,11 @@ export async function checkInAction(_: FormState, formData: FormData): Promise<F
     check_in_latitude: parsed.data.latitude, 
     check_in_longitude: parsed.data.longitude, 
     check_in_wifi_ssid: parsed.data.wifiSsid || null, 
-    check_in_selfie_path: selfieUrl, 
+    check_in_selfie_path: selfiePath, 
     status: isOutOfRange ? "manual_review" : "pending",
     is_out_of_range: isOutOfRange,
     out_of_range_reason: outOfRangeReason,
-    out_of_range_proof_path: outOfRangeProofUrl
+    out_of_range_proof_path: outOfRangeProofPath
   });
   if (error) {
     console.error("Gagal check-in:", error);
@@ -227,11 +228,11 @@ export async function checkOutAction(_: FormState, formData: FormData): Promise<
     }
   }
 
-  const selfieUrl = await uploadSelfieBase64(user.id, selfieBase64, "out");
-  if (!selfieUrl) return { ok: false, message: "Gagal mengunggah foto selfie." };
+  const selfiePath = await uploadSelfieBase64(user.id, selfieBase64, "out");
+  if (!selfiePath) return { ok: false, message: "Gagal mengunggah foto selfie." };
   const db = await createUteroAcademyClient();
   const today = getTodayDateLocal();
-  const { error } = await db.from("attendances").update({ check_out_at: new Date().toISOString(), check_out_latitude: parsed.data.latitude, check_out_longitude: parsed.data.longitude, check_out_wifi_ssid: parsed.data.wifiSsid || null, check_out_selfie_path: selfieUrl, updated_at: new Date().toISOString() }).eq("intern_id", internId).eq("attendance_date", today);
+  const { error } = await db.from("attendances").update({ check_out_at: new Date().toISOString(), check_out_latitude: parsed.data.latitude, check_out_longitude: parsed.data.longitude, check_out_wifi_ssid: parsed.data.wifiSsid || null, check_out_selfie_path: selfiePath, updated_at: new Date().toISOString() }).eq("intern_id", internId).eq("attendance_date", today);
   if (error) {
     console.log("Gagal check-out:", error);
     return { ok: false, message: "Gagal check-out. Harap check-in terlebih dahulu." };
@@ -295,7 +296,7 @@ export async function submitPermitAction(_: FormState, formData: FormData): Prom
     return { ok: false, message: "Alasan wajib diisi minimal 5 karakter." };
   }
 
-  let certificateUrl = null;
+  let certificatePath = null;
   if (permitType === "sick") {
     if (!file || file.size === 0) {
       return { ok: false, message: "Keterangan Surat Dokter wajib diunggah untuk status Sakit." };
@@ -328,8 +329,9 @@ export async function submitPermitAction(_: FormState, formData: FormData): Prom
       return { ok: false, message: "Gagal mengunggah surat dokter. Silakan coba lagi." };
     }
 
-    const { data: { publicUrl } } = serviceClient.storage.from("avatars").getPublicUrl(filePath);
-    certificateUrl = publicUrl;
+    // Object path, bukan URL — lihat catatan di uploadSelfieBase64. Surat dokter
+    // adalah data kesehatan; ia TIDAK boleh terbaca lewat URL publik.
+    certificatePath = filePath;
   }
 
   const db = await createUteroAcademyServiceRoleClient();
@@ -340,7 +342,7 @@ export async function submitPermitAction(_: FormState, formData: FormData): Prom
     start_date: startDate,
     end_date: endDate,
     reason: reason,
-    attachment_path: certificateUrl,
+    attachment_path: certificatePath,
     status: "pending"
   });
 

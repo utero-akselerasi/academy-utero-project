@@ -10,6 +10,7 @@ import { saveAttendanceSettingsAction } from "@/features/attendance/actions";
 import { requireAdmin } from "@/features/auth/guards";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { isPdfPath, resolveStorageUrl, resolveStorageUrls } from "@/lib/storage-urls";
 import Link from "next/link";
 import { Clock, Settings, User, X, CheckCircle, AlertTriangle, Play, HelpCircle, MapPin, Eye, Download } from "lucide-react";
 
@@ -178,8 +179,9 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
     });
 
 
-    // Get latest check-in photo as selfie preview
-    const latestSelfie = internLogs.find(l => l.check_in_selfie_path)?.check_in_selfie_path || null;
+    // Object path, BUKAN URL — ditandatangani di bawah, setelah map ini selesai.
+    // Penandatanganan tidak bisa dilakukan di sini karena `.map()` ini sinkron.
+    const latestSelfiePath = internLogs.find(l => l.check_in_selfie_path)?.check_in_selfie_path || null;
 
     return {
       ...intern,
@@ -188,12 +190,73 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
       totalHours: parseFloat(totalHours.toFixed(1)),
       totalHoursThisMonth: parseFloat(totalHoursThisMonth.toFixed(1)),
       attendanceRate,
-      latestSelfie,
+      latestSelfiePath,
       logs: internLogs
     };
   });
 
-  const selectedIntern = (detailInternId ? mappedInterns.find(i => i.id === detailInternId) : undefined) as any;
+  // Semua lampiran absensi ada di bucket privat `avatars`, jadi butuh signed URL
+  // yang dibuat di server.
+  //
+  // Hanya thumbnail daftar yang ditandatangani untuk SEMUA peserta; empat
+  // lampiran per baris log hanya ditandatangani untuk peserta yang dibuka
+  // detailnya. Menandatangani seluruh log setiap render akan memanggil Storage
+  // sebanyak 4 × jumlah baris absensi seluruh peserta — halaman ini adalah titik
+  // render terberat di aplikasi.
+  const latestSelfieUrls = await resolveStorageUrls(
+    "avatars",
+    mappedInterns.map((intern) => intern.latestSelfiePath),
+  );
+  const internsWithSelfie = mappedInterns.map((intern, index) => ({
+    ...intern,
+    latestSelfie: latestSelfieUrls[index],
+  }));
+
+  const selectedIntern = (detailInternId ? internsWithSelfie.find(i => i.id === detailInternId) : undefined) as any;
+
+  // Lampiran per baris log, hanya untuk peserta yang sedang dibuka. Di-key per
+  // id absensi supaya JSX tidak perlu berurusan dengan indeks.
+  const logAttachments = new Map<
+    string,
+    { checkIn: string | null; checkOut: string | null; proof: string | null; sickCertificate: string | null }
+  >();
+  if (selectedIntern) {
+    const logs = (selectedIntern.logs ?? []) as any[];
+    const resolved = await Promise.all(
+      logs.map(async (log) => ({
+        id: log.id as string,
+        checkIn: await resolveStorageUrl("avatars", log.check_in_selfie_path),
+        checkOut: await resolveStorageUrl("avatars", log.check_out_selfie_path),
+        proof: await resolveStorageUrl("avatars", log.out_of_range_proof_path),
+        sickCertificate: await resolveStorageUrl("avatars", log.sick_certificate_path),
+      })),
+    );
+    for (const entry of resolved) {
+      logAttachments.set(entry.id, entry);
+    }
+  }
+
+  // Lampiran izin/sakit yang menunggu approval. `PendingPermitsList` adalah
+  // komponen klien, jadi ia tidak bisa menandatangani sendiri — URL dan keputusan
+  // PDF-nya disiapkan di sini.
+  const permitAttachments: Record<string, { url: string | null; isPdf: boolean }> = {};
+  for (const permit of (pendingPermits || []) as any[]) {
+    permitAttachments[permit.id as string] = {
+      url: await resolveStorageUrl("avatars", permit.attachment_path),
+      isPdf: isPdfPath(permit.attachment_path, "avatars"),
+    };
+  }
+
+  // Bukti kegiatan luar bisa PDF atau gambar, dan keputusan itu HARUS diambil
+  // dari object path: signed URL berakhir dengan `?token=...`, jadi
+  // `.endsWith('.pdf')` pada URL final selalu false dan setiap PDF akan dirender
+  // sebagai gambar rusak.
+  const proofIsPdf = new Map<string, boolean>();
+  if (selectedIntern) {
+    for (const log of (selectedIntern.logs ?? []) as any[]) {
+      proofIsPdf.set(log.id as string, isPdfPath(log.out_of_range_proof_path, "avatars"));
+    }
+  }
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const currentMonth = today.slice(0, 7);
 
@@ -363,18 +426,18 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
       )}
 
       {/* Pending Permits List */}
-      <PendingPermitsList permits={pendingPermits || []} />
+      <PendingPermitsList permits={pendingPermits || []} attachments={permitAttachments} />
 
       {/* Interns Grid View */}
       <h2 className="mb-4 text-lg font-bold text-slate-950">Peserta Magang Aktif ({interns.length})</h2>
       
-      {mappedInterns.length === 0 ? (
+      {internsWithSelfie.length === 0 ? (
         <div className="surface p-8 text-center text-slate-500">
           Belum ada anak magang aktif.
         </div>
       ) : (
         <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {mappedInterns.map((intern) => {
+          {internsWithSelfie.map((intern) => {
             return (
               <article key={intern.id} className="surface p-3 sm:p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md transition-all flex flex-col justify-between items-center text-center gap-2 sm:gap-3">
                 <div className="relative h-12 w-12 sm:h-20 sm:w-20 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-100 flex items-center justify-center shrink-0">
@@ -518,10 +581,10 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
                                     <span className="font-extrabold text-[10px] text-slate-400 uppercase tracking-wider">Jam Masuk (Check-In)</span>
                                     <span className="font-extrabold text-xs text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-full">{formatTime(log.check_in_at)}</span>
                                   </div>
-                                  {log.check_in_selfie_path && (
+                                  {logAttachments.get(log.id)?.checkIn && (
                                     <div className="mb-3">
                                       <span className="font-bold text-[9px] text-slate-400 uppercase block mb-1">Selfie Masuk</span>
-                                      <ImagePreview src={log.check_in_selfie_path} alt="Selfie Masuk" className="max-h-32 w-full object-cover rounded-lg border border-slate-200" />
+                                      <ImagePreview src={logAttachments.get(log.id)!.checkIn!} alt="Selfie Masuk" className="max-h-32 w-full object-cover rounded-lg border border-slate-200" />
                                     </div>
                                   )}
                                 </div>
@@ -543,10 +606,10 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
                                       {log.check_out_at ? formatTime(log.check_out_at) : "--:--"}
                                     </span>
                                   </div>
-                                  {log.check_out_selfie_path ? (
+                                  {logAttachments.get(log.id)?.checkOut ? (
                                     <div className="mb-3">
                                       <span className="font-bold text-[9px] text-slate-400 uppercase block mb-1">Selfie Pulang</span>
-                                      <ImagePreview src={log.check_out_selfie_path} alt="Selfie Pulang" className="max-h-32 w-full object-cover rounded-lg border border-slate-200" />
+                                      <ImagePreview src={logAttachments.get(log.id)!.checkOut!} alt="Selfie Pulang" className="max-h-32 w-full object-cover rounded-lg border border-slate-200" />
                                     </div>
                                   ) : (
                                     <div className="flex items-center justify-center h-28 bg-slate-50 border border-dashed border-slate-200 rounded-lg mb-3">
@@ -570,15 +633,18 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
                                   <span className="font-bold text-[10px] text-slate-500 uppercase block">Alasan Kegiatan:</span>
                                   <p className="text-slate-700 italic mt-0.5">"{log.out_of_range_reason}"</p>
                                 </div>
-                                {log.out_of_range_proof_path && (
+                                {logAttachments.get(log.id)?.proof && (
                                   <div>
                                     <span className="font-bold text-[10px] text-slate-500 uppercase block mb-1">Bukti Dokumen:</span>
-                                    {log.out_of_range_proof_path.endsWith('.pdf') ? (
-                                      <a href={log.out_of_range_proof_path} target="_blank" rel="noreferrer" className="text-teal-600 font-bold underline hover:text-teal-700 block">
+                                    {/* Dinilai dari object path lewat isPdfPath(), bukan dari URL:
+                                        signed URL berakhir `?token=...` jadi .endsWith('.pdf')
+                                        selalu false dan PDF akan dirender sebagai gambar rusak. */}
+                                    {proofIsPdf.get(log.id) ? (
+                                      <a href={logAttachments.get(log.id)!.proof!} target="_blank" rel="noreferrer" className="text-teal-600 font-bold underline hover:text-teal-700 block">
                                         Lihat Dokumen PDF Bukti
                                       </a>
                                     ) : (
-                                      <ImagePreview src={log.out_of_range_proof_path} alt="Bukti Kegiatan Luar" className="max-h-36 object-contain rounded border border-slate-200" />
+                                      <ImagePreview src={logAttachments.get(log.id)!.proof!} alt="Bukti Kegiatan Luar" className="max-h-36 object-contain rounded border border-slate-200" />
                                     )}
                                   </div>
                                 )}
@@ -591,10 +657,10 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
                                 <span className="font-bold text-[10px] text-slate-400 uppercase block">Alasan Pengajuan</span>
                                 <p className="text-slate-700 italic mt-0.5">"{log.permit_reason}"</p>
                               </div>
-                              {log.sick_certificate_path && (
+                              {logAttachments.get(log.id)?.sickCertificate && (
                                 <div>
                                   <span className="font-bold text-[10px] text-slate-400 uppercase block mb-1">Surat Dokter</span>
-                                  <ImagePreview src={log.sick_certificate_path} alt="Surat Dokter" className="max-h-36 object-contain rounded border border-slate-200" />
+                                  <ImagePreview src={logAttachments.get(log.id)!.sickCertificate!} alt="Surat Dokter" className="max-h-36 object-contain rounded border border-slate-200" />
                                 </div>
                               )}
                             </div>
