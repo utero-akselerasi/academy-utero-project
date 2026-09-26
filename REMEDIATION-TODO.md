@@ -89,7 +89,16 @@ ke DB mana pun. Tidak satu pun memuat `DELETE`, `DROP TABLE`, `TRUNCATE`, atau
 
 Total: **62 dari 62 tabel** `utero_academy` punya postur eksplisit.
 
-### B0.2 Sisa pekerjaan sumber (belum dikerjakan)
+### B0.2 Sisa pekerjaan sumber — **SELESAI, `tsc` hijau**
+
+Ketiganya tuntas dan ter-push. Ini seluruh pekerjaan Batch 0 yang **tidak**
+menyentuh produksi; sisanya (B0.3) menunggu izin eksplisit.
+
+Perlu ditegaskan supaya tidak salah baca: **tidak satu pun lubang kritis
+tertutup oleh B0.2.** Sumbernya sudah siap, tapi kunci anon masih membaca 17
+tabel produksi dan storage masih terbuka tanpa auth sampai B0.3a–B0.3c
+dijalankan. Yang sudah dicapai adalah: migrasinya ada, runner-nya gagal-keras,
+dan aplikasinya tidak akan rusak saat migrasi itu diterapkan.
 
 - [x] B0.2a Union `RoleCode` dikecilkan jadi
       `"super_admin" | "admin" | "school" | "intern"`. Sepuluh situs yang jadi
@@ -177,13 +186,33 @@ Total: **62 dari 62 tabel** `utero_academy` punya postur eksplisit.
       memberi kerahasiaan apa pun (isinya memang publik). Yang didapat cuma dua:
       kolom DB berhenti menyimpan base URL yang bisa berubah, dan object path-nya
       tersedia untuk `storage.remove()` kalau penghapusan objek yatim dikerjakan.
-- [ ] B0.2c Ganti `apply-migration.js` dengan `scripts/migrate.mjs` +
+- [x] B0.2c `apply-migration.js` diganti `scripts/migrate.mjs` +
       `schema_migrations` + penegakan checksum. Prasyarat, bukan item Batch 6:
-      runner sekarang nama berkasnya di-hardcode ke `0004`, fallback ke
+      runner lama nama berkasnya di-hardcode ke `0004`, fallback ke
       `localhost:54322` sehingga env hilang **menarget database salah secara
       senyap**, dan keluar dengan **exit code 0 meski migrasi gagal**. Ini juga
       mekanisme yang membuat penyimpangan produksi terdeteksi ke depan
-      (menggantikan B6.5)
+      (menggantikan B6.5).
+
+      Terverifikasi: `node scripts/migrate.mjs --dry-run` keluar `0` dan
+      mendaftar 40 berkas berurutan tanpa menyentuh database. `pg@^8.22.0`
+      sudah ter-deklarasi, dan ketiga skrip npm (`migrate`, `migrate:status`,
+      `migrate:apply`) terpasang — `migrate` sengaja dry-run, jadi
+      penerapan ke DB harus diminta eksplisit.
+
+      Dua hal di luar rencana yang ikut dibuat:
+
+      1. Penanda `-- migrate:no-transaction` di baris awal berkas, untuk
+         pernyataan yang tidak boleh jalan di dalam transaksi
+         (`CREATE INDEX CONCURRENTLY`).
+      2. `assertNoBackfilledGaps()`: celah nomor **di bawah** versi tertinggi
+         yang sudah diterapkan menghentikan run. Tanpa ini, keadaan DB tidak bisa
+         lagi disimpulkan dari nomor tertinggi — persis penyakit yang membuat
+         penyimpangan produksi sekarang tak terlacak.
+
+      Penomoran final berbeda dari plan, dan **urutannya yang penting**:
+      `0029` aktifkan RLS → `0030a`–`0030f` policy per domain → `0031` cabut
+      grant. Pencabutan sesudah policy, sesuai K-2.
 
 ### B0.3 Gerbang izin — menyentuh produksi
 
