@@ -27,7 +27,7 @@ export default async function PrintCertificatePage({ searchParams }: PageProps) 
 
   if (targetInternProfileId !== selfProfileId) {
     const roles = await getUserRoleCodes(user.id);
-    const isStaff = roles.includes("super_admin") || roles.includes("admin") || roles.includes("admin_academy");
+    const isStaff = roles.includes("super_admin") || roles.includes("admin");
     if (!isStaff) notFound();
 
     const scope = await resolveStaffInternScope(user.id);

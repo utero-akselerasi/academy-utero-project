@@ -20,7 +20,7 @@ const requireStaff = requireAdmin;
 
 async function userIsStaff(userId: string) {
   const roles = await getUserRoleCodes(userId);
-  return roles.includes("super_admin") || roles.includes("admin") || roles.includes("admin_academy");
+  return roles.includes("super_admin") || roles.includes("admin");
 }
 
 /**

@@ -1,6 +1,7 @@
 import { createUteroAcademyClient } from "@/lib/supabase/server";
 import { getInternProfileId, getMentorProfileId } from "@/features/daily-reports/queries";
 import { requireUser } from "@/features/auth/guards";
+import { isActiveRoleCode } from "@/features/auth/roles";
 import { ProfileFormWrapper } from "./ProfileFormWrapper";
 
 export default async function EditProfilePage() {
@@ -29,10 +30,13 @@ export default async function EditProfilePage() {
     .eq("user_id", user.id)
     .returns<any[]>();
 
-  const roles = (userRoles || []).map(ur => {
-    const roleObj = Array.isArray(ur.roles) ? ur.roles[0] : ur.roles;
-    return roleObj;
-  }).filter(Boolean);
+  // Baris peran legacy (`mentor`, `admin_academy`) sengaja dibiarkan hidup di
+  // database oleh migrasi 0028, jadi kueri mentah ini masih bisa mengembalikannya.
+  // Disaring lewat isActiveRoleCode() supaya badge di halaman ini tidak
+  // menampilkan peran yang sudah tidak diakui satu pun guard.
+  const roles = (userRoles || [])
+    .map((ur) => (Array.isArray(ur.roles) ? ur.roles[0] : ur.roles))
+    .filter((roleObj) => roleObj && isActiveRoleCode(roleObj.code));
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <div className="mb-6">
@@ -59,8 +63,6 @@ export default async function EditProfilePage() {
                 let badgeClass = "text-slate-700 bg-slate-50 border-slate-200";
                 if (role.code === "intern") {
                   badgeClass = "text-teal-700 bg-teal-50 border-teal-200";
-                } else if (role.code === "mentor") {
-                  badgeClass = "text-amber-700 bg-amber-50 border-amber-200";
                 } else if (role.code === "super_admin") {
                   badgeClass = "text-red-700 bg-red-50 border-red-200";
                 } else if (role.code === "admin") {

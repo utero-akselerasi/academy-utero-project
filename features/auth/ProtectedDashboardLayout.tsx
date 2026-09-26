@@ -1,6 +1,6 @@
 import { logoutAction } from "@/features/auth/actions";
 import { requireRole } from "@/features/auth/guards";
-import { type RoleCode, getUserRoleCodes } from "@/features/auth/roles";
+import { type RoleCode, getUserRoleCodes, resolveActiveRole } from "@/features/auth/roles";
 import { createUteroAcademyClient } from "@/lib/supabase/server";
 import { Award, Globe } from "lucide-react";
 import { DashboardShell } from "./DashboardShell";
@@ -15,8 +15,6 @@ type Props = {
 const roleLabelMap: Record<RoleCode, string> = {
   super_admin: "Super Admin",
   admin: "Administrator",
-  admin_academy: "Administrator",
-  mentor: "Mentor",
   school: "Hubungan Sekolah",
   intern: "Peserta Magang",
 };
@@ -48,18 +46,6 @@ const sidebarItemsMap: Record<RoleCode, { label: string; href: string; icon: str
     { label: "Website CMS", href: "/dashboard/admin/cms", icon: "Globe" },
     { label: "Landing Page", href: "/dashboard/admin/landing", icon: "LayoutTemplate" },
   ],
-  admin_academy: [
-    { label: "Dashboard", href: "/dashboard/admin", icon: "LayoutDashboard" },
-    { label: "Pendaftaran Masuk", href: "/dashboard/admin/pendaftaran", icon: "FileSpreadsheet" },
-    { label: "Task Board", href: "/dashboard/mentor/tasks", icon: "Kanban" },
-    { label: "LMS Penilaian", href: "/dashboard/mentor/lms", icon: "BookOpen" },
-    { label: "Review Absensi", href: "/dashboard/mentor/attendance", icon: "Clock" },
-    { label: "Daily Report", href: "/dashboard/mentor/daily-reports", icon: "FileText" },
-    { label: "Penilaian & Sertifikat", href: "/dashboard/mentor/assessments", icon: "Award" },
-    { label: "Website CMS", href: "/dashboard/admin/cms", icon: "Globe" },
-    { label: "Landing Page", href: "/dashboard/admin/landing", icon: "LayoutTemplate" },
-  ],
-  mentor: [],
   intern: [
     { label: "Dashboard", href: "/dashboard/intern", icon: "LayoutDashboard" },
     { label: "Task Saya", href: "/dashboard/intern/tasks", icon: "CheckSquare" },
@@ -89,9 +75,14 @@ export async function ProtectedDashboardLayout({ allowedRoles, homeHref, childre
   const avatarUrl = profile?.avatar_path || null;
   
   const userRolesList = await getUserRoleCodes(user.id);
-  const activeRole = userRolesList.find((r) => allowedRoles.includes(r)) || allowedRoles[0];
-  const roleLabel = roleLabelMap[activeRole] || "Pengguna";
-  const navItems = sidebarItemsMap[activeRole] || [];
+
+  // Peran aktif dipilih menurut rolePriority, bukan urutan baris dari database:
+  // user ber-peran ganda (super_admin + admin wajar terjadi) harus mendapat
+  // sidebar yang sama di setiap render. Fallback ke allowedRoles[0] dihapus —
+  // itu menampilkan sidebar peran yang belum tentu dimiliki user.
+  const activeRole = resolveActiveRole(userRolesList, allowedRoles);
+  const roleLabel = activeRole ? roleLabelMap[activeRole] : "Pengguna";
+  const navItems = activeRole ? sidebarItemsMap[activeRole] : [];
 
   return (
     <DashboardShell

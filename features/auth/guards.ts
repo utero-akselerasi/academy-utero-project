@@ -43,7 +43,7 @@ export async function requireRole(allowedRoles: RoleCode[]): Promise<Authenticat
 }
 
 export async function requireAdmin(): Promise<AuthenticatedUser> {
-  return requireRole(["admin", "admin_academy", "super_admin"]);
+  return requireRole(["admin", "super_admin"]);
 }
 
 export async function requireSuperAdmin(): Promise<AuthenticatedUser> {
@@ -81,7 +81,7 @@ export async function requireRouteRole(allowedRoles: RoleCode[]): Promise<Authen
 }
 
 export async function requireRouteAdmin(): Promise<AuthenticatedUser> {
-  return requireRouteRole(["admin", "admin_academy", "super_admin"]);
+  return requireRouteRole(["admin", "super_admin"]);
 }
 
 export async function requireRouteSuperAdmin(): Promise<AuthenticatedUser> {

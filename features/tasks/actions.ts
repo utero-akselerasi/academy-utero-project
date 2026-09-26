@@ -66,7 +66,7 @@ async function requireCardAccess(userId: string, cardId: string) {
 
   if (roles.includes("super_admin")) return card;
 
-  if (roles.includes("admin") || roles.includes("admin_academy")) {
+  if (roles.includes("admin")) {
     if (!card.intern_id) return card;
     const scope = await resolveStaffInternScope(userId);
     if (scope.kind === "global") return card;

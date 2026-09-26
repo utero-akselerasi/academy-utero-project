@@ -37,7 +37,10 @@ export function LessonComments({
   const [replyContent, setReplyContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isMentorOrAdmin = ["mentor", "admin", "super_admin"].includes(currentUserRole);
+  // `admin` adalah administrator sekaligus pembimbing; `mentor` bukan lagi peran
+  // login (migrasi 0028). `currentUserRole` bertipe string biasa, jadi tsc tidak
+  // menjaga nilainya di sini — jangan tambahkan kembali "mentor".
+  const isMentorOrAdmin = ["admin", "super_admin"].includes(currentUserRole);
 
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,7 +130,7 @@ export function LessonComments({
   };
 
   const getRoleBadge = (role: string) => {
-    if (role === "mentor" || role === "admin") {
+    if (role === "admin") {
       return <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded font-semibold">Mentor</span>;
     }
     return null;

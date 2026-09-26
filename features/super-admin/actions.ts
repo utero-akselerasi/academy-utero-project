@@ -2,7 +2,7 @@
 
 import { requireAdmin, requireSuperAdmin } from "@/features/auth/guards";
 import { userIsSuperAdmin } from "@/features/auth/roles";
-import { createUteroAcademyClient, createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { detectMissingDomainProfiles } from "./queries";
 import { writeAuditLog } from "./audit";
 import { revalidatePath } from "next/cache";
@@ -80,8 +80,15 @@ async function provisionDomainProfile(
     return;
   }
 
-  // Role `mentor` sudah tidak dipakai sebagai peran login (admin = pembimbing),
-  // tapi barisnya masih ada di tabel roles sampai migrasi pembersihan jalan.
+  // Kode legacy `admin_academy` dan `mentor` SENGAJA masih diterima di sini.
+  // Keduanya bukan lagi peran login — dropdown penetapan peran tidak
+  // menawarkannya (disaring di queries.ts) — tapi baris `user_roles` lama
+  // dibiarkan hidup oleh migrasi 0028, dan backfillDomainProfilesAction masih
+  // bisa menyampaikan kode itu ke fungsi ini untuk user lama.
+  //
+  // Aman karena baris `mentor_profiles` BUKAN bukti otorisasi (keputusan C-2):
+  // otorisasi hanya dari `user_roles` lewat current_user_has_role(). Fungsi ini
+  // murni menyediakan baris data domain.
   if (roleCode === "admin" || roleCode === "admin_academy" || roleCode === "mentor") {
     const { error } = await db.from("mentor_profiles").insert({ user_id: userId });
 

@@ -1,4 +1,5 @@
 ﻿import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { isActiveRoleCode } from "@/features/auth/roles";
 import { type Role, type School, type SchoolInternOption, type UserProfile, type UserRole } from "./types";
 
 export async function getSuperAdminUserManagementData() {
@@ -44,9 +45,21 @@ export async function getSuperAdminUserManagementData() {
     };
   });
 
+  // Dropdown penetapan peran hanya boleh menawarkan peran login yang berlaku.
+  // Baris `mentor` dan `admin_academy` sengaja DIBIARKAN hidup di tabel `roles`
+  // oleh migrasi 0028 (`user_roles.role_id` adalah ON DELETE CASCADE, jadi
+  // menghapusnya ikut menghapus riwayat penempatan), jadi kueri ini masih
+  // mengembalikannya.
+  //
+  // Disaring di sini, bukan lewat `.eq("is_assignable", true)`: kolom itu baru
+  // ada SETELAH 0028 dijalankan, dan filter PostgREST atas kolom yang belum ada
+  // menggagalkan seluruh kueri — halaman super-admin akan mati total. Setelah
+  // 0028 diterapkan, filter database boleh ditambahkan sebagai lapis kedua.
+  const assignableRoles = (rolesResult.data ?? []).filter((role) => isActiveRoleCode(role.code));
+
   return {
     profiles: mergedProfiles,
-    roles: rolesResult.data ?? [],
+    roles: assignableRoles,
     userRoles: userRolesResult.data ?? [],
     schools: schoolsResult.data ?? [],
     error: profilesResult.error ?? rolesResult.error ?? userRolesResult.error ?? (authUsersResult.error as any) ?? schoolsResult.error ?? schoolContactsResult.error ?? internProfilesResult.error,
@@ -165,6 +178,12 @@ export async function detectMissingDomainProfiles() {
   // Satu user bisa memegang beberapa role staf (admin + admin_academy), tapi
   // profil pembimbingnya hanya satu baris. Tanpa dedup, satu kekurangan yang
   // sama akan terhitung dua kali di laporan maupun di hasil backfill.
+  //
+  // Kode legacy `admin_academy`/`mentor` SENGAJA masih dihitung di bawah: baris
+  // `user_roles` lama dibiarkan hidup oleh migrasi 0028, dan user lama itu tetap
+  // butuh baris `mentor_profiles`-nya. Baris itu bukan bukti otorisasi
+  // (keputusan C-2) — otorisasi tetap lewat `getUserRoleCodes`, yang menyaring
+  // kode legacy — jadi menghitungnya di sini tidak memberi hak apa pun.
   const seen = new Set<string>();
 
   for (const row of userRolesResult.data ?? []) {
