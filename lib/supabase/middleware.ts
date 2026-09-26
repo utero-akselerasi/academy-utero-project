@@ -2,9 +2,30 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { assertSupabaseEnv, hasSupabaseEnv } from "./config";
 
-export async function updateSession(request: NextRequest) {
+/**
+ * `extraRequestHeaders` diteruskan ke setiap NextResponse.next() di bawah.
+ *
+ * Dipakai proxy.ts untuk menitipkan header Content-Security-Policy berisi nonce
+ * ke request: Next.js membaca nonce dari header request itu untuk dipasang ke
+ * script bootstrap-nya sendiri. Header dibangun ulang dari request.headers
+ * setiap kali, bukan sekali di awal, karena request.cookies.set() di bawah
+ * memutakhirkan header cookie pada request - kalau headernya di-snapshot lebih
+ * dahulu, sesi yang baru disegarkan tidak ikut terkirim ke Server Component.
+ */
+export async function updateSession(
+  request: NextRequest,
+  extraRequestHeaders?: Record<string, string>,
+) {
+  const forwardedHeaders = () => {
+    const headers = new Headers(request.headers);
+    for (const [key, value] of Object.entries(extraRequestHeaders ?? {})) {
+      headers.set(key, value);
+    }
+    return headers;
+  };
+
   let response = NextResponse.next({
-    request,
+    request: { headers: forwardedHeaders() },
   });
 
   if (!hasSupabaseEnv()) {
@@ -37,7 +58,7 @@ export async function updateSession(request: NextRequest) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
 
         response = NextResponse.next({
-          request,
+          request: { headers: forwardedHeaders() },
         });
 
         cookiesToSet.forEach(({ name, value, options }) => {

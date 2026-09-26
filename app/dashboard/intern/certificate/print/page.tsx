@@ -6,6 +6,7 @@ import { getInternProfileId } from "@/features/daily-reports/queries";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { Award, GraduationCap } from "lucide-react";
+import { AutoPrint } from "@/features/shared/AutoPrint";
 
 type PageProps = {
   searchParams: Promise<{ internId?: string }>;
@@ -59,7 +60,7 @@ export default async function PrintCertificatePage({ searchParams }: PageProps) 
 
   return (
     <div className="bg-white min-h-screen p-8 flex flex-col items-center justify-center font-serif text-slate-800 relative select-none">
-      <script dangerouslySetInnerHTML={{ __html: `window.onload = function() { window.print(); }` }} />
+      <AutoPrint />
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           @page {

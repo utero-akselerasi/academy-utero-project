@@ -1,6 +1,7 @@
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { getInternDailyReports } from "@/features/daily-reports/queries";
 import { redirect } from "next/navigation";
+import { AutoPrint } from "@/features/shared/AutoPrint";
 
 type Props = {
   params: Promise<{ internId: string }>;
@@ -62,7 +63,7 @@ export default async function PrintDailyReportPage({ params, searchParams }: Pro
   return (
     <div className="bg-white min-h-screen text-slate-900 p-8 font-sans max-w-4xl mx-auto A4-print">
       {/* Autoprint script */}
-      <script dangerouslySetInnerHTML={{ __html: `window.onload = function() { window.print(); }` }} />
+      <AutoPrint />
 
       {/* CSS Styling for Print and A4 page setup */}
       <style dangerouslySetInnerHTML={{ __html: `
