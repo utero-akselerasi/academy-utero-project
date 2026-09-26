@@ -56,9 +56,14 @@ export default async function SchoolReportsPage({ searchParams }: { searchParams
                     <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700">{report.status}</span>
                   </td>
                   <td className="px-6 py-4">
-                    {/* Nilai sudah signed URL dari queries.ts; null berarti gagal ditandatangani. */}
+                    {/* Nilai sudah signed URL dari queries.ts; null berarti gagal ditandatangani.
+
+                        `rel` memuat `noreferrer`, bukan cuma `noopener`: href-nya
+                        signed URL yang membawa token akses di query string. Tanpa
+                        `noreferrer`, token itu terkirim ke situs tujuan lewat
+                        header Referer. */}
                     {report.daily_report_attachments?.[0]?.file_path ? (
-                      <a href={report.daily_report_attachments[0].file_path} className="text-sm font-bold text-teal-700 hover:text-teal-800" target="_blank" rel="noopener">Lihat Lampiran</a>
+                      <a href={report.daily_report_attachments[0].file_path} className="text-sm font-bold text-teal-700 hover:text-teal-800" target="_blank" rel="noopener noreferrer">Lihat Lampiran</a>
                     ) : (
                       <span className="text-slate-400">-</span>
                     )}
@@ -99,7 +104,7 @@ export default async function SchoolReportsPage({ searchParams }: { searchParams
                   <td className="px-6 py-4 text-slate-500">{new Date(report.created_at).toLocaleDateString("id-ID")}</td>
                   <td className="px-6 py-4">
                     {report.file_path && (
-                      <a href={report.file_path} className="text-sm font-bold text-teal-700 hover:text-teal-800" target="_blank" rel="noopener">Download CSV</a>
+                      <a href={report.file_path} className="text-sm font-bold text-teal-700 hover:text-teal-800" target="_blank" rel="noopener noreferrer">Download CSV</a>
                     )}
                   </td>
                 </tr>

@@ -427,7 +427,9 @@ export async function reviewPermitAction(formData: FormData) {
 
   // Generate attendances if approved
   if (status === "approved") {
-    let current = new Date(permit.start_date);
+    // `const`, walau isinya berubah tiap iterasi: `setDate()` di bawah
+    // memutasi objek Date-nya, bukan menugaskan ulang variabelnya.
+    const current = new Date(permit.start_date);
     const end = new Date(newEndDate);
     const inserts = [];
     while (current <= end) {

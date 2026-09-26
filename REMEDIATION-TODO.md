@@ -346,7 +346,18 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
   - `dynamic = "force-dynamic"` + `cache-control: no-store` — respons ter-cache akan melaporkan "sehat" dari container yang sudah mati.
   - Karena dikecualikan dari matcher, header keamanan dipasang sendiri di route ini lewat `applySecurityHeaders` — pengecualian matcher tidak boleh sekalian jadi pengecualian header.
 - [ ] B6.5 Ganti `apply-migration.js` dengan runner berurutan yang gagal-keras (M-14) — **dipindah ke B0.2c sebagai prasyarat**, bukan lagi item Batch 6: tanpa runner yang gagal-keras, menerapkan migrasi B0.1 ke produksi tidak aman
-- [ ] B6.6 Script `lint` + CI: install → lint → typecheck → build → test (H-8)
+- [x] B6.6 Script `lint` + CI: install → lint → typecheck → build → test (H-8)
+  - **`next lint` sudah dihapus di Next.js 16** — tidak ada `next-lint.js` di `node_modules/next/dist/cli/`. Jadi tidak ada linter apa pun yang bisa dijalankan di repo ini sebelum ini; eslint dipasang sebagai devDependency dan dipanggil langsung.
+  - **eslint dipin ke `^9`, bukan 10.** `eslint-plugin-react` yang dibundel `eslint-config-next@16.3.6` belum mendukung eslint 10: hasilnya `TypeError: contextOrFilename.getFilename is not a function` saat memuat rule `react/display-name`, yaitu lint **gagal jalan sama sekali**. Alasannya dicatat di `eslint.config.mjs` supaya tidak "diperbaiki" balik.
+  - Flat config tanpa `FlatCompat` — `eslint-config-next@16` sudah mengekspor array flat config asli.
+  - **Dua tingkat keparahan.** Basis `eslint-config-next` sendiri menghasilkan **157 error** di hari pertama; gate yang merah sejak commit pertama akan dimatikan orang. Jadi hanya aturan keamanan/kebenaran yang jadi `error` (`react-hooks/rules-of-hooks`, `react/jsx-no-target-blank`), sisanya `warn` — **tidak ada yang di-`off`**, supaya hitungannya tetap terlihat dan bisa diturunkan bertahap.
+  - **Lint langsung menemukan 2 kerentanan nyata:** `app/dashboard/school/reports/page.tsx:64,105` punya `target="_blank"` dengan `rel="noopener"` tapi **tanpa `noreferrer`** — dan href-nya signed URL yang membawa token akses di query string, jadi token itu terkirim ke situs tujuan lewat header `Referer`. Enam titik `target="_blank"` lain disapu dan aman.
+  - 4 error sisanya diperbaiki setelah dibaca satu per satu, bukan lewat `--fix`: `prefer-const` di `features/attendance/actions.ts` sempat terlihat berbahaya karena `current` ada di dalam `while`, tapi `setDate()` **memutasi objek Date**, bukan menugaskan ulang variabel — jadi `const` benar. `require()` di `features/daily-reports/actions.ts` dinaikkan jadi import statis setelah dipastikan `lib/notification.ts` tidak punya efek samping di level modul.
+  - Hasil akhir: **0 error**, 253 warning. `npm run lint:ci` (`--quiet`) EXIT=0.
+  - `.github/workflows/ci.yml` baru (sebelumnya repo **tidak punya CI sama sekali**): `npm ci` → `lint:ci` → `lint` (laporan) → `typecheck` → `build` → `npm audit` (laporan). Env Supabase di langkah build **sengaja placeholder palsu dan hardcoded**, bukan GitHub Secrets — build tidak pernah menghubungi Supabase, jadi menaruh kunci asli di CI hanya memperluas permukaan kebocoran.
+  - Langkah `test` **belum ada dan itu disengaja** — lihat B6.7; `npm test` yang pasti gagal akan membuat gate ini dimatikan.
+  - Tiga skrip mati di root dihapus: `test-schema.js`, `test-revisi-error.js`, dan **`_fix_admin_queries_to_srv.js`** — codemod yang plan sebut sebagai akar masalah lubang RLS. Dipastikan sudah teraplikasi ke `features/admin/queries.ts` sebelum dihapus.
+  - Verifikasi: `tsc --noEmit` EXIT=0, `npm run build` EXIT=0.
 - [ ] B6.7 **Tidak ada test framework sama sekali** (`package.json` hanya `dev`/`build`/`start`/`typecheck`). Matriks test otorisasi per role × action/route (H-8) — ini yang membuat semua `[~]` di atas tidak bisa naik jadi `[x]`
 
 ## Batch 7 — Aksesibilitas

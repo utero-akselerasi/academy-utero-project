@@ -23,7 +23,7 @@ export default async function PrintCertificatePage({ searchParams }: PageProps) 
   // mencetak sertifikat peserta lain (nama, email, nomor sertifikat) hanya
   // dengan menukar UUID di URL.
   const selfProfileId = await getInternProfileId(user.id);
-  let targetInternProfileId = internId ?? selfProfileId ?? undefined;
+  const targetInternProfileId = internId ?? selfProfileId ?? undefined;
   if (!targetInternProfileId) notFound();
 
   if (targetInternProfileId !== selfProfileId) {

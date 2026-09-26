@@ -1,0 +1,101 @@
+# Gate CI: install -> lint -> typecheck -> build.
+#
+# Tidak ada langkah `test`. Itu bukan kelalaian: repo ini **tidak punya test
+# framework sama sekali** — nol vitest/jest/playwright, nol berkas `*.test.*`.
+# Menambahkan `npm test` yang pasti gagal hanya akan membuat gate ini dimatikan
+# orang. Langkah test ditambahkan di B6.7, bersama framework-nya.
+#
+# Yang jadi jaring verifikasi sekarang: `typecheck`. Karena tidak ada test,
+# `tsc` adalah satu-satunya hal yang membuktikan konsistensi tipe lintas modul,
+# jadi langkah itu tidak boleh `continue-on-error`.
+
+name: CI
+
+on:
+  push:
+    branches: [main, security-remediation]
+  pull_request:
+    branches: [main]
+
+# Batalkan run lama pada ref yang sama: PR yang di-push berkali-kali tidak perlu
+# menyelesaikan build yang sudah usang.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Hanya baca. Job ini tidak menulis apa pun ke repo, jadi token default
+# GitHub Actions (yang defaultnya bisa menulis) dipersempit di sini.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Tidak butuh riwayat penuh; ini mempercepat checkout dan membatasi
+          # data yang ikut masuk ke runner.
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          # Satu sumber kebenaran: baca dari `engines.node` di package.json,
+          # jangan tulis versi di dua tempat yang bisa menyimpang.
+          node-version-file: package.json
+          cache: npm
+
+      # `npm ci`, bukan `npm install`: hanya `ci` yang gagal kalau
+      # package-lock.json tidak sinkron dengan package.json. Itulah poin
+      # mengunci lockfile di B6.1 — CI harus memasang versi yang persis sama
+      # dengan yang ada di commit.
+      #
+      # `.npmrc` repo menyetel `ignore-scripts=true`, jadi skrip postinstall
+      # dependensi tidak dijalankan di runner.
+      - name: Install
+        run: npm ci
+
+      # `--quiet`: hanya `error` yang menggagalkan CI. Peringatan tetap
+      # dihitung dan bisa dilihat di langkah berikutnya, tapi 253 warning
+      # warisan tidak boleh memblokir commit baru. Lihat alasan pembagian
+      # error/warn di eslint.config.mjs.
+      - name: Lint (error saja — menggagalkan build)
+        run: npm run lint:ci
+
+      # Jumlah peringatan dicetak supaya terlihat naik-turunnya dari waktu ke
+      # waktu. `continue-on-error` disengaja: ini laporan, bukan gate.
+      - name: Lint (semua, termasuk peringatan — laporan)
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Build memprerender halaman, dan prerender menyentuh lib/supabase/config.ts
+      # yang melempar error kalau env Supabase kosong (lib/supabase/config.ts:10).
+      #
+      # Nilai di bawah **sengaja palsu dan hardcoded**, bukan secret repo:
+      # build tidak pernah menghubungi Supabase, jadi CI tidak perlu — dan tidak
+      # boleh — memegang kredensial produksi. Kunci anon asli di GitHub Secrets
+      # hanya akan memperluas permukaan kebocoran tanpa manfaat.
+      #
+      # Bentuk URL-nya tetap harus URL valid karena `new URL(raw).origin`
+      # dipakai untuk menyusun CSP (lib/security-headers.ts:18).
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.invalid
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+        run: npm run build
+
+      # `npm audit` diletakkan terakhir dan tidak memblokir: advisory baru
+      # muncul tanpa ada perubahan kode, jadi menjadikannya gate berarti CI
+      # bisa merah di commit yang tidak menyentuh dependensi apa pun. Tapi
+      # hasilnya harus terlihat — RCE tanpa autentikasi di next@16.2.9
+      # (GHSA-p293-qw3h-jr36, CVSS 9.0) baru ketemu justru dari perintah ini.
+      - name: Audit dependensi (laporan)
+        run: npm audit --audit-level=high
+        continue-on-error: true

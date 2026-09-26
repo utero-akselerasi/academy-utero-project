@@ -44,3 +44,9 @@ Thumbs.db
 .kiro/settings/
 .mcp.json
 .vscode/mcp.json
+
+# Artefak alat bantu lokal, bukan kode. Di-ignore supaya tidak ikut ter-`git add -A`
+# bersama perubahan nyata — `.codegraph/` khususnya berisi indeks yang besar dan
+# berubah setiap kali repo dibaca.
+.codegraph/
+.audit-*.txt

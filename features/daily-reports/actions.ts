@@ -1,6 +1,7 @@
 "use server";
 
 import { requireAdmin, requireUser } from "@/features/auth/guards";
+import { notifyDailyReportRevisionRequested } from "@/lib/notification";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
@@ -216,7 +217,7 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
           }
 
           if (boardId) {
-            let { data: lists } = await db
+            const { data: lists } = await db
               .from("task_lists")
               .select("id")
               .eq("board_id", boardId)
@@ -342,7 +343,6 @@ export async function reviewDailyReportAction(formData: FormData) {
       if (report) {
         const intern = Array.isArray(report.intern_profiles) ? report.intern_profiles[0] : report.intern_profiles;
         if (intern) {
-          const { notifyDailyReportRevisionRequested } = require("@/lib/notification");
           await notifyDailyReportRevisionRequested(
             intern.email,
             intern.phone,
