@@ -3,6 +3,7 @@ import { requireUser } from "@/features/auth/guards";
 import { getUserRoleCodes } from "@/features/auth/roles";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { getInternProfileId } from "@/features/daily-reports/queries";
+import { SIGNED_URL_TTL, resolveStorageUrl } from "@/lib/storage-urls";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { Award, GraduationCap } from "lucide-react";
@@ -50,7 +51,13 @@ export default async function PrintCertificatePage({ searchParams }: PageProps) 
     .select("certificate_template_path")
     .eq("id", "00000000-0000-0000-0000-000000000001")
     .maybeSingle();
-  const templatePath = settings?.certificate_template_path || null;
+  // TTL panjang (`print`, 6 jam) khusus jalur ini. Nilainya disuntikkan ke CSS
+  // `background-image: url(...)`, dan rasterisasi cetak baru terjadi setelah
+  // pengguna menekan Print di dialog browser — bisa jauh setelah halaman dimuat.
+  // TTL default 1 jam berisiko kedaluwarsa sebelum gambarnya benar-benar dipakai.
+  const templateUrl = await resolveStorageUrl("avatars", settings?.certificate_template_path, {
+    expiresIn: SIGNED_URL_TTL.print,
+  });
 
   if (error || !cert || cert.status !== "issued") {
     notFound();
@@ -96,19 +103,19 @@ export default async function PrintCertificatePage({ searchParams }: PageProps) 
 
       <div 
         className={"print-container p-12 max-w-4xl w-full rounded shadow-sm text-center relative overflow-hidden my-auto aspect-[1.414/1] " + (
-          templatePath 
+          templateUrl 
             ? "border-0 bg-transparent" 
             : "border-[16px] border-double border-teal-800 bg-stone-50/20"
         )}
-        style={templatePath ? { backgroundImage: 'url(' + templatePath + ')', backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+        style={templateUrl ? { backgroundImage: 'url(' + templateUrl + ')', backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
       >
-        {!templatePath && (
+        {!templateUrl && (
           <div className="absolute inset-0 opacity-[0.03] flex items-center justify-center pointer-events-none">
             <GraduationCap size={450} className="text-teal-900" />
           </div>
         )}
 
-        {!templatePath && (
+        {!templateUrl && (
           <>
             <div className="absolute top-2 left-2 border-t-2 border-l-2 border-amber-600 h-8 w-8" />
             <div className="absolute top-2 right-2 border-t-2 border-r-2 border-amber-600 h-8 w-8" />

@@ -1,3 +1,4 @@
+import { resolveStorageUrl } from "@/lib/storage-urls";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
 /**
@@ -123,5 +124,18 @@ export async function getAttendanceSettings() {
     .eq("id", "00000000-0000-0000-0000-000000000001")
     .maybeSingle();
 
-  return data;
+  if (!data) return data;
+
+  // Template sertifikat ada di bucket privat `avatars` dengan prefix literal
+  // `settings/`, BUKAN `{userId}/`. Karena itu bucket privat tidak bisa memakai
+  // predikat owner-scoped `(storage.foldername(name))[1] = auth.uid()::text`;
+  // pembacaannya hanya lewat signed URL dari server (lihat 0032a).
+  //
+  // Halaman cetak (`app/dashboard/intern/certificate/print/page.tsx`)
+  // menandatangani kolom yang sama secara terpisah dengan TTL `print` yang lebih
+  // panjang — di sini TTL default sudah cukup karena hanya jadi tautan pratinjau.
+  return {
+    ...data,
+    certificate_template_path: await resolveStorageUrl("avatars", data.certificate_template_path),
+  };
 }

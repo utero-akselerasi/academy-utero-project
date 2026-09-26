@@ -196,12 +196,12 @@ export async function uploadCertificateTemplateAction(formData: FormData) {
     throw new Error("Gagal mengunggah template sertifikat.");
   }
 
-  const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(filePath);
-
+  // Object path, bukan URL publik. Dibaca lewat `resolveStorageUrl("avatars", …)`
+  // di `features/assessments/queries.ts` dan di halaman cetak sertifikat.
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db.from("attendance_settings").upsert({
     id: "00000000-0000-0000-0000-000000000001",
-    certificate_template_path: publicUrl,
+    certificate_template_path: filePath,
     updated_at: new Date().toISOString()
   });
 
