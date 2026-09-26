@@ -1,6 +1,7 @@
 import { ArticleAddons } from "@/features/public/article-addons/ArticleAddons";
 import { normalizeArticleAddons } from "@/features/public/article-addons/normalize";
 import { artikelApiConfigured, getArtikelArticle } from "@/lib/artikel/api";
+import { resolveStorageUrl } from "@/lib/storage-urls";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar, User } from "lucide-react";
@@ -24,6 +25,16 @@ export default async function BlogDetailPage({ params }: Props) {
     const db = await createUteroAcademyServiceRoleClient();
     const result = await db.from("articles").select("id, title, content, cover_path, created_at, author_id").eq("slug", slug).eq("status", "published").maybeSingle();
     article = result.data;
+    if (article) {
+      // Halaman ini punya kueri sendiri, bukan lewat `getCmsData()`, jadi
+      // resolusi `cover_path` harus diulang di sini.
+      //
+      // Hanya di cabang DB. Cabang `artikelApiConfigured()` di atas mengembalikan
+      // URL dari `cms.carubra.com` — bucket asing yang `toObjectPath` justru
+      // memetakan ke `null`, jadi menyentuhnya akan menghapus gambar artikel
+      // eksternal.
+      article.cover_path = await resolveStorageUrl("article", article.cover_path);
+    }
     if (article?.author_id) {
       const { data: author } = await db.from("user_profiles").select("full_name").eq("id", article.author_id).maybeSingle();
       authorName = author?.full_name || authorName;

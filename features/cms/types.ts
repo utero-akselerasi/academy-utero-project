@@ -37,7 +37,12 @@ export type Gallery = {
   id: string;
   site_id: string;
   title: string;
-  image_path: string;
+  /**
+   * Sudah diselesaikan di `queries.ts`; `null` kalau nilainya kosong atau bukan
+   * objek storage yang dikenal. Bucket `gallery` publik, jadi ini URL publik
+   * tanpa token — lihat catatan di `getCmsData`.
+   */
+  image_path: string | null;
   description: string | null;
   order_index: number;
   status: PublishStatus;
@@ -64,7 +69,10 @@ export type LandingPageSettings = {
   id: string;
   hero_title: string;
   hero_description: string;
+  /** Nilai mentah DB (object path). Untuk dikirim balik lewat form, bukan dirender. */
   hero_image_path?: string | null;
+  /** Hasil resolusi untuk dirender. Lihat `getLandingPageSettings`. */
+  hero_image_url?: string | null;
   partnerships?: any;
   skills: any;
   expertisers: any;

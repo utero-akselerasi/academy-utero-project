@@ -76,10 +76,12 @@ export async function createTestimonialAction(formData: FormData) {
   if (!siteId || !name || !quote) throw new Error("Nama dan quote testimoni wajib diisi.");
 
   const db = await createUteroAcademyServiceRoleClient();
-  let photoUrl: string | null = null;
+  let photoPath: string | null = null;
 
   if (file && file.size > 0) {
-    // Ekstensi & MIME dari isi berkas; bucket "gallery" publik.
+    // Ekstensi & MIME tetap divalidasi dari isi berkas meski bucket "gallery"
+    // publik: validasinya menahan berkas yang menyamar sebagai gambar, terpisah
+    // dari soal siapa yang boleh membacanya.
     let photo;
     try {
       photo = await validateUpload(file, ["image"]);
@@ -104,8 +106,8 @@ export async function createTestimonialAction(formData: FormData) {
       throw new Error("Gagal mengunggah foto testimoni.");
     }
 
-    const { data: { publicUrl } } = supabase.storage.from("gallery").getPublicUrl(filePath);
-    photoUrl = publicUrl;
+    // Object path, bukan URL publik. Diselesaikan di `getCmsData()`.
+    photoPath = filePath;
   }
 
   const { data: maxOrder } = await db
@@ -123,7 +125,7 @@ export async function createTestimonialAction(formData: FormData) {
     name,
     role: role || null,
     quote,
-    photo_path: photoUrl,
+    photo_path: photoPath,
     order_index: nextOrder,
     status: "published"
   });
@@ -164,7 +166,7 @@ export async function createGalleryAction(formData: FormData) {
     throw new Error("Judul dan file gambar wajib diunggah.");
   }
 
-  // Ekstensi & MIME dari isi berkas; bucket "gallery" publik.
+  // Validasi isi berkas tetap berlaku meski bucket "gallery" publik.
   let image;
   try {
     image = await validateUpload(file, ["image"]);
@@ -189,8 +191,6 @@ export async function createGalleryAction(formData: FormData) {
     throw new Error("Gagal mengunggah file gambar.");
   }
 
-  const { data: { publicUrl } } = supabase.storage.from("gallery").getPublicUrl(filePath);
-
   const db = await createUteroAcademyServiceRoleClient();
 
   const { data: maxOrder } = await db
@@ -207,7 +207,8 @@ export async function createGalleryAction(formData: FormData) {
     site_id: siteId,
     title,
     description: description || null,
-    image_path: publicUrl,
+    // Object path, bukan URL publik. Diselesaikan di `getCmsData()`.
+    image_path: filePath,
     order_index: nextOrder,
     status: "published"
   });
@@ -248,10 +249,10 @@ export async function createArticleAction(formData: FormData) {
   if (!siteId || !title || !contentText) throw new Error("Judul dan konten artikel wajib diisi.");
 
   const db = await createUteroAcademyServiceRoleClient();
-  let coverUrl: string | null = null;
+  let coverPath: string | null = null;
 
   if (file && file.size > 0) {
-    // Ekstensi & MIME dari isi berkas; bucket "article" publik.
+    // Validasi isi berkas tetap berlaku meski bucket "article" publik.
     let cover;
     try {
       cover = await validateUpload(file, ["image"]);
@@ -276,8 +277,8 @@ export async function createArticleAction(formData: FormData) {
       throw new Error("Gagal mengunggah gambar cover.");
     }
 
-    const { data: { publicUrl } } = supabase.storage.from("article").getPublicUrl(filePath);
-    coverUrl = publicUrl;
+    // Object path, bukan URL publik. Diselesaikan di `getCmsData()`.
+    coverPath = filePath;
   }
 
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -288,7 +289,7 @@ export async function createArticleAction(formData: FormData) {
     slug,
     excerpt: excerpt || null,
     content: { text: contentText },
-    cover_path: coverUrl,
+    cover_path: coverPath,
     status: "published",
     author_id: user.id,
     published_at: new Date().toISOString()
@@ -356,9 +357,10 @@ export async function submitInternTestimonialAction(formData: FormData) {
 
   if (!quote) throw new Error("Kutipan testimoni wajib diisi.");
 
-  let photoUrl = null;
+  let photoPath: string | null = null;
   if (file && file.size > 0) {
-    // Ekstensi & MIME dari isi berkas; bucket "gallery" publik.
+    // Validasi isi berkas tetap berlaku meski bucket "gallery" publik — dan di
+    // sini ekstra penting: pengunggahnya peserta, bukan staf.
     let photo;
     try {
       photo = await validateUpload(file, ["image"]);
@@ -374,8 +376,8 @@ export async function submitInternTestimonialAction(formData: FormData) {
       .from("gallery")
       .upload(filePath, photo.buffer, { contentType: photo.contentType, upsert: false });
     if (!uploadError) {
-      const { data: { publicUrl } } = supabaseService.storage.from("gallery").getPublicUrl(filePath);
-      photoUrl = publicUrl;
+      // Object path, bukan URL publik. Diselesaikan di `getCmsData()`.
+      photoPath = filePath;
     }
   }
 
@@ -387,7 +389,7 @@ export async function submitInternTestimonialAction(formData: FormData) {
     name: internProfile.full_name,
     role: "Alumni Magang - " + (internProfile.major || "Utero Academy"),
     quote,
-    photo_path: photoUrl,
+    photo_path: photoPath,
     order_index: nextOrder,
     status: "draft",
     intern_id: internProfile.id
@@ -406,7 +408,10 @@ export async function updateLandingPageSettingsAction(formData: FormData) {
   await requireAdminUser();
   const heroTitle = formData.get("heroTitle") as string;
   const heroDescription = formData.get("heroDescription") as string;
-  const heroImageUrl = formData.get("heroImageUrl") as string;
+  // Object path dari `LandingPageEditor`, bukan URL. Dulu `heroImageUrl`: nilai
+  // tersimpan dimuat ke state klien lalu dikirim balik apa adanya, jadi nama itu
+  // membuat penulisan URL penuh kembali ke DB terlihat benar.
+  const heroImagePath = formData.get("heroImagePath") as string;
   const skillsJson = formData.get("skillsJson") as string;
   const expertisersJson = formData.get("expertisersJson") as string;
   const aboutText = formData.get("aboutText") as string;
@@ -449,7 +454,7 @@ export async function updateLandingPageSettingsAction(formData: FormData) {
       id: "00000000-0000-0000-0000-000000000002",
       hero_title: heroTitle,
       hero_description: heroDescription,
-      hero_image_path: heroImageUrl || null,
+      hero_image_path: heroImagePath || null,
       skills,
       expertisers,
       about_text: aboutText || null,
@@ -470,7 +475,24 @@ export async function updateLandingPageSettingsAction(formData: FormData) {
   revalidatePath("/dashboard/admin/cms");
 }
 
-export async function uploadCmsFileAction(formData: FormData): Promise<string> {
+/**
+ * Mengunggah satu berkas CMS, lalu mengembalikan **path dan URL sekaligus**.
+ *
+ * Sebelumnya hanya URL yang dikembalikan, jadi object path-nya hilang di batas
+ * klien — dan `hero_image_path` yang bolak-balik lewat input tersembunyi di
+ * `LandingPageEditor` tidak punya path untuk dikirim balik.
+ *
+ * Empat pemanggilnya perlu bentuk berbeda, dan itu bukan inkonsistensi:
+ *
+ * - `hero_image_path` adalah **kolom** tersendiri, jadi ia menyimpan `path`;
+ *   `getLandingPageSettings` yang menyelesaikannya saat dibaca.
+ * - `skills[].icon_url`, `expertisers[].avatar`, `partnerships[].logo_url` ada di
+ *   dalam JSONB bebas-isi yang juga memuat path aset lokal dan URL eksternal.
+ *   Tidak ada lapisan yang bisa menyelesaikannya tanpa merusak kedua bentuk itu,
+ *   jadi ketiganya menyimpan `url`. Aman karena bucket `gallery` tetap publik:
+ *   URL-nya tanpa token dan tidak kedaluwarsa.
+ */
+export async function uploadCmsFileAction(formData: FormData): Promise<{ path: string; url: string }> {
   await requireAdminUser();
   const file = formData.get("file") as File;
   if (!file || file.size === 0) {
@@ -503,5 +525,5 @@ export async function uploadCmsFileAction(formData: FormData): Promise<string> {
   }
 
   const { data: { publicUrl } } = supabase.storage.from("gallery").getPublicUrl(filePath);
-  return publicUrl;
+  return { path: filePath, url: publicUrl };
 }

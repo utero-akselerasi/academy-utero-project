@@ -95,7 +95,9 @@ export default async function HomePage() {
   const heroDescription = dbSettings?.hero_description || "Platform edukasi yang siap menciptakan desain karir on top";
   const displaySkills = dbSettings?.skills && dbSettings.skills.length > 0 ? dbSettings.skills : skills;
   const displayExpertisers = dbSettings?.expertisers && dbSettings.expertisers.length > 0 ? dbSettings.expertisers : expertisers;
-  const heroImageUrl = dbSettings?.hero_image_path || null;
+  // `hero_image_url`, bukan `hero_image_path`: yang kedua adalah object path
+  // mentah yang hanya dipakai form admin. Lihat `getLandingPageSettings()`.
+  const heroImageUrl = dbSettings?.hero_image_url || null;
 
   const activeArticles = cmsData.articles.filter(a => a.status === "published").slice(0, 3);
   const activeFaqs = cmsData.faqs.filter(f => f.status === "published").slice(0, 4);

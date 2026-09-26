@@ -16,7 +16,15 @@ export function LandingPageEditor({ landingSettings }: Props) {
   const [skillsList, setSkillsList] = useState<any[]>(landingSettings?.skills || []);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [expertsList, setExpertsList] = useState<any[]>(landingSettings?.expertisers || []);
-  const [heroImageUrl, setHeroImageUrl] = useState<string>(landingSettings?.hero_image_path || "");
+  // Dua state, bukan satu: `heroImagePath` yang dikirim balik ke server lewat
+  // input tersembunyi, dan `heroImagePreviewUrl` yang dirender di <img>.
+  //
+  // Menggabungkannya adalah jebakannya: nilai tersimpan dimuat ke state lalu
+  // dikirim balik apa adanya saat Simpan. Kalau state itu berisi URL hasil
+  // resolusi, setiap penyimpanan menulis URL penuh kembali ke DB dan membatalkan
+  // konversi ke object path.
+  const [heroImagePath, setHeroImagePath] = useState<string>(landingSettings?.hero_image_path || "");
+  const [heroImagePreviewUrl, setHeroImagePreviewUrl] = useState<string>(landingSettings?.hero_image_url || "");
   const [partnershipsList, setPartnershipsList] = useState<any[]>(landingSettings?.partnerships || []);
   const [uploadingPartnerIndex, setUploadingPartnerIndex] = useState<number | null>(null);
   const [uploadingSkillIndex, setUploadingSkillIndex] = useState<number | null>(null);
@@ -28,7 +36,9 @@ export function LandingPageEditor({ landingSettings }: Props) {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const url = await uploadCmsFileAction(formData);
+      // `expertisers` JSONB bebas-isi (bisa berisi `/images/expert-*.jpg`), jadi
+      // yang disimpan URL, bukan path. Lihat catatan di `uploadCmsFileAction`.
+      const { url } = await uploadCmsFileAction(formData);
       updateExpert(index, "avatar", url);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Gagal mengunggah gambar.");
@@ -43,8 +53,11 @@ export function LandingPageEditor({ landingSettings }: Props) {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const url = await uploadCmsFileAction(formData);
-      setHeroImageUrl(url);
+      // Kolom tersendiri, jadi yang dikirim balik ke server adalah path; URL-nya
+      // hanya untuk pratinjau di form ini.
+      const { path, url } = await uploadCmsFileAction(formData);
+      setHeroImagePath(path);
+      setHeroImagePreviewUrl(url);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Gagal mengunggah gambar.");
     } finally {
@@ -58,7 +71,7 @@ export function LandingPageEditor({ landingSettings }: Props) {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const url = await uploadCmsFileAction(formData);
+      const { url } = await uploadCmsFileAction(formData);
       updatePartner(index, "logo_url", url);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Gagal mengunggah logo.");
@@ -73,7 +86,7 @@ export function LandingPageEditor({ landingSettings }: Props) {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const url = await uploadCmsFileAction(formData);
+      const { url } = await uploadCmsFileAction(formData);
       updateSkill(index, "icon_url", url);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Gagal mengunggah icon.");
@@ -189,7 +202,12 @@ export function LandingPageEditor({ landingSettings }: Props) {
         {/* Hidden Inputs untuk visual builder state */}
         <input type="hidden" name="skillsJson" value={JSON.stringify(skillsList)} />
         <input type="hidden" name="expertisersJson" value={JSON.stringify(expertsList)} />
-        <input type="hidden" name="heroImageUrl" value={heroImageUrl} />
+        {/*
+          Yang dikirim OBJECT PATH, bukan URL — field-nya ikut diganti nama jadi
+          `heroImagePath`. Nama lama (`heroImageUrl`) justru yang mengundang bug
+          ini: ia membuat pengiriman URL penuh kembali ke DB terlihat wajar.
+        */}
+        <input type="hidden" name="heroImagePath" value={heroImagePath} />
         <input type="hidden" name="partnershipsJson" value={JSON.stringify(partnershipsList)} />
 
         {/* Sub-tab 1: Hero */}
@@ -219,9 +237,9 @@ export function LandingPageEditor({ landingSettings }: Props) {
           <div className="form-field">
             <label className="form-label text-xs font-bold text-slate-700">Hero Image / Banner *</label>
             <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-slate-50 p-4 rounded-xl border border-slate-200">
-              {heroImageUrl ? (
+              {heroImagePreviewUrl ? (
                 <div className="h-20 w-32 overflow-hidden rounded border border-slate-350 bg-slate-100 shrink-0">
-                  <img src={heroImageUrl} alt="Hero Banner" className="h-full w-full object-cover" />
+                  <img src={heroImagePreviewUrl} alt="Hero Banner" className="h-full w-full object-cover" />
                 </div>
               ) : (
                 <div className="h-20 w-32 rounded border border-slate-300 bg-slate-100 flex items-center justify-center shrink-0 text-slate-400 text-xs font-bold">

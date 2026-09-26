@@ -248,7 +248,19 @@ export function CmsManager({ site, faqs, testimonials, galleries, articles }: Pr
                 <div key={gal.id} className="surface p-2 border border-slate-200 rounded-xl bg-slate-50/20 flex flex-col justify-between hover:border-teal-500/30 transition-all">
                   <div className="w-full">
                     <div className="h-28 overflow-hidden rounded bg-slate-100 relative group">
-                      <ImagePreview src={gal.image_path} alt={gal.title} className="h-full w-full object-cover" />
+                      {/*
+                        `image_path` dulu bertipe `string` non-null, jadi tidak
+                        pernah ada cabang kosong. Setelah resolusi di `getCmsData()`
+                        ia bisa `null` — objek yatim (baris DB ada, berkasnya tidak)
+                        wajar di data ini karena repo belum punya `storage.remove()`.
+                      */}
+                      {gal.image_path ? (
+                        <ImagePreview src={gal.image_path} alt={gal.title} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center text-[10px] font-bold text-slate-400">
+                          Gambar tidak tersedia
+                        </div>
+                      )}
                     </div>
                     <h4 className="text-xs font-bold text-slate-900 mt-2 truncate" title={gal.title}>{gal.title}</h4>
                     {gal.description && (
