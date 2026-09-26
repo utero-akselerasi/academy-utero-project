@@ -1,7 +1,10 @@
 import { getInternCertificate } from "@/features/assessments/queries";
+import { requireUser } from "@/features/auth/guards";
+import { getUserRoleCodes } from "@/features/auth/roles";
+import { resolveStaffInternScope } from "@/features/auth/scope";
 import { getInternProfileId } from "@/features/daily-reports/queries";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { Award, GraduationCap } from "lucide-react";
 
 type PageProps = {
@@ -11,15 +14,24 @@ type PageProps = {
 export default async function PrintCertificatePage({ searchParams }: PageProps) {
   const { internId } = await searchParams;
 
+  const user = await requireUser();
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
 
-  let targetInternProfileId = internId;
-  if (!targetInternProfileId) {
-    const selfProfileId = await getInternProfileId(user.id);
-    if (!selfProfileId) notFound();
-    targetInternProfileId = selfProfileId;
+  // ?internId= sebelumnya diterima apa adanya, jadi peserta mana pun bisa
+  // mencetak sertifikat peserta lain (nama, email, nomor sertifikat) hanya
+  // dengan menukar UUID di URL.
+  const selfProfileId = await getInternProfileId(user.id);
+  let targetInternProfileId = internId ?? selfProfileId ?? undefined;
+  if (!targetInternProfileId) notFound();
+
+  if (targetInternProfileId !== selfProfileId) {
+    const roles = await getUserRoleCodes(user.id);
+    const isStaff = roles.includes("super_admin") || roles.includes("admin") || roles.includes("admin_academy");
+    if (!isStaff) notFound();
+
+    const scope = await resolveStaffInternScope(user.id);
+    if (scope.kind === "setup_required") notFound();
+    if (scope.kind === "scoped" && !scope.internIds.includes(targetInternProfileId)) notFound();
   }
 
   // Ambil nama user profil dari target intern

@@ -1,13 +1,12 @@
 ﻿import Link from "next/link";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireUser } from "@/features/auth/guards";
 import { redirect } from "next/navigation";
 import { getSchoolProfile, getSchoolReports, getSchoolInternsDailyReports } from "@/features/school/queries";
+import { GenerateReportForm } from "@/features/school/components/GenerateReportForm";
 
 export default async function SchoolReportsPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
   const { from, to } = await searchParams;
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const user = await requireUser();
 
   const { data: schoolProfile } = await getSchoolProfile(user.id);
   if (!schoolProfile) redirect("/dashboard/school");
@@ -28,19 +27,7 @@ export default async function SchoolReportsPage({ searchParams }: { searchParams
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-bold text-slate-900">Generate Laporan Baru</h2>
-        <form action="/dashboard/school/reports/generate" method="get" className="mt-4 grid gap-3 md:grid-cols-4">
-          <div>
-            <label className="mb-1 block text-xs font-bold text-slate-600">Dari Tanggal</label>
-            <input type="date" name="from" required defaultValue={from} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-bold text-slate-600">Sampai Tanggal</label>
-            <input type="date" name="to" required defaultValue={to} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          </div>
-          <div className="flex items-end">
-            <button type="submit" className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-800">Generate</button>
-          </div>
-        </form>
+        <GenerateReportForm defaultFrom={from} defaultTo={to} />
       </section>
 
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">

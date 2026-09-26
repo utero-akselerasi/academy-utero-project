@@ -3,6 +3,10 @@ import { RouteAuthorizationError, requireRouteRole } from "@/features/auth/guard
 import { buildCsv, csvResponseHeaders, type CsvCell } from "@/lib/csv";
 import { getSchoolProfile } from "@/features/school/queries";
 import { getSchoolReportMetrics } from "@/features/school/queries-report";
+import { writeAuditLog } from "@/features/super-admin/audit";
+
+/** Batas rentang laporan; menyamai features/school/actions.ts. */
+const MAX_REPORT_RANGE_DAYS = 366;
 
 function parseCalendarDate(value: string | null) {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -16,7 +20,12 @@ function parseCalendarDate(value: string | null) {
 export async function GET(request: Request) {
   let user;
   try {
-    user = await requireRouteRole(["school", "admin", "admin_academy", "super_admin"]);
+    // Hanya role portal sekolah. Daftar sebelumnya menyertakan admin dan
+    // admin_academy, padahal getSchoolProfile() hanya me-resolve baris
+    // school_contacts: mereka selalu berakhir 403, jadi izin itu menyesatkan.
+    // super_admin tetap didaftarkan agar konsisten dengan layout portal ini,
+    // dan tetap butuh school_contacts untuk mengunduh data sekolah tertentu.
+    user = await requireRouteRole(["school", "super_admin"]);
   } catch (error) {
     if (error instanceof RouteAuthorizationError) {
       return new NextResponse(error.message, { status: error.status });
@@ -33,6 +42,12 @@ export async function GET(request: Request) {
 
   if (!fromDate || !toDate || fromDate > toDate) {
     return new NextResponse("Periode tidak valid.", { status: 400 });
+  }
+
+  // Tanpa batas ini satu request bisa memaksa pemindaian rentang tak terbatas.
+  const rangeDays = (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24) + 1;
+  if (rangeDays > MAX_REPORT_RANGE_DAYS) {
+    return new NextResponse(`Rentang laporan maksimal ${MAX_REPORT_RANGE_DAYS} hari.`, { status: 400 });
   }
 
   const { data: schoolProfile } = await getSchoolProfile(user.id);
@@ -72,6 +87,18 @@ export async function GET(request: Request) {
       student.final_score,
     ]);
   });
+
+  // Ekspor data siswa adalah peristiwa yang perlu terlacak: siapa mengunduh
+  // data sekolah mana, periode apa, dan berapa baris.
+  await writeAuditLog(
+    user.id,
+    "export_school_report_csv",
+    "school_reports",
+    metrics.school_id,
+    null,
+    null,
+    { period_start: from, period_end: to, total_students: metrics.total_students, row_count: rows.length - 1 },
+  );
 
   // Nama file diturunkan dari periode yang sudah divalidasi, bukan dari query
   // string bebas — mencegah header injection pada Content-Disposition.
