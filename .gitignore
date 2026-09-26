@@ -20,7 +20,20 @@ out/
 .DS_Store
 Thumbs.db
 
-package-lock.json
+# `package-lock.json` TIDAK di-ignore, dan itu disengaja.
+#
+# Sebelumnya berkas itu ada di daftar ini, jadi tidak ada satu pun lockfile yang
+# ter-commit. Akibatnya `npm ci` di Dockerfile membangun dari lockfile yang tidak
+# pernah ikut ke repo: versi dependensi ditentukan oleh kapan image dibangun,
+# bukan oleh isi commit. Dua build dari commit yang sama bisa memasang versi
+# berbeda — termasuk versi yang baru saja terkompromi.
+#
+# Lockfile adalah bagian dari kode, bukan artefak build.
+
+# Satu package manager saja: npm (dipaksa lewat `packageManager` di
+# package.json). `pnpm-lock.yaml` DISENGAJA tidak di-ignore: kalau suatu saat
+# muncul lagi, ia harus terlihat di `git status` supaya ketahuan, bukan tersembunyi.
+
 # local build/cache
 .next-stale-codex/
 

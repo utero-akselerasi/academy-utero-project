@@ -26,7 +26,12 @@ WORKDIR /app
 # `package-lock.json*` dengan tanda bintang membuat lockfile yang hilang TIDAK
 # menggagalkan build: `npm ci` lalu jatuh ke error yang membingungkan. Tanpa
 # bintang, lockfile yang tidak ada gagal di sini — di tempat yang jelas.
-COPY package.json package-lock.json ./
+#
+# `.npmrc` wajib ikut disalin: di dalamnya ada `ignore-scripts=true` dan
+# `engine-strict=true`. Tanpa berkas itu di context, `npm ci` di sini berjalan
+# dengan default — yaitu menjalankan skrip `postinstall` paket pihak ketiga,
+# jalur eksekusi kode arbitrer yang justru ingin ditutup.
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 
 # ---------------------------------------------------------------------------
@@ -55,7 +60,7 @@ RUN npm run build
 FROM base AS prod-deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci --omit=dev
 
 # ---------------------------------------------------------------------------
