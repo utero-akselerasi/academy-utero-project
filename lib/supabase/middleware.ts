@@ -11,6 +11,21 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
+  const loginDay = request.cookies.get("utero-login-day")?.value;
+  const currentDay = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" });
+  const isProtectedRoute = request.nextUrl.pathname.startsWith("/dashboard");
+
+  if (isProtectedRoute && loginDay !== currentDay) {
+    response = NextResponse.redirect(new URL("/login", request.url));
+    response.cookies.delete("utero-login-day");
+    for (const cookie of request.cookies.getAll()) {
+      if (cookie.name.startsWith("sb-") && cookie.name.includes("auth-token")) {
+        response.cookies.delete(cookie.name);
+      }
+    }
+    return response;
+  }
+
   const { supabaseUrl, supabaseAnonKey } = assertSupabaseEnv();
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {

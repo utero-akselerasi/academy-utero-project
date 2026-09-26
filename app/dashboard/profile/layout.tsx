@@ -6,7 +6,7 @@ export default async function ProfileLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ProtectedDashboardLayout allowedRoles={["admin", "school", "intern"]} homeHref="/dashboard" title="Profil">
+    <ProtectedDashboardLayout allowedRoles={["admin", "admin_academy", "school", "intern", "super_admin"]} homeHref="/dashboard" title="Profil">
       {children}
     </ProtectedDashboardLayout>
   );

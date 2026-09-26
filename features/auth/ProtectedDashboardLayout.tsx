@@ -13,12 +13,30 @@ type Props = {
 };
 
 const roleLabelMap: Record<RoleCode, string> = {
+  super_admin: "Super Admin",
   admin: "Administrator",
+  admin_academy: "Administrator",
+  mentor: "Mentor",
   school: "Hubungan Sekolah",
   intern: "Peserta Magang",
 };
 
 const sidebarItemsMap: Record<RoleCode, { label: string; href: string; icon: string }[]> = {
+  super_admin: [
+    { label: "Pusat Kendali", href: "/dashboard/super-admin", icon: "LayoutDashboard" },
+    { label: "User & Role", href: "/dashboard/super-admin/users", icon: "Users" },
+    { label: "Manajemen Instansi", href: "/dashboard/super-admin/schools", icon: "GraduationCap" },
+    { label: "Logs Activity", href: "/dashboard/super-admin/audit-logs", icon: "FileText" },
+    { label: "Dashboard Admin", href: "/dashboard/admin", icon: "LayoutDashboard" },
+    { label: "Pendaftaran Masuk", href: "/dashboard/admin/pendaftaran", icon: "FileSpreadsheet" },
+    { label: "Task Board", href: "/dashboard/mentor/tasks", icon: "Kanban" },
+    { label: "LMS Penilaian", href: "/dashboard/mentor/lms", icon: "BookOpen" },
+    { label: "Review Absensi", href: "/dashboard/mentor/attendance", icon: "Clock" },
+    { label: "Daily Report", href: "/dashboard/mentor/daily-reports", icon: "FileText" },
+    { label: "Penilaian & Sertifikat", href: "/dashboard/mentor/assessments", icon: "Award" },
+    { label: "Website CMS", href: "/dashboard/admin/cms", icon: "Globe" },
+    { label: "Landing Page", href: "/dashboard/admin/landing", icon: "LayoutTemplate" },
+  ],
   admin: [
     { label: "Dashboard", href: "/dashboard/admin", icon: "LayoutDashboard" },
     { label: "Pendaftaran Masuk", href: "/dashboard/admin/pendaftaran", icon: "FileSpreadsheet" },
@@ -31,8 +49,20 @@ const sidebarItemsMap: Record<RoleCode, { label: string; href: string; icon: str
     { label: "Penilaian & Sertifikat", href: "/dashboard/mentor/assessments", icon: "Award" },
     { label: "Website CMS", href: "/dashboard/admin/cms", icon: "Globe" },
     { label: "Landing Page", href: "/dashboard/admin/landing", icon: "LayoutTemplate" },
-    { label: "Audit Log", href: "/dashboard/super-admin/audit-logs", icon: "FileText" },
   ],
+  admin_academy: [
+    { label: "Dashboard", href: "/dashboard/admin", icon: "LayoutDashboard" },
+    { label: "Pendaftaran Masuk", href: "/dashboard/admin/pendaftaran", icon: "FileSpreadsheet" },
+    { label: "User & Role", href: "/dashboard/super-admin/users", icon: "Users" },
+    { label: "Task Board", href: "/dashboard/mentor/tasks", icon: "Kanban" },
+    { label: "LMS Penilaian", href: "/dashboard/mentor/lms", icon: "BookOpen" },
+    { label: "Review Absensi", href: "/dashboard/mentor/attendance", icon: "Clock" },
+    { label: "Daily Report", href: "/dashboard/mentor/daily-reports", icon: "FileText" },
+    { label: "Penilaian & Sertifikat", href: "/dashboard/mentor/assessments", icon: "Award" },
+    { label: "Website CMS", href: "/dashboard/admin/cms", icon: "Globe" },
+    { label: "Landing Page", href: "/dashboard/admin/landing", icon: "LayoutTemplate" },
+  ],
+  mentor: [],
   intern: [
     { label: "Dashboard", href: "/dashboard/intern", icon: "LayoutDashboard" },
     { label: "Task Saya", href: "/dashboard/intern/tasks", icon: "CheckSquare" },

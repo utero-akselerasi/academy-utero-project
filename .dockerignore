@@ -11,4 +11,12 @@ README.md
 .env.development.local
 .env.test.local
 .env.production.local
+.next-*
+.next-dev
+.codegraph
+.codex
+.claude
+.gemini
+.kiro
+.vscode
 

@@ -5,7 +5,7 @@ export async function getSuperAdminUserManagementData() {
   const db = await createUteroAcademyServiceRoleClient();
   const authClient = createSupabaseServiceRoleClient();
 
-  const [profilesResult, rolesResult, userRolesResult, authUsersResult, schoolsResult, schoolContactsResult] = await Promise.all([
+  const [profilesResult, rolesResult, userRolesResult, authUsersResult, schoolsResult, schoolContactsResult, internProfilesResult] = await Promise.all([
     db
       .from("user_profiles")
       .select("id, full_name, phone, is_active, created_at")
@@ -20,22 +20,26 @@ export async function getSuperAdminUserManagementData() {
       perPage: 1000,
     }),
     db.from("schools").select("id, name").order("name").returns<any[]>(),
-    db.from("school_contacts").select("id, user_id, school_id, schools(name)").returns<any[]>()
+    db.from("school_contacts").select("id, user_id, school_id, email, schools(name)").returns<any[]>(),
+    db.from("intern_profiles").select("user_id, email").returns<Array<{ user_id: string | null; email: string | null }>>()
   ]);
 
   const profiles = profilesResult.data ?? [];
   const authUsers = authUsersResult.data?.users ?? [];
   const schoolContacts = schoolContactsResult.data ?? [];
+  const internProfiles = internProfilesResult.data ?? [];
 
   // Merge auth user details into profiles
   const mergedProfiles = profiles.map(profile => {
     const authUser = authUsers.find(u => u.id === profile.id);
     const contact = schoolContacts.find(sc => sc.user_id === profile.id);
+    const internProfile = internProfiles.find(intern => intern.user_id === profile.id);
     const schoolObj = contact ? (Array.isArray(contact.schools) ? contact.schools[0] : contact.schools) : null;
     return {
       ...profile,
-      email: authUser?.email || "",
+      email: authUser?.email || internProfile?.email || contact?.email || "",
       last_sign_in_at: authUser?.last_sign_in_at || null,
+      auth_linked: Boolean(authUser),
       school_name: schoolObj?.name || null
     };
   });
@@ -45,7 +49,7 @@ export async function getSuperAdminUserManagementData() {
     roles: rolesResult.data ?? [],
     userRoles: userRolesResult.data ?? [],
     schools: schoolsResult.data ?? [],
-    error: profilesResult.error ?? rolesResult.error ?? userRolesResult.error ?? (authUsersResult.error as any) ?? schoolsResult.error,
+    error: profilesResult.error ?? rolesResult.error ?? userRolesResult.error ?? (authUsersResult.error as any) ?? schoolsResult.error ?? schoolContactsResult.error ?? internProfilesResult.error,
   };
 }
 

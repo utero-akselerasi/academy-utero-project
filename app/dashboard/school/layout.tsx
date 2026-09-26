@@ -6,9 +6,8 @@ export default async function SchoolLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ProtectedDashboardLayout allowedRoles={["school"]} homeHref="/dashboard/school" title="Dashboard Sekolah">
+    <ProtectedDashboardLayout allowedRoles={["school", "super_admin"]} homeHref="/dashboard/school" title="Dashboard Sekolah">
       {children}
     </ProtectedDashboardLayout>
   );
 }
-

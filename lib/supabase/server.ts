@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { assertSupabaseEnv } from "./config";
 
@@ -37,11 +38,11 @@ export function createSupabaseServiceRoleClient() {
   if (!serviceRoleKey) {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY is required.");
   }
-  return createServerClient(supabaseUrl, serviceRoleKey, {
-    cookies: {
-      getAll() { return []; },
-      setAll() {}
-    }
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
   });
 }
 

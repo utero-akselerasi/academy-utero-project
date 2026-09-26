@@ -2,10 +2,15 @@ export const dynamic = "force-dynamic";
 
 ﻿import { UserRoleManager } from "@/features/super-admin/UserRoleManager";
 import { getSuperAdminUserManagementData } from "@/features/super-admin/queries";
+import { userIsSuperAdmin } from "@/features/auth/roles";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import Link from "next/link";
 
 export default async function SuperAdminUsersPage() {
   const { profiles, roles, userRoles, schools, error } = await getSuperAdminUserManagementData();
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const isSuperAdmin = user ? await userIsSuperAdmin(user.id) : false;
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
@@ -33,7 +38,7 @@ export default async function SuperAdminUsersPage() {
         </div>
       ) : null}
 
-      <UserRoleManager profiles={profiles} roles={roles} userRoles={userRoles} schools={schools} />
+      <UserRoleManager profiles={profiles} roles={roles} userRoles={userRoles} schools={schools} isSuperAdmin={isSuperAdmin} />
     </main>
   );
 }

@@ -6,7 +6,7 @@ export default async function InternLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ProtectedDashboardLayout allowedRoles={["intern"]} homeHref="/dashboard/intern" title="Dashboard Peserta">
+    <ProtectedDashboardLayout allowedRoles={["intern", "super_admin"]} homeHref="/dashboard/intern" title="Dashboard Peserta">
       {children}
     </ProtectedDashboardLayout>
   );

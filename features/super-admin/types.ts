@@ -13,6 +13,7 @@ export type UserProfile = {
   created_at: string;
   email?: string;
   last_sign_in_at?: string | null;
+  auth_linked?: boolean;
   school_name?: string | null;
 };
 

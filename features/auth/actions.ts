@@ -1,6 +1,7 @@
 "use server";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getPrimaryDashboardPath } from "./roles";
@@ -60,6 +61,14 @@ export async function loginAction(_: unknown, formData: FormData) {
       message: "User belum memiliki role. Hubungi Super Admin.",
     };
   }
+
+  const cookieStore = await cookies();
+  cookieStore.set("utero-login-day", new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" }), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+  });
 
   redirect(dashboardPath);
 }

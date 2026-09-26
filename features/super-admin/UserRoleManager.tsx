@@ -23,6 +23,7 @@ type Props = {
   roles: Role[];
   userRoles: UserRole[];
   schools?: Array<{ id: string, name: string }>;
+  isSuperAdmin?: boolean;
 };
 
 function formatDate(value: string) {
@@ -31,15 +32,16 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return "-";
+function formatDateTime(value: string | null | undefined, authLinked = true) {
+  if (!authLinked) return "Auth tidak terhubung";
+  if (!value) return "Belum login";
   return new Intl.DateTimeFormat("id-ID", {
     dateStyle: "short",
     timeStyle: "short"
   }).format(new Date(value));
 }
 
-export function UserRoleManager({ profiles, roles, userRoles, schools = [] }: Props) {
+export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSuperAdmin = false }: Props) {
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -139,7 +141,7 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [] }: Pr
             >
               <option value="all">Semua Role</option>
               <option value="norole">Tanpa Role</option>
-              {roles.map(r => (
+              {roles.filter(r => isSuperAdmin || ["intern", "school"].includes(r.code)).map(r => (
                 <option key={r.id} value={r.code}>{r.name}</option>
               ))}
             </select>
@@ -215,7 +217,6 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [] }: Pr
                     <tr key={profile.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-all">
                       <td className="p-4">
                         <div className="font-bold text-slate-900 leading-snug">{profile.full_name}</div>
-                        <div className="text-[10px] text-slate-400 font-mono mt-0.5 select-all">{profile.id}</div>
                       </td>
                       <td className="p-4 text-slate-600 font-medium">{profile.email || "-"}</td>
                       <td className="p-4">
@@ -237,14 +238,13 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [] }: Pr
                         </div>
                       </td>
                       <td className="p-4 text-slate-500 text-xs font-medium">
-                        {formatDateTime(profile.last_sign_in_at)}
+                        {formatDateTime(profile.last_sign_in_at, profile.auth_linked)}
                       </td>
                       <td className="p-4">
                         <div className="text-xs text-slate-800 font-semibold">{profile.phone || "-"}</div>
                         {profile.school_name && (
                           <div className="text-[10px] text-teal-700 font-bold mt-1">Sekolah: {profile.school_name}</div>
                         )}
-                        <div className="text-[10px] text-slate-400 mt-0.5">ID: {profile.id.slice(0, 8)}</div>
                       </td>
                       <td className="p-4">
                         <span className={"px-2 py-0.5 rounded text-[10px] font-extrabold uppercase " + (
@@ -292,7 +292,7 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [] }: Pr
                               }}
                               className="w-44 bg-white rounded-lg shadow-xl border border-slate-200 z-[9999] py-1 font-medium animate-in fade-in slide-in-from-top-1 duration-100"
                             >
-                              <button
+                              {isSuperAdmin && <button
                                 onClick={() => {
                                   setEditingProfile(profile);
                                   setActiveDropdownUserId(null);
@@ -301,9 +301,9 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [] }: Pr
                               >
                                 <Edit2 size={13} />
                                 <span>Edit Profil</span>
-                              </button>
+                              </button>}
 
-                              <button
+                              {isSuperAdmin && <button
                                 onClick={() => {
                                   setChangingRoleUser(profile);
                                   setActiveDropdownUserId(null);
@@ -312,7 +312,7 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [] }: Pr
                               >
                                 <Shield size={13} />
                                 <span>Ubah Role</span>
-                              </button>
+                              </button>}
 
                               <button
                                 onClick={() => {
@@ -325,7 +325,7 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [] }: Pr
                                 <span>Ubah Password</span>
                               </button>
 
-                              {isIntern && (
+                              {isSuperAdmin && isIntern && (
                                 <Link
                                   href={`/dashboard/super-admin/users/intern/${profile.id}`}
                                   className="w-full text-left px-4 py-2 text-xs text-teal-700 hover:bg-teal-50 hover:text-teal-900 flex items-center gap-2 block"
@@ -336,7 +336,7 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [] }: Pr
                                 </Link>
                               )}
 
-                              {assignedRoles.some(ur => ur.roles?.code === "school") && (
+                              {isSuperAdmin && assignedRoles.some(ur => ur.roles?.code === "school") && (
                                 <button
                                   onClick={() => {
                                     setLinkingSchoolUser(profile);
@@ -351,7 +351,7 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [] }: Pr
 
                               <div className="border-t border-slate-100 my-1"></div>
 
-                              <button
+                              {isSuperAdmin && <button
                                 onClick={() => {
                                   setDeletingUser(profile);
                                   setActiveDropdownUserId(null);
@@ -360,7 +360,7 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [] }: Pr
                               >
                                 <Trash2 size={13} />
                                 <span>Hapus User</span>
-                              </button>
+                              </button>}
                             </div>,
                             document.body
                           )}
@@ -427,7 +427,7 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [] }: Pr
                 <label className="form-label text-xs" htmlFor="manualRole">Default Role</label>
                 <select className="form-input text-sm bg-white" id="manualRole" name="roleId">
                   <option value="">Tanpa Role (Bisa diset nanti)</option>
-                  {roles.map((role) => (
+                  {roles.filter(role => isSuperAdmin || ["intern", "school"].includes(role.code)).map((role) => (
                     <option key={role.id} value={role.id}>
                       {role.name}
                     </option>

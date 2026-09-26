@@ -1,6 +1,6 @@
 "use server";
 
-import { userHasAnyRole } from "@/features/auth/roles";
+import { userIsAdminOrSuperAdmin, userIsSuperAdmin } from "@/features/auth/roles";
 import { createSupabaseServerClient, createUteroAcademyClient, createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { writeAuditLog } from "./audit";
 import { revalidatePath } from "next/cache";
@@ -32,9 +32,20 @@ async function requireSuperAdmin() {
     redirect("/login");
   }
 
-  const allowed = await userHasAnyRole(user.id, ["admin"]);
+  const allowed = await userIsSuperAdmin(user.id);
 
   if (!allowed) {
+    redirect("/login");
+  }
+
+  return user;
+}
+
+async function requireUserManagementAccess() {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user || !(await userIsAdminOrSuperAdmin(user.id))) {
     redirect("/login");
   }
 
@@ -98,7 +109,7 @@ export async function removeUserRoleAction(formData: FormData) {
 
 
 export async function createUserManualAction(formData: FormData) {
-  const user = await requireSuperAdmin();
+  const user = await requireUserManagementAccess();
 
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
@@ -108,6 +119,14 @@ export async function createUserManualAction(formData: FormData) {
 
   if (!email || !password || !fullName) {
     throw new Error("Email, password, dan nama lengkap wajib diisi.");
+  }
+
+  const db = await createUteroAcademyServiceRoleClient();
+  const { data: role } = await db.from("roles").select("code").eq("id", roleId).maybeSingle();
+  const isSuperAdmin = await userIsSuperAdmin(user.id);
+
+  if (!role || (!isSuperAdmin && !["intern", "school"].includes(role.code))) {
+    throw new Error("Admin hanya dapat menambahkan user dengan role Intern atau Sekolah.");
   }
 
   const supabase = createSupabaseServiceRoleClient();
@@ -133,8 +152,6 @@ export async function createUserManualAction(formData: FormData) {
     throw new Error("User ID tidak ditemukan setelah pembuatan.");
   }
 
-  const db = await createUteroAcademyServiceRoleClient();
-  
   // Insert profile
   const { error: profileError } = await db.from("user_profiles").insert({
     id: userId,

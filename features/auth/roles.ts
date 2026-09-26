@@ -1,11 +1,14 @@
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
-export type RoleCode = "admin" | "school" | "intern";
+export type RoleCode = "super_admin" | "admin" | "admin_academy" | "mentor" | "school" | "intern";
 
-const rolePriority: RoleCode[] = ["admin", "school", "intern"];
+const rolePriority: RoleCode[] = ["super_admin", "admin", "admin_academy", "mentor", "school", "intern"];
 
 const dashboardByRole: Record<RoleCode, string> = {
+  super_admin: "/dashboard/super-admin",
   admin: "/dashboard/admin",
+  admin_academy: "/dashboard/admin",
+  mentor: "/dashboard/mentor",
   school: "/dashboard/school",
   intern: "/dashboard/intern",
 };
@@ -45,6 +48,14 @@ export async function getUserRoleCodes(userId: string): Promise<RoleCode[]> {
 export async function userHasAnyRole(userId: string, allowedRoles: RoleCode[]) {
   const roleCodes = await getUserRoleCodes(userId);
   return roleCodes.some((roleCode) => allowedRoles.includes(roleCode));
+}
+
+export async function userIsSuperAdmin(userId: string) {
+  return userHasAnyRole(userId, ["super_admin"]);
+}
+
+export async function userIsAdminOrSuperAdmin(userId: string) {
+  return userHasAnyRole(userId, ["super_admin", "admin", "admin_academy"]);
 }
 
 export async function getPrimaryDashboardPath(userId: string) {
