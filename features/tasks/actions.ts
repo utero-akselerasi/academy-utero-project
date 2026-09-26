@@ -438,12 +438,31 @@ export async function assignCardToInternAction(formData: FormData) {
 }
 
 export async function deleteListAction(formData: FormData) {
-  await requireStaff();
+  const user = await requireStaff();
   const listId = formData.get("listId") as string;
   const boardId = formData.get("boardId") as string;
   if (!listId) throw new Error("List ID tidak valid.");
 
   const db = await createUteroAcademyServiceRoleClient();
+
+  // Menghapus list ikut menghapus semua card di dalamnya (cascade). Board
+  // bersifat bersama antar staf, jadi tanpa cek ini seorang admin bisa
+  // menghapus task peserta yang bukan bimbingannya. Setiap card di list harus
+  // lolos requireCardAccess dulu.
+  const { data: cards, error: cardsError } = await db
+    .from("task_cards")
+    .select("id")
+    .eq("list_id", listId);
+
+  if (cardsError) {
+    console.error("Gagal membaca card pada list:", cardsError);
+    throw new Error("Gagal memverifikasi akses list.");
+  }
+
+  for (const card of cards ?? []) {
+    await requireCardAccess(user.id, card.id as string);
+  }
+
   const { error } = await db.from("task_lists").delete().eq("id", listId);
 
   if (error) {

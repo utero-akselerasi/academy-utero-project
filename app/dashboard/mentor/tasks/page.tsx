@@ -2,9 +2,10 @@ import { deleteBoardAction } from "@/features/tasks/actions";
 import { Trash2, ShieldAlert, BarChart2, Eye, Calendar } from "lucide-react";
 import { CreateBoardForm } from "@/features/tasks/CreateBoardForm";
 import { getMentorBoards } from "@/features/tasks/queries";
-import { createSupabaseServerClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/features/auth/guards";
+import { resolveStaffInternScope } from "@/features/auth/scope";
+import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 type Props = {
   searchParams: Promise<{ tab?: string }>;
@@ -23,20 +24,28 @@ const priorityConfig = {
 
 export default async function MentorTasksPage({ searchParams }: Props) {
   const { tab = "boards" } = await searchParams;
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await requireAdmin();
 
-  if (!user) {
-    redirect("/login");
+  const scope = await resolveStaffInternScope(user.id);
+
+  if (scope.kind === "setup_required") {
+    return (
+      <main className="mx-auto max-w-6xl px-4 py-8">
+        <div className="surface p-6 text-sm font-semibold text-red-700">
+          Profil pembimbing belum ditemukan. Hubungi super admin untuk setup profil.
+        </div>
+      </main>
+    );
   }
 
   const { data: boards, error } = await getMentorBoards(user.id);
 
-  // Fetch global task data for monitoring
+  // Monitoring dibatasi scope bimbingan: aksi pada card sudah lewat
+  // requireCardAccess, jadi daftarnya tidak boleh lebih luas dari itu.
+  // Sebelumnya halaman ini menarik SELURUH task_cards tanpa filter.
   const db = await createUteroAcademyServiceRoleClient();
-  const { data: allCards } = await db
+
+  let cardsQuery = db
     .from("task_cards")
     .select(`
       id,
@@ -48,8 +57,17 @@ export default async function MentorTasksPage({ searchParams }: Props) {
       intern_id,
       list_id,
       task_lists(name, board_id, task_boards(name))
-    `)
-    .order("created_at", { ascending: false });
+    `);
+
+  if (scope.kind === "scoped") {
+    // Card tanpa intern_id belum ditugaskan, jadi tetap terlihat semua staf.
+    const internFilter = scope.internIds.length
+      ? `intern_id.is.null,intern_id.in.(${scope.internIds.join(",")})`
+      : "intern_id.is.null";
+    cardsQuery = cardsQuery.or(internFilter);
+  }
+
+  const { data: allCards } = await cardsQuery.order("created_at", { ascending: false });
 
   const { data: internProfiles } = await db.from("intern_profiles").select("id, full_name");
   const { data: userProfiles } = await db.from("user_profiles").select("id, full_name");

@@ -9,6 +9,8 @@ import { TaskAttachmentForm } from "@/features/tasks/TaskAttachmentForm";
 import { getBoardWithLists } from "@/features/tasks/queries";
 import { getActiveInterns } from "@/features/admin/queries";
 import { deleteCardAction, assignCardToInternAction, deleteListAction, updateCardPriorityAction } from "@/features/tasks/actions";
+import { requireAdmin } from "@/features/auth/guards";
+import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { ImagePreview } from "@/features/daily-reports/ImagePreview";
 import Link from "next/link";
@@ -52,8 +54,21 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
   const { boardId } = await params;
   const { view: activeView = "kanban", detailCardId } = await searchParams;
 
-  const { data: board, error } = await getBoardWithLists(boardId);
-  const interns = await getActiveInterns();
+  const user = await requireAdmin();
+
+  const scope = await resolveStaffInternScope(user.id);
+  if (scope.kind === "setup_required") {
+    return (
+      <main className="mx-auto max-w-6xl px-4 py-8">
+        <div className="surface p-6 text-sm font-semibold text-red-700">
+          Profil pembimbing belum ditemukan. Hubungi super admin untuk setup profil.
+        </div>
+      </main>
+    );
+  }
+
+  const { data: boardData, error } = await getBoardWithLists(boardId);
+  const allInterns = await getActiveInterns();
 
   const db = await createUteroAcademyServiceRoleClient();
   const { data: userProfiles } = await db.from("user_profiles").select("id, full_name");
@@ -62,9 +77,31 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
     userProfiles.forEach(p => profilesMap.set(p.id, p));
   }
 
-  if (!board || error) {
+  if (!boardData || error) {
     notFound();
   }
+
+  // Board bersifat bersama antar staf, jadi isinya harus difilter per scope:
+  // admin hanya melihat card peserta bimbingannya (plus card yang belum
+  // ditugaskan), sesuai batas requireCardAccess pada aksi-aksinya. Sebelumnya
+  // halaman ini menampilkan seluruh card di board tanpa filter.
+  const board = scope.kind === "global"
+    ? boardData
+    : {
+        ...boardData,
+        task_lists: boardData.task_lists.map((list) => ({
+          ...list,
+          task_cards: list.task_cards.filter(
+            (card) => !card.intern_id || scope.internIds.includes(card.intern_id),
+          ),
+        })),
+      };
+
+  // Dropdown penugasan juga dibatasi: menawarkan peserta di luar bimbingan
+  // hanya menghasilkan error dari requireInternInScope.
+  const interns = scope.kind === "global"
+    ? allInterns
+    : allInterns.filter((intern: any) => scope.internIds.includes(intern.id));
 
   // Cari semua kartu tugas untuk detail modal jika ada detailCardId
   const allCards = board.task_lists.flatMap(l => l.task_cards);
