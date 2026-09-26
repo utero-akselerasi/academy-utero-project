@@ -211,24 +211,34 @@ export async function getAssignment(assignmentId: string, internProfileId: strin
   };
 }
 
-export async function getMentorSubmissions(mentorProfileId: string) {
+/**
+ * Pengumpulan tugas yang boleh dinilai staf.
+ *
+ * `allowedInternIds === null` berarti scope global (super_admin). Selain itu
+ * daftar harus sama dengan scope yang dipakai gradeAssignmentAction, supaya
+ * halaman tidak menampilkan submission yang aksinya pasti ditolak - dan
+ * sebaliknya tidak membocorkan isi pengerjaan peserta yang bukan bimbingan.
+ *
+ * Versi lama menerima mentorProfileId dan memfilter lewat mentor_assignments
+ * tanpa batas tanggal, jadi penempatan yang sudah berakhir masih terbaca.
+ * resolveStaffInternScope sudah membatasi ke penempatan aktif (Asia/Jakarta).
+ */
+export async function getMentorSubmissions(allowedInternIds: string[] | null) {
   const db = await createUteroAcademyServiceRoleClient();
 
-  const { data: assignments } = await db
-    .from("mentor_assignments")
-    .select("intern_id")
-    .eq("mentor_id", mentorProfileId);
-
-  if (!assignments || assignments.length === 0) {
+  if (allowedInternIds !== null && allowedInternIds.length === 0) {
     return { data: [], error: null };
   }
 
-  const internIds = assignments.map(a => a.intern_id);
-
-  const { data: submissions, error } = await db
+  let submissionQuery = db
     .from("assignment_submissions")
-    .select("id, assignment_id, intern_id, content, attachment_path, score, feedback, submitted_at, reviewed_at, assignments(title), intern_profiles(full_name)")
-    .in("intern_id", internIds)
+    .select("id, assignment_id, intern_id, content, attachment_path, score, feedback, submitted_at, reviewed_at, assignments(title), intern_profiles(full_name)");
+
+  if (allowedInternIds !== null) {
+    submissionQuery = submissionQuery.in("intern_id", allowedInternIds);
+  }
+
+  const { data: submissions, error } = await submissionQuery
     .order("submitted_at", { ascending: false })
     .returns<any[]>();
 

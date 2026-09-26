@@ -1,9 +1,8 @@
 import { getMentorSubmissions, getAllCourses } from "@/features/lms/queries";
-import { getMentorProfileId } from "@/features/daily-reports/queries";
 import { gradeAssignmentAction, createCourseAction } from "@/features/lms/actions";
 import { ImagePreview } from "@/features/daily-reports/ImagePreview";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { requireAdmin } from "@/features/auth/guards";
+import { resolveStaffInternScope } from "@/features/auth/scope";
 import Link from "next/link";
 import { FileText, Award, Eye, X, Check, Search, Calendar, ExternalLink, BookOpen, ArrowRight, PlusCircle, Plus } from "lucide-react";
 
@@ -24,22 +23,27 @@ type PageProps = {
 export default async function MentorLmsPage({ searchParams }: PageProps) {
   const { detailSubId, status: statusFilter = "all", q: searchQuery = "", cQ: courseQuery = "", showCreateCourse } = await searchParams;
 
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Guard terpusat: sebelumnya halaman ini hanya memeriksa "ada sesi" lalu
+  // mencari mentor_profiles. Peserta atau sekolah yang punya baris
+  // mentor_profiles akan lolos, padahal baris itu bukan bukti otorisasi.
+  const user = await requireAdmin();
 
-  const mentorProfileId = await getMentorProfileId(user.id);
-  if (!mentorProfileId) {
+  const scope = await resolveStaffInternScope(user.id);
+  if (scope.kind === "setup_required") {
     return (
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="surface p-6 text-sm font-semibold text-red-700">
-          Profil mentor/admin belum ditemukan. Hubungi admin untuk setup profil.
+          Profil pembimbing belum ditemukan. Hubungi super admin untuk setup profil.
         </div>
       </main>
     );
   }
 
-  const { data: submissions, error } = await getMentorSubmissions(mentorProfileId);
+  // Daftar submission dibatasi scope bimbingan, sama seperti
+  // gradeAssignmentAction. Isi pengerjaan peserta lain tidak boleh terbaca.
+  const { data: submissions, error } = await getMentorSubmissions(
+    scope.kind === "global" ? null : scope.internIds,
+  );
   const { data: courses } = await getAllCourses();
 
   // Filter submissions berdasarkan nama anak magang & status penilaian

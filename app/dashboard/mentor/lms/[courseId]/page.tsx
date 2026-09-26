@@ -1,8 +1,8 @@
 import { getMentorCourseDetails } from "@/features/lms/queries";
 import { createLessonAction, createAssignmentAction, toggleLessonPublishAction, toggleQuizPublishAction, toggleAssignmentPublishAction } from "@/features/lms/actions";
 import { QuizFormBuilder } from "@/features/lms/QuizFormBuilder";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect, notFound } from "next/navigation";
+import { requireAdmin } from "@/features/auth/guards";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, BookOpen, FileText, Plus, Calendar, HelpCircle, ChevronDown } from "lucide-react";
 
@@ -17,9 +17,12 @@ function formatDate(value: string) {
 export default async function MentorCourseDetailPage({ params }: Props) {
   const { courseId } = await params;
 
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Halaman ini memuat kunci jawaban quiz (getMentorCourseDetails menarik
+  // kolom `questions`) dan menyediakan form tulis materi/tugas. Guard lama
+  // hanya "ada sesi", jadi peserta bisa membukanya dan membaca jawaban.
+  // Katalog course sendiri milik organisasi, bukan per pembimbing, jadi tidak
+  // ada penyaringan scope di sini - cukup batas peran staf.
+  await requireAdmin();
 
   const { data, error } = await getMentorCourseDetails(courseId);
 
