@@ -216,3 +216,23 @@ export function isPdfPath(value: string | null | undefined, bucket: StorageBucke
   if (!objectPath) return false;
   return objectPath.toLowerCase().endsWith(".pdf");
 }
+
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
+
+/**
+ * Apakah objek ini gambar, dinilai dari **object path**.
+ *
+ * Pasangan `isPdfPath`, dan alasannya sama: titik render yang tidak punya kolom
+ * `mime_type` untuk dipakai harus menebak dari ekstensi, dan ekstensi pada signed
+ * URL selalu tertutup `?token=...`.
+ *
+ * Kalau baris yang dibaca punya `mime_type`, **pakai itu**, bukan fungsi ini —
+ * ekstensi cuma tebakan, sedangkan `mime_type` ditulis dari hasil `validateUpload`
+ * yang memeriksa isi berkas.
+ */
+export function isImagePath(value: string | null | undefined, bucket: StorageBucket): boolean {
+  const objectPath = toObjectPath(value, bucket);
+  if (!objectPath) return false;
+  const ext = objectPath.split(".").pop()?.toLowerCase();
+  return IMAGE_EXTENSIONS.has(ext || "");
+}

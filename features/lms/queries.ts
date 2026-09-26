@@ -1,4 +1,4 @@
-﻿import { resolveStorageUrl, resolveStorageUrls } from "@/lib/storage-urls";
+﻿import { isImagePath, resolveStorageUrl, resolveStorageUrls } from "@/lib/storage-urls";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
 /**
@@ -13,20 +13,6 @@ import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
  * Nilai yang gagal ditandatangani jadi `null`; `LessonAttachments` merender
  * `href` apa adanya, jadi tautannya mati alih-alih membocorkan object path.
  */
-/**
- * Apakah lampiran itu gambar, dinilai dari OBJECT PATH.
- *
- * Harus dievaluasi sebelum `resolveStorageUrl()`: signed URL menambahkan
- * `?token=...`, jadi `path.split(".").pop()` pada URL final mengembalikan token,
- * bukan ekstensi. Nilai lama yang masih berupa URL publik penuh juga ditangani —
- * query string dipangkas dulu — karena backfill belum dijalankan.
- */
-function isImageObjectPath(value: string | null | undefined) {
-  if (!value) return false;
-  const ext = value.split("?")[0].split(".").pop()?.toLowerCase();
-  return ["jpg", "jpeg", "png", "gif", "webp"].includes(ext || "");
-}
-
 async function signLessonAttachments(attachments: unknown) {
   if (!Array.isArray(attachments) || attachments.length === 0) return attachments ?? [];
 
@@ -309,7 +295,7 @@ export async function getMentorSubmissions(allowedInternIds: string[] | null) {
         // ditandatangani. Signed URL membawa `?token=...` di belakang nama
         // berkas, jadi cek ekstensi pada URL final selalu gagal dan setiap
         // gambar akan dirender sebagai tautan unduh.
-        attachment_is_image: isImageObjectPath(s.attachment_path),
+        attachment_is_image: isImagePath(s.attachment_path, "learning"),
         score: s.score,
         feedback: s.feedback,
         submitted_at: s.submitted_at,
