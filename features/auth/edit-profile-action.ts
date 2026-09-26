@@ -1,9 +1,9 @@
 "use server";
 
-import { createSupabaseServerClient, createSupabaseServiceRoleClient, createUteroAcademyClient } from "@/lib/supabase/server";
+import { requireUser } from "@/features/auth/guards";
+import { createSupabaseServiceRoleClient, createUteroAcademyClient } from "@/lib/supabase/server";
 import { getInternProfileId, getMentorProfileId } from "@/features/daily-reports/queries";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 export type ProfileFormState = {
   ok: boolean;
@@ -11,9 +11,8 @@ export type ProfileFormState = {
 };
 
 export async function updateProfileAction(_: ProfileFormState, formData: FormData): Promise<ProfileFormState> {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Aksi self-service: semua update dibatasi ke profil milik sesi aktif.
+  const user = await requireUser();
   const fullName = formData.get("fullName");
   const phone = formData.get("phone");
   const avatarFile = formData.get("avatar") as File;

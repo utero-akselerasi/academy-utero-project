@@ -1,7 +1,7 @@
 ﻿"use server";
 
+import { requireUser } from "@/features/auth/guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 
 export type ChangePasswordFormState = {
   ok: boolean;
@@ -9,9 +9,9 @@ export type ChangePasswordFormState = {
 };
 
 export async function changePasswordAction(_: ChangePasswordFormState, formData: FormData): Promise<ChangePasswordFormState> {
+  // Aksi self-service: hanya mengubah password milik sesi yang aktif.
+  const user = await requireUser();
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
 
   const email = user.email;
   const currentPassword = formData.get("currentPassword") as string;

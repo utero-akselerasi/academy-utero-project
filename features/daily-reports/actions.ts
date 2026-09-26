@@ -1,8 +1,9 @@
 "use server";
 
-import { createSupabaseServerClient, createSupabaseServiceRoleClient, createUteroAcademyClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin, requireUser } from "@/features/auth/guards";
+import { resolveStaffInternScope } from "@/features/auth/scope";
+import { createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { getInternProfileId, getMentorProfileId } from "./queries";
 import { dailyReportSchema, reviewReportSchema } from "./schemas";
 
@@ -12,9 +13,8 @@ export type DailyReportFormState = {
 };
 
 export async function submitDailyReportAction(_: DailyReportFormState, formData: FormData): Promise<DailyReportFormState> {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Aksi peserta: kepemilikan ditentukan lewat intern_profiles.user_id.
+  const user = await requireUser();
   const internProfileId = await getInternProfileId(user.id);
   if (!internProfileId) {
     return { ok: false, message: "Profil peserta belum ditemukan. Hubungi admin." };
@@ -255,12 +255,12 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
 }
 
 export async function reviewDailyReportAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Review laporan adalah pekerjaan staff. Guard lama hanya mengandalkan
+  // keberadaan mentor_profiles, yang bukan bukti otorisasi.
+  const user = await requireAdmin();
   const mentorProfileId = await getMentorProfileId(user.id);
   if (!mentorProfileId) {
-    throw new Error("Profil mentor tidak ditemukan.");
+    throw new Error("Profil pembimbing belum disiapkan. Hubungi super admin.");
   }
   const parsed = reviewReportSchema.safeParse({
     reportId: formData.get("reportId"),
@@ -271,6 +271,30 @@ export async function reviewDailyReportAction(formData: FormData) {
     throw new Error("Data review tidak valid.");
   }
   const db = await createUteroAcademyServiceRoleClient();
+
+  // Admin hanya boleh mereview laporan intern yang dibimbingnya.
+  const { data: targetReport, error: targetError } = await db
+    .from("daily_reports")
+    .select("id, intern_id")
+    .eq("id", parsed.data.reportId)
+    .maybeSingle();
+
+  if (targetError) {
+    console.error("Gagal membaca daily report:", targetError);
+    throw new Error("Gagal memverifikasi data laporan.");
+  }
+  if (!targetReport) {
+    throw new Error("Laporan tidak ditemukan.");
+  }
+
+  const scope = await resolveStaffInternScope(user.id);
+  if (scope.kind === "setup_required") {
+    throw new Error("Profil pembimbing belum disiapkan. Hubungi super admin.");
+  }
+  if (scope.kind === "scoped" && !scope.internIds.includes(targetReport.intern_id as string)) {
+    throw new Error("Kamu tidak membimbing peserta ini.");
+  }
+
   const { error: reviewError } = await db.from("daily_report_reviews").insert({
     report_id: parsed.data.reportId,
     mentor_id: mentorProfileId,

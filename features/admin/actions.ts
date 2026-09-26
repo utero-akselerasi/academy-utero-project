@@ -1,10 +1,9 @@
 "use server";
 
-import { canAccessAdminDashboard, getCurrentUser } from "@/features/admin/auth";
 import { type ApplicationStatus } from "@/features/admin/types";
+import { requireAdmin } from "@/features/auth/guards";
 import { createUteroAcademyClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 
 const updateApplicationSchema = z.object({
@@ -12,12 +11,18 @@ const updateApplicationSchema = z.object({
   status: z.enum(["reviewed", "accepted", "rejected", "cancelled"]),
 });
 
-export async function updateApplicationStatusAction(formData: FormData) {
-  const user = await getCurrentUser();
+const assignMentorSchema = z.object({
+  internId: z.string().uuid("Peserta magang tidak valid."),
+  mentorId: z.string().uuid("Mentor tidak valid."),
+});
 
-  if (!user || !(await canAccessAdminDashboard(user.id))) {
-    redirect("/login");
-  }
+// Guard terpusat: guard lama memakai canAccessAdminDashboard() yang hanya
+// mengizinkan role "admin" sehingga super_admin ikut ditolak, dan mengarahkan
+// user dengan role salah ke /login bukan ke halaman 403.
+const requireStaff = requireAdmin;
+
+export async function updateApplicationStatusAction(formData: FormData) {
+  const user = await requireStaff();
 
   const parsed = updateApplicationSchema.safeParse({
     id: formData.get("id"),
@@ -47,23 +52,21 @@ export async function updateApplicationStatusAction(formData: FormData) {
 }
 
 export async function assignMentorAction(formData: FormData) {
-  const user = await getCurrentUser();
+  const user = await requireStaff();
 
-  if (!user || !(await canAccessAdminDashboard(user.id))) {
-    redirect("/login");
-  }
+  const parsed = assignMentorSchema.safeParse({
+    internId: formData.get("internId"),
+    mentorId: formData.get("mentorId"),
+  });
 
-  const internId = formData.get("internId") as string;
-  const mentorId = formData.get("mentorId") as string;
-
-  if (!internId || !mentorId) {
-    throw new Error("Pilih peserta magang dan mentor.");
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Pilih peserta magang dan mentor.");
   }
 
   const db = await createUteroAcademyClient();
   const { error } = await db.from("mentor_assignments").insert({
-    intern_id: internId,
-    mentor_id: mentorId,
+    intern_id: parsed.data.internId,
+    mentor_id: parsed.data.mentorId,
     assigned_by: user.id,
     started_at: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())
   });
@@ -77,20 +80,16 @@ export async function assignMentorAction(formData: FormData) {
 }
 
 export async function removeMentorAssignmentAction(formData: FormData) {
-  const user = await getCurrentUser();
+  await requireStaff();
 
-  if (!user || !(await canAccessAdminDashboard(user.id))) {
-    redirect("/login");
-  }
+  const parsedId = z.string().uuid().safeParse(formData.get("assignmentId"));
 
-  const assignmentId = formData.get("assignmentId") as string;
-
-  if (!assignmentId) {
+  if (!parsedId.success) {
     throw new Error("ID penempatan tidak valid.");
   }
 
   const db = await createUteroAcademyClient();
-  const { error } = await db.from("mentor_assignments").delete().eq("id", assignmentId);
+  const { error } = await db.from("mentor_assignments").delete().eq("id", parsedId.data);
 
   if (error) {
     console.error("Gagal hapus assignment:", error);
