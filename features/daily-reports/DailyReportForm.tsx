@@ -19,7 +19,10 @@ type Props = {
     progress: string | null;
     blockers: string | null;
     tomorrow_plan: string | null;
-    daily_report_attachments?: { id: string; file_path: string; file_name: string }[];
+    // `file_path` boleh null: nilai dari `queries.ts` sudah ditandatangani, dan
+    // penandatanganan bisa gagal untuk objek yatim. `mime_type` ikut dibawa
+    // karena `"url"` adalah cara mengenali tautan Google Drive.
+    daily_report_attachments?: { id: string; file_path: string | null; file_name: string; mime_type: string | null }[];
   };
 };
 
@@ -54,8 +57,10 @@ export function DailyReportForm({ editReport }: Props) {
   // Load link google drive lama jika ada
   useEffect(() => {
     if (editReport?.daily_report_attachments) {
-      const driveAtt = editReport.daily_report_attachments.find(att => att.file_path.includes("google.com") || att.file_path.includes("drive.google.com"));
-      if (driveAtt) {
+      // Dikenali dari `mime_type`, bukan dari isi `file_path`: baris Drive
+      // dilewatkan tanpa tanda tangan sedangkan baris storage kini bisa null.
+      const driveAtt = editReport.daily_report_attachments.find(att => att.mime_type === "url");
+      if (driveAtt?.file_path) {
         setDriveLink(driveAtt.file_path);
       }
     } else {

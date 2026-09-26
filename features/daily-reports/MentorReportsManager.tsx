@@ -8,15 +8,10 @@ import { PDFPreview } from "./PDFPreview";
 import { Users, FileText, Calendar, Filter, Eye, X, Printer, CheckCircle, HelpCircle } from "lucide-react";
 import Link from "next/link";
 
-type Attachment = {
-  id: string;
-  report_id: string;
-  file_path: string;
-  file_name: string;
-  mime_type: string | null;
-  size_bytes: number | null;
-  created_at: string;
-};
+// Diimpor dari types.ts, bukan dideklarasikan ulang. Salinan lokalnya dulu
+// menyatakan `file_path: string`, dan itu akan menutupi fakta bahwa nilainya kini
+// bisa null saat penandatanganan gagal.
+import { type DailyReportAttachment as Attachment } from "./types";
 
 type DailyReportWithIntern = {
   id: string;
@@ -343,11 +338,19 @@ export function MentorReportsManager({ reports }: Props) {
                   <div className="grid gap-2 grid-cols-2">
                     {activeReport.daily_report_attachments.map((att) => {
                       const isImg = isImageAttachment(att);
-                      const isDrive = att.file_path.includes("google.com") || att.file_path.includes("drive.google.com");
-                      
+                      // `mime_type === "url"` adalah penanda yang ditulis aksinya,
+                      // jadi lebih andal dari mencocokkan isi `file_path` — dan
+                      // `file_path` bisa null sekarang.
+                      const isDrive = att.mime_type === "url";
+
                       return (
                         <div key={att.id} className="p-2 border border-slate-200 rounded-lg bg-white flex flex-col justify-between text-xs">
-                          {isImg ? (
+                          {!att.file_path ? (
+                            <div className="flex flex-col gap-1 py-1">
+                              <span className="font-bold text-[10px] text-slate-700 truncate" title={att.file_name}>{att.file_name}</span>
+                              <span className="text-[9px] text-slate-400">Berkas tidak dapat dibuka.</span>
+                            </div>
+                          ) : isImg ? (
                             <div>
                               <p className="text-[9px] text-slate-400 truncate mb-1" title={att.file_name}>{att.file_name}</p>
                               <ImagePreview src={att.file_path} alt={att.file_name} className="max-h-24 w-auto object-contain mx-auto" />

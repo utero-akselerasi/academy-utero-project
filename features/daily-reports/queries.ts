@@ -1,5 +1,32 @@
+import { resolveStorageUrl } from "@/lib/storage-urls";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
-import { type DailyReport, type DailyReportWithDetails, type DailyReportReview, type DailyReportWithIntern } from "./types";
+import { type DailyReport, type DailyReportAttachment, type DailyReportWithDetails, type DailyReportReview, type DailyReportWithIntern } from "./types";
+
+/**
+ * Menandatangani `file_path` setiap lampiran, di tempat.
+ *
+ * Ditaruh di lapisan query, bukan di tiap halaman, karena enam pemanggil membaca
+ * lampiran yang sama: dashboard peserta, daftar laporan peserta, manajer laporan
+ * admin, halaman cetak, dan halaman detail peserta super-admin. Menandatangani
+ * per halaman berarti satu halaman baru yang lupa melakukannya akan merender
+ * object path mentah sebagai `src` — gambar rusak tanpa pesan error.
+ *
+ * **Baris `mime_type === "url"` DILEWATI.** Itu tautan Google Drive yang
+ * disimpan di kolom yang sama (`features/daily-reports/actions.ts` menulisnya
+ * saat peserta menempel link), bukan objek storage. Menandatanganinya akan
+ * mengembalikan null — `toObjectPath` menolak URL yang bukan milik bucket ini —
+ * jadi setiap tautan Drive akan hilang dari tampilan.
+ */
+async function signAttachments(attachments: DailyReportAttachment[] | null | undefined) {
+  if (!attachments || attachments.length === 0) return [];
+
+  return Promise.all(
+    attachments.map(async (att) => {
+      if (att.mime_type === "url") return att;
+      return { ...att, file_path: await resolveStorageUrl("daily-report", att.file_path) };
+    }),
+  );
+}
 
 /**
  * ID intern_profiles milik satu user. HANYA BACA.
@@ -56,7 +83,18 @@ export async function getInternDailyReports(internProfileId: string) {
     .order("report_date", { ascending: false })
     .returns<DailyReportWithDetails[]>();
 
-  return { data: data ?? [], error };
+  if (error || !data) {
+    return { data: [], error };
+  }
+
+  const withSignedAttachments = await Promise.all(
+    data.map(async (report) => ({
+      ...report,
+      daily_report_attachments: await signAttachments(report.daily_report_attachments),
+    })),
+  );
+
+  return { data: withSignedAttachments, error };
 }
 
 /**
@@ -108,10 +146,12 @@ export async function getMentorDailyReports(allowedInternIds: string[] | null) {
     userProfiles.forEach((p) => profilesMap.set(p.id, p));
   }
 
-  const mappedReports = reports.map((report) => {
+  // `Promise.all` atas `map` asinkron, bukan `.map()` biasa: lampiran harus
+  // ditandatangani di sini, dan `.map()` sinkron tidak bisa menunggu.
+  const mappedReports = await Promise.all(reports.map(async (report) => {
     const ip = report.intern_profiles;
     const internProfileArray = Array.isArray(ip) ? ip[0] : ip;
-    
+
     let userProfilesData = null;
     if (internProfileArray) {
       const uProfile = profilesMap.get(internProfileArray.user_id);
@@ -122,13 +162,14 @@ export async function getMentorDailyReports(allowedInternIds: string[] | null) {
 
     return {
       ...report,
+      daily_report_attachments: await signAttachments(report.daily_report_attachments),
       intern_profiles: internProfileArray ? {
         id: internProfileArray.id,
         user_id: internProfileArray.user_id,
         user_profiles: userProfilesData
       } : null
     };
-  });
+  }));
 
   return { data: mappedReports as DailyReportWithIntern[], error: null };
 }

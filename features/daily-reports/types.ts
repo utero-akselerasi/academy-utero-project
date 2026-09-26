@@ -16,7 +16,19 @@ export type DailyReport = {
 export type DailyReportAttachment = {
   id: string;
   report_id: string;
-  file_path: string;
+  /**
+   * Sengaja `string | null`.
+   *
+   * Nilai yang keluar dari `queries.ts` sudah ditandatangani, dan
+   * penandatanganan bisa gagal — objek yatim (baris ada, berkasnya tidak) normal
+   * di data ini karena repo tidak punya satu pun `storage.remove()`. `null`
+   * memaksa setiap titik render menangani "lampiran tidak bisa dibuka" secara
+   * eksplisit, bukan merender `src=""`.
+   *
+   * Kecuali `mime_type === "url"`: baris itu tautan Google Drive dan dilewatkan
+   * apa adanya, jadi selalu berisi string.
+   */
+  file_path: string | null;
   file_name: string;
   mime_type: string | null;
   size_bytes: number | null;

@@ -126,10 +126,13 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
       if (uploadError) {
         console.error("Gagal upload attachment daily-report:", uploadError);
       } else {
-        const { data: { publicUrl } } = serviceRoleSupabase.storage.from("daily-report").getPublicUrl(filePath);
+        // Object path, bukan URL publik. `daily-report` memang sudah privat di
+        // seed `0002_storage_buckets.sql` — 0007 yang memaksanya publik. Setelah
+        // 0032a mengembalikannya, URL publik di kolom ini akan mati, jadi
+        // pembacaannya lewat `resolveStorageUrl()` di `queries.ts`.
         await db.from("daily_report_attachments").insert({
           report_id: finalReportId,
-          file_path: publicUrl,
+          file_path: filePath,
           file_name: attachment.displayName,
           mime_type: attachment.contentType,
           size_bytes: attachment.size
