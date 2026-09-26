@@ -7,6 +7,11 @@ terverifikasi di produksi. Repo ini belum punya test runner, jadi tidak ada satu
 yang terbukti lewat test otomatis. Item yang butuh migrasi DB tetap `[ ]` sampai migrasinya benar-benar
 diterapkan.
 
+Untuk migrasi, `[~]` berarti **berkasnya ditulis dan ter-push, tapi belum dijalankan di DB mana pun.**
+Tidak satu pun migrasi di dokumen ini sudah diterapkan.
+
+Terakhir diperbarui: 2026-09-27 (Batch 0 ditambahkan; B1.5, B4.4, B6.1, B6.3, B6.5 dikoreksi).
+
 Referensi ID temuan mengikuti Master Deep Audit Report (C-x kritis, H-x tinggi, M-x sedang).
 
 ## Keputusan Kebijakan
@@ -23,14 +28,123 @@ Referensi ID temuan mengikuti Master Deep Audit Report (C-x kritis, H-x tinggi, 
 
 ---
 
+## Batch 0 — Eksposur data publik (MENDAHULUI SISA BACKLOG)
+
+Batch 1–3b memperbaiki lapisan **aplikasi**. Probe read-only membuktikan lapisan
+**database dan storage** tidak dilindungi sama sekali: kunci anon publik — kunci
+yang memang dikirim ke setiap browser — membaca 17 tabel produksi dengan jumlah
+baris identik dengan service role, dan `check_in_selfie_path` nyata terambil tanpa
+header auth sama sekali (HTTP 200, image/jpeg). Artinya seluruh guard Batch 1–3b
+bisa dilewati lewat jalur samping.
+
+Detail lengkap ada di plan Batch 0. Ringkasnya, tiga migrasi saling menumpuk:
+`0007` membuka `GRANT ALL ... TO anon` + `ALTER DEFAULT PRIVILEGES` (tabel baru
+lahir terbuka) + `"Public Access"` `using (true)` pada `storage.objects`;
+`seed/0002` membuktikan itu regresi karena ia sengaja menetapkan bucket sensitif
+`public = false`; dan `_fix_admin_queries_to_srv.js` memindahkan hampir seluruh
+aplikasi ke service role, yang melewati RLS — sehingga tidak ada satu pun fitur
+yang pernah gagal akibat RLS bolong, dan bolongnya tak terlihat sampai diprobe.
+
+### B0.1 Migrasi pengencangan — **DITULIS, TIDAK DIJALANKAN**
+
+Ketiga belas berkas sudah ter-commit dan ter-push. Tidak satu pun sudah diterapkan
+ke DB mana pun. Tidak satu pun memuat `DELETE`, `DROP TABLE`, `TRUNCATE`, atau
+`DROP ROLE`; satu-satunya `DROP` adalah `drop policy if exists`.
+
+- [~] `0028_consolidate_staff_roles.sql` — insert role `admin` (tidak pernah
+      di-seed), turunkan permission `admin_academy` ∪ `mentor` dari baris hidup,
+      migrasi assignment lewat `insert ... on conflict do nothing` **tanpa
+      inference** (satu-satunya bentuk yang mencakup partial index `0001:588-595`),
+      + kolom `is_assignable`. **Nol penghapusan** — baris legacy dibiarkan utuh
+- [~] `0029_enable_rls_remaining_tables.sql` — `enable` + `force row level
+      security` untuk tabel yang belum punya, lewat loop ber-penjaga `pg_class`
+- [~] `0030a_policies_identity.sql` — 7 tabel identitas
+- [~] `0030b_policies_attendance.sql` — 3 tabel absensi
+- [~] `0030c_policies_reports_program.sql` — 13 tabel laporan + program
+- [~] `0030d_policies_lms.sql` — 19 tabel LMS + gamifikasi
+- [~] `0030e_policies_tasks.sql` — 7 tabel task. **Men-drop lubang `0004`**: dua
+      policy `using (true)` pada `task_subtasks` yang memberi baca/tulis penuh ke
+      setiap user login. Postgres meng-OR policy permissive, jadi drop ini yang
+      paling menentukan di seluruh batch
+- [~] `0030f_policies_cms_audit.sql` — 13 tabel CMS/audit/permission.
+      `audit_logs`: select super_admin, **tanpa policy tulis untuk siapa pun**
+- [~] `0031_revoke_blanket_grants.sql` — `alter default privileges ... revoke`
+      lebih dulu (matikan pewarisan), lalu revoke massal, lalu kembalikan hanya
+      allowlist yang terbukti dipakai klien sesi
+- [~] `0032a_storage_limits_and_policies.sql` — batas ukuran + `allowed_mime_types`
+      + ganti keempat policy longgar `0007`. Aman dijalankan kapan pun
+- [~] `0032b_storage_flip_private.sql` — flip 5 bucket sensitif jadi privat.
+      **Berisi palang pengaman yang membatalkan migrasi sendiri** kalau backfill
+      B0.3 belum tuntas. Urutan wajib: B0.2 → B0.3 → verifikasi → berkas ini
+- [~] `0033_fix_view_and_function_security.sql` — `user_quiz_attempts_summary`
+      jadi `security_invoker` (sekarang bocorkan percobaan kuis setiap peserta),
+      + `search_path` dipaku untuk **seluruh** fungsi schema, karena
+      `current_user_has_role()` SECURITY DEFINER adalah dasar setiap predikat
+      policy `0030a-f`
+- [~] `0034_verify_hardening.sql` — 10 blok asersi **baca-saja**, aman diulang,
+      dijalankan **terakhir**. Ini satu-satunya bukti otomatis yang dimiliki batch
+      ini: repo tidak punya test framework, dan predikat RLS yang salah tidak
+      melempar error — ia mengembalikan nol baris, yang di aplikasi tampil sebagai
+      "tidak ada data"
+
+Total: **62 dari 62 tabel** `utero_academy` punya postur eksplisit.
+
+### B0.2 Sisa pekerjaan sumber (belum dikerjakan)
+
+- [ ] B0.2a Kecilkan union `RoleCode` di `features/auth/roles.ts:3` jadi
+      `"super_admin" | "admin" | "school" | "intern"`, perbaiki semua situs yang
+      jadi error kompilasi, + `.eq("is_assignable", true)` di
+      `features/super-admin/queries.ts:14`. **`tsc` hijau setelah union dikecilkan
+      adalah bukti** tidak ada jalur kode `admin_academy`/`mentor` yang masih
+      terjangkau lewat sistem role bertipe — ini sinyal verifikasi terkuat di
+      seluruh batch. Jadikan kriteria keluar. Ini yang membuka B1.1/B1.3/B1.6
+- [ ] B0.2b `lib/storage-urls.ts` + konversi **16 titik tulis** (simpan object
+      path, bukan URL) & **~60 titik baca** (tanda tangani di server). Empat
+      jebakan yang harus ditangani eksplisit: cek `.endsWith('.pdf')` harus pindah
+      ke object path karena signed URL membawa `?token=`; `hero_image_path`
+      bolak-balik lewat input tersembunyi klien dan akan menyimpan URL bertoken
+      permanen; halaman cetak sertifikat butuh TTL lebih panjang; dan **lima titik
+      render publik tidak boleh ditandatangani** (bucket `article`/`gallery`/
+      `mentor`/`school-logo` tetap publik, halamannya di-cache)
+- [ ] B0.2c Ganti `apply-migration.js` dengan `scripts/migrate.mjs` +
+      `schema_migrations` + penegakan checksum. Prasyarat, bukan item Batch 6:
+      runner sekarang nama berkasnya di-hardcode ke `0004`, fallback ke
+      `localhost:54322` sehingga env hilang **menarget database salah secara
+      senyap**, dan keluar dengan **exit code 0 meski migrasi gagal**. Ini juga
+      mekanisme yang membuat penyimpangan produksi terdeteksi ke depan
+      (menggantikan B6.5)
+
+### B0.3 Gerbang izin — menyentuh produksi
+
+- [ ] B0.3a Jalankan `0028`–`0032a`, `0033` di staging lalu produksi, berurutan
+- [ ] B0.3b **Backfill kolom storage. Menulis ulang baris produksi — risiko
+      tertinggi di batch ini, butuh izin terpisah dan eksplisit.** Satu `UPDATE`
+      per kolom memangkas prefix URL jadi object path
+- [ ] B0.3c Verifikasi nol baris berawalan `http`, baru jalankan `0032b`
+- [ ] B0.3d Jalankan `0034` terakhir; harus selesai tanpa `raise exception`
+- [ ] B0.3e Ulangi probe kunci anon (read-only) sebagai bukti lubang tertutup
+
+### Penyimpangan produksi (mengikat bentuk semua migrasi)
+
+`attendances` (`0001:671`) dan `audit_logs` (`0001:686`) diperlakukan **identik**
+di migrasi — keduanya RLS aktif, keduanya nol policy, yang di PostgreSQL berarti
+menolak semua baris. Tapi probe menunjukkan anon membaca 959 baris dari
+`attendances` dan **0** dari `audit_logs`. Berkas migrasi tidak bisa menjelaskan
+ini: **DB produksi sudah menyimpang dari berkas migrasi.** Karena itu setiap
+migrasi di atas ditulis idempoten dan tahan-penyimpangan — `enable row level
+security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setiap
+`create policy`, dan penjaga existence untuk setiap sapuan banyak-tabel.
+
+---
+
 ## Batch 1 — Konsolidasi RBAC (`admin` = mentor)
 
-- [ ] B1.1 Hapus `mentor` & `admin_academy` dari `RoleCode`, `rolePriority`, `dashboardByRole` di `features/auth/roles.ts` — **tertahan sampai migrasi `0028` jalan**, kalau tipe dihapus lebih dulu user lama kehilangan pemetaan dashboard
+- [ ] B1.1 Hapus `mentor` & `admin_academy` dari `RoleCode`, `rolePriority`, `dashboardByRole` di `features/auth/roles.ts` — **tertahan sampai migrasi `0028` jalan** (B0.3a), kalau tipe dihapus lebih dulu user lama kehilangan pemetaan dashboard. Dikerjakan di B0.2a
 - [x] B1.2 Helper otorisasi terpusat di `features/auth/guards.ts` (`requireUser`, `requireRole`, `requireAdmin`, `requireSuperAdmin`, `requireIntern`, `requireSchool`, + varian `requireRoute*` untuk route handler)
 - [ ] B1.3 Hapus entri `mentor` di `roleLabelMap` & `sidebarItemsMap` (`features/auth/ProtectedDashboardLayout.tsx`) — ikut B1.1
 - [x] B1.4 Halaman 403 `app/dashboard/forbidden` untuk user login-tapi-tak-berwenang
-- [ ] B1.5 Migrasi SQL `0028_remove_legacy_staff_roles.sql`: pindahkan assignment `mentor` & `admin_academy` → `admin`, lalu hapus kedua role. **Belum ditulis.** Butuh inventaris read-only produksi lebih dulu (lihat bagian bawah)
-- [ ] B1.6 Perbarui referensi string `"mentor"` / `"admin_academy"` di `app/dashboard/profile/page.tsx`, `features/auth/edit-profile-action.ts`, `features/lms/components/LessonComments.tsx` — ikut B1.1
+- [~] B1.5 Migrasi SQL `0028_consolidate_staff_roles.sql` — **sudah ditulis & ter-push, belum dijalankan** (lihat B0.1). Judul lama di TODO ini salah: berkasnya **tidak menghapus role apa pun**. `user_roles.role_id` adalah `ON DELETE CASCADE`, jadi `delete from roles` akan **menghapus senyap** seluruh riwayat assignment yang merujuknya — melanggar batasan tanpa-penghapusan. Yang dipakai: role `admin` di-insert (tidak pernah di-seed), assignment lama di-*insert* jadi `admin`, baris legacy dibiarkan utuh, dan kedua role lama ditandai `is_assignable = false`. Baris legacy jadi mati sendiri setelah B0.2a, karena `rolePriority` berfungsi sebagai allowlist yang menyaring kode di luar union
+- [ ] B1.6 Perbarui referensi string `"mentor"` / `"admin_academy"` di `app/dashboard/profile/page.tsx`, `features/auth/edit-profile-action.ts`, `features/lms/components/LessonComments.tsx` — ikut B1.1. **JANGAN** ubah identifier `mentor_profiles`/`mentor_assignments`/`mentor_id`, href `/dashboard/mentor/*`, atau teks "pembimbing": entitas domain tetap bernama begitu (lihat Keputusan Kebijakan)
 - [x] B1.7 `0027_super_admin_role.sql` sudah ter-track (H-9). **Status penerapan ke DB produksi belum dikonfirmasi**
 
 ## Batch 2 — Tutup lubang otorisasi terbukti (C-2, C-3, C-4)
@@ -66,8 +180,8 @@ Referensi ID temuan mengikuti Master Deep Audit Report (C-x kritis, H-x tinggi, 
 - [ ] B4.1 **Sanitasi HTML (stored XSS)** — masih terbuka. Dua sink: `app/(public)/blog/[slug]/page.tsx:50` (`dangerouslySetInnerHTML` atas body CMS) dan `features/lms/components/RichTextViewer.tsx:12` (materi LMS). Penulisnya staf, tapi staf bukan super-admin dan pembacanya publik/peserta (H-4)
 - [ ] B4.2 Content-Security-Policy belum ada sama sekali
 - [~] B4.3 Validasi upload registrasi publik: MIME, ukuran, magic bytes, error generik (C-7) — `lib/uploads.ts` ter-commit, perlu verifikasi magic-bytes per jalur
-- [ ] B4.4 Migrasi bucket privat + `file_size_limit` + `allowed_mime_types` + policy ber-scope path (C-6). **Bucket masih publik**
-- [ ] B4.5 Signed URL untuk CV, selfie absensi, bukti laporan (C-6) — bergantung B4.4
+- [~] B4.4 Migrasi bucket privat + `file_size_limit` + `allowed_mime_types` + policy `storage.objects` (C-6). Ditulis sebagai `0032a`/`0032b` di B0.1. **Bucket masih publik sampai B0.3c dijalankan.** Cakupannya lebih luas dari dugaan awal: `avatars` adalah keranjang campur — avatar profil bersama CV, portofolio, selfie absensi, surat sakit, dan template sertifikat — jadi satu flag `public` tidak bisa memisahkan avatar dari surat sakit, dan seluruh bucket harus privat
+- [ ] B4.5 Signed URL untuk CV, selfie absensi, bukti laporan (C-6) — dikerjakan di B0.2b, bergantung B4.4. Karena `avatars` jadi privat, **avatar profil pun butuh signed URL**, dan itu dirender di setiap halaman dashboard untuk setiap role — penandatanganannya harus di `ProtectedDashboardLayout` (yang sudah membaca `avatar_path`), bukan per komponen
 
 ## Batch 5 — Integritas data (H-2, H-10, H-12, H-13, H-14, M-1, M-2, M-4, M-5, M-7)
 
@@ -83,11 +197,11 @@ Referensi ID temuan mengikuti Master Deep Audit Report (C-x kritis, H-x tinggi, 
 
 ## Batch 6 — Release engineering & CI (C-9, H-7, H-8, M-14, M-16)
 
-- [ ] B6.1 Satu lockfile + `packageManager` konsisten; deklarasikan `recharts` (C-9). Saat ini ada `pnpm-lock.yaml` & `pnpm-workspace.yaml` belum ter-track
+- [ ] B6.1 Satu lockfile + `packageManager` konsisten (C-9). Saat ini ada `pnpm-lock.yaml` & `pnpm-workspace.yaml` belum ter-track. **Bagian `recharts` usang** — sudah dideklarasikan di `package.json`
 - [ ] B6.2 Perbaiki Dockerfile: base image dipin, prune dev deps (C-9)
-- [ ] B6.3 TLS + HSTS di nginx; hapus publish port 3000; healthcheck (H-7)
+- [ ] B6.3 Hapus publish port `3000:3000` di `docker-compose.yml:10`; healthcheck (H-7). **Bagian TLS sudah terjawab**: `nginx.conf:44` memakai `$http_cf_connecting_ip`, jadi Cloudflare ada di depan dan menerminasi TLS — sisa pekerjaannya hanya menutup port yang terpublikasi
 - [ ] B6.4 Endpoint `/api/health` (M-16)
-- [ ] B6.5 Ganti `apply-migration.js` dengan runner berurutan yang gagal-keras (M-14)
+- [ ] B6.5 Ganti `apply-migration.js` dengan runner berurutan yang gagal-keras (M-14) — **dipindah ke B0.2c sebagai prasyarat**, bukan lagi item Batch 6: tanpa runner yang gagal-keras, menerapkan migrasi B0.1 ke produksi tidak aman
 - [ ] B6.6 Script `lint` + CI: install → lint → typecheck → build → test (H-8)
 - [ ] B6.7 **Tidak ada test framework sama sekali** (`package.json` hanya `dev`/`build`/`start`/`typecheck`). Matriks test otorisasi per role × action/route (H-8) — ini yang membuat semua `[~]` di atas tidak bisa naik jadi `[x]`
 
@@ -101,9 +215,20 @@ Referensi ID temuan mengikuti Master Deep Audit Report (C-x kritis, H-x tinggi, 
 
 - [ ] **Rotasi kredensial** yang terdeteksi (C-8) — hanya kamu yang punya akses ke penerbitnya.
       Rotasi harus lewat proses produksi yang berwenang; nilai rahasianya tidak akan aku tampilkan
-      atau salin ke mana pun
-- [ ] Jalankan query verifikasi **read-only** §8 laporan audit pada DB produksi, lalu kirim hasilnya —
-      menentukan isi migrasi `0028` (B1.5) dan semua item **[DEP]**
-- [ ] Konfirmasi apakah `0027` sudah diterapkan ke DB produksi
-- [ ] Konfirmasi apakah ada TLS terminator di depan nginx bawaan
+      atau salin ke mana pun. Catatan: `.env` **tidak pernah ter-commit** (dikonfirmasi via
+      `git log --all`) dan dikecualikan `.dockerignore` — rotasi tetap perlu, tapi bukan karena
+      kebocoran repo
+- [ ] **Inventaris read-only produksi (Q1–Q13). GERBANG KERAS** — semuanya `SELECT`, aman
+      dijalankan di produksi, tapi harus sebagai `postgres` (membaca katalog), bukan kunci anon.
+      Menentukan: apakah `0027` benar-benar terpasang & batas `--baseline` runner (Q1), daftar
+      tabel persis (Q2), signature fungsi untuk `0033` (Q3), **nama policy persis untuk setiap
+      `drop policy if exists`** (Q4), cakupan revoke (Q5), **role mana yang wajib menjalankan
+      `0031`** (Q6 — `alter default privileges ... revoke` hanya berlaku untuk default milik role
+      yang menjalankannya, jadi salah koneksi = no-op senyap), grant `attendance_settings`/
+      `landing_page_settings` (Q7), bucket & policy storage (Q8–Q10), premis `on conflict` (Q11),
+      tabel migrasi yang sudah ada (Q12), reloptions view (Q13)
+- [ ] Konfirmasi apakah `0027` sudah diterapkan ke DB produksi (bagian Q1)
 - [ ] Konfirmasi package manager yang dipakai di produksi (npm vs pnpm) untuk B6.1
+- [ ] **Izin eksplisit untuk B0.3** — tidak satu pun migrasi B0.1 akan aku jalankan tanpa itu.
+      Yang paling butuh izin terpisah: backfill kolom storage (B0.3b), karena ia **menulis ulang
+      baris produksi**
