@@ -1,8 +1,7 @@
 export const dynamic = "force-dynamic";
 
 ﻿import Link from "next/link";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { requireSchool } from "@/features/auth/guards";
 import { getSchoolDashboardStats, getSchoolInterns, getSchoolProfile } from "@/features/school/queries";
 import { BarChart2, BookOpen, GraduationCap, Users, AlertTriangle, ArrowRight } from "lucide-react";
 import { StatsVisualization } from "@/features/dashboard/StatsVisualization";
@@ -23,9 +22,9 @@ function StatCard({ title, value, description, icon }: { title: string; value: s
 }
 
 export default async function SchoolDashboardPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Guard peran di page, bukan hanya di layout: App Router merender layout dan
+  // page bersamaan, jadi redirect layout tidak menghentikan fetch di sini.
+  const user = await requireSchool();
 
   const { data: schoolProfile, error } = await getSchoolProfile(user.id);
   if (error || !schoolProfile) {

@@ -1,12 +1,12 @@
-import { createSupabaseServerClient, createUteroAcademyClient } from "@/lib/supabase/server";
+import { createUteroAcademyClient } from "@/lib/supabase/server";
 import { getInternProfileId, getMentorProfileId } from "@/features/daily-reports/queries";
-import { redirect } from "next/navigation";
+import { requireUser } from "@/features/auth/guards";
 import { ProfileFormWrapper } from "./ProfileFormWrapper";
 
 export default async function EditProfilePage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Halaman profil terbuka untuk semua peran yang login, jadi requireUser()
+  // saja - tetapi guard-nya harus di page: layout dan page dirender bersamaan.
+  const user = await requireUser();
   const db = await createUteroAcademyClient();
   const { data: userProfile } = await db.from("user_profiles").select("*").eq("id", user.id).maybeSingle();
   const internId = await getInternProfileId(user.id);

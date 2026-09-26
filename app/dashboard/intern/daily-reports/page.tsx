@@ -2,8 +2,7 @@ import { ImagePreview } from "@/features/daily-reports/ImagePreview";
 import { DailyReportForm } from "@/features/daily-reports/DailyReportForm";
 import { getInternDailyReports, getInternProfileId } from "@/features/daily-reports/queries";
 import { ReportStatusBadge } from "@/features/daily-reports/ReportStatusBadge";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { requireIntern } from "@/features/auth/guards";
 import Link from "next/link";
 import { FileText, Eye, Edit3, X, PlusCircle, ArrowLeft } from "lucide-react";
 
@@ -26,10 +25,9 @@ type PageProps = {
 export default async function InternDailyReportsPage({ searchParams }: PageProps) {
   const { editReportId, detailReportId, status: statusFilter, showForm } = await searchParams;
   
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  
+  // Guard peran di page, bukan hanya di layout.
+  const user = await requireIntern();
+
   const internProfileId = await getInternProfileId(user.id);
   if (!internProfileId) {
     return (

@@ -50,6 +50,16 @@ export async function requireSuperAdmin(): Promise<AuthenticatedUser> {
   return requireRole(["super_admin"]);
 }
 
+/** Dashboard peserta. super_admin ikut diizinkan untuk keperluan dukungan. */
+export async function requireIntern(): Promise<AuthenticatedUser> {
+  return requireRole(["intern", "super_admin"]);
+}
+
+/** Dashboard sekolah. super_admin ikut diizinkan untuk keperluan dukungan. */
+export async function requireSchool(): Promise<AuthenticatedUser> {
+  return requireRole(["school", "super_admin"]);
+}
+
 export async function requireRouteUser(): Promise<AuthenticatedUser> {
   const user = await getAuthenticatedUser();
 

@@ -1,7 +1,8 @@
 import { getAssignment } from "@/features/lms/queries";
 import { submitAssignmentAction } from "@/features/lms/actions";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect, notFound } from "next/navigation";
+import { getInternProfileId } from "@/features/daily-reports/queries";
+import { requireIntern } from "@/features/auth/guards";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, FileText, Calendar, UploadCloud, CheckCircle2, MessageSquare, AlertCircle } from "lucide-react";
 
@@ -16,18 +17,13 @@ function formatDate(value: string) {
 export default async function InternAssignmentPage({ params }: Props) {
   const { courseId, assignmentId } = await params;
 
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Guard peran di page, bukan hanya di layout: App Router merender layout dan
+  // page bersamaan, jadi redirect layout tidak menghentikan fetch di sini.
+  const user = await requireIntern();
 
-  const { data: profile } = await supabase
-    .schema("utero_academy")
-    .from("intern_profiles")
-    .select("id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const internProfileId = await getInternProfileId(user.id);
 
-  if (!profile) {
+  if (!internProfileId) {
     return (
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="surface p-6 text-sm font-semibold text-red-700">
@@ -37,7 +33,7 @@ export default async function InternAssignmentPage({ params }: Props) {
     );
   }
 
-  const { data: assignment, error } = await getAssignment(assignmentId, profile.id);
+  const { data: assignment, error } = await getAssignment(assignmentId, internProfileId);
 
   if (error || !assignment) {
     notFound();

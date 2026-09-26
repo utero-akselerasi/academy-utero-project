@@ -4,8 +4,7 @@ import { PermitForm } from "@/features/attendance/PermitForm";
 import { getInternAttendances, getTodayAttendance } from "@/features/attendance/queries";
 import { getInternProfileId } from "@/features/daily-reports/queries";
 import { AttendanceStatusBadge } from "@/features/attendance/AttendanceStatusBadge";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { requireIntern } from "@/features/auth/guards";
 import Link from "next/link";
 
 type Props = {
@@ -23,9 +22,9 @@ function formatDate(value: string) {
 
 export default async function InternAttendancePage({ searchParams }: Props) {
   const { mode = "present" } = await searchParams;
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Guard peran di page, bukan hanya di layout: App Router merender layout dan
+  // page bersamaan, jadi redirect layout tidak menghentikan fetch di sini.
+  const user = await requireIntern();
 
   const internProfileId = await getInternProfileId(user.id);
   if (!internProfileId) {

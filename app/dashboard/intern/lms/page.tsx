@@ -1,8 +1,7 @@
-import { getInternEnrollments, getAllCourses } from "@/features/lms/queries";
+import { getInternEnrollments, getPublishedCourses } from "@/features/lms/queries";
 import { getInternProfileId } from "@/features/daily-reports/queries";
 import { enrollCourseAction } from "@/features/lms/actions";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { requireIntern } from "@/features/auth/guards";
 import Link from "next/link";
 import { BookOpen, Calendar, ArrowRight, Plus } from "lucide-react";
 
@@ -11,18 +10,12 @@ function formatDate(value: string) {
 }
 
 export default async function InternLmsPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Guard peran di page, bukan hanya di layout.
+  const user = await requireIntern();
 
-  const { data: profile } = await supabase
-    .schema("utero_academy")
-    .from("intern_profiles")
-    .select("id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const internProfileId = await getInternProfileId(user.id);
 
-  if (!profile) {
+  if (!internProfileId) {
     return (
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="surface p-6 text-sm font-semibold text-red-700">
@@ -32,12 +25,14 @@ export default async function InternLmsPage() {
     );
   }
 
-  const { data: enrollments } = await getInternEnrollments(profile.id);
-  const { data: allCourses } = await getAllCourses();
+  const { data: enrollments } = await getInternEnrollments(internProfileId);
+  // Penyaringan draft dilakukan di query, bukan setelah data sampai: course
+  // berstatus draft tidak boleh ikut terkirim ke halaman peserta sama sekali.
+  const { data: publishedCourses } = await getPublishedCourses();
 
   // Filter courses yang belum di-enroll
   const enrolledIds = new Set(enrollments.map(e => e.course_id));
-  const availableCourses = (allCourses || []).filter(c => !enrolledIds.has(c.id) && c.status === "published");
+  const availableCourses = (publishedCourses || []).filter(c => !enrolledIds.has(c.id));
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 space-y-10">

@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 ﻿import Link from "next/link";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireSchool } from "@/features/auth/guards";
 import { redirect } from "next/navigation";
 import { getSchoolInterns, getSchoolProfile } from "@/features/school/queries";
 
@@ -22,9 +22,8 @@ function tabClass(isActive: boolean) {
 
 export default async function SchoolStudentsPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: StatusTab }> }) {
   const { q = "", status = "all" } = await searchParams;
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Guard peran di page, bukan hanya di layout.
+  const user = await requireSchool();
 
   const { data: schoolProfile } = await getSchoolProfile(user.id);
   if (!schoolProfile) redirect("/dashboard/school");

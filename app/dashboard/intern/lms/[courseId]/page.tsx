@@ -1,6 +1,7 @@
 import { getCourseDetails } from "@/features/lms/queries";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect, notFound } from "next/navigation";
+import { getInternProfileId } from "@/features/daily-reports/queries";
+import { requireIntern } from "@/features/auth/guards";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, BookOpen, CheckCircle2, Circle, AlertCircle, FileText, Check } from "lucide-react";
 
@@ -11,18 +12,13 @@ type Props = {
 export default async function InternCourseDetailPage({ params }: Props) {
   const { courseId } = await params;
 
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Guard peran di page, bukan hanya di layout: App Router merender layout dan
+  // page bersamaan, jadi redirect layout tidak menghentikan fetch di sini.
+  const user = await requireIntern();
 
-  const { data: profile } = await supabase
-    .schema("utero_academy")
-    .from("intern_profiles")
-    .select("id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const internProfileId = await getInternProfileId(user.id);
 
-  if (!profile) {
+  if (!internProfileId) {
     return (
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="surface p-6 text-sm font-semibold text-red-700">
@@ -32,7 +28,7 @@ export default async function InternCourseDetailPage({ params }: Props) {
     );
   }
 
-  const { data, error } = await getCourseDetails(courseId, profile.id);
+  const { data, error } = await getCourseDetails(courseId, internProfileId);
 
   if (error || !data) {
     notFound();

@@ -1,13 +1,11 @@
 import { getLandingPageSettings } from "@/features/cms/queries";
 import { LandingPageEditor } from "@/features/cms/LandingPageEditor";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { requireAdmin } from "@/features/auth/guards";
 import { LayoutDashboard } from "lucide-react";
 
 export default async function AdminLandingCmsPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Guard di page, bukan hanya di layout: layout dan page dirender bersamaan.
+  await requireAdmin();
 
   const { data: landingSettings, error } = await getLandingPageSettings();
 

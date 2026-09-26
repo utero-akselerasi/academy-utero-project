@@ -6,8 +6,7 @@ import { TaskAttachmentForm } from "@/features/tasks/TaskAttachmentForm";
 import { getInternCards } from "@/features/tasks/queries";
 import { getInternProfileId } from "@/features/daily-reports/queries";
 import { ImagePreview } from "@/features/daily-reports/ImagePreview";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { requireIntern } from "@/features/auth/guards";
 import { Calendar, ClipboardCheck, Paperclip, Eye, Clock } from "lucide-react";
 
 type Props = {
@@ -36,9 +35,8 @@ const priorityConfig = {
 export default async function InternTasksPage({ searchParams }: Props) {
   const { status: statusFilter = "all" } = await searchParams;
 
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Guard peran di page, bukan hanya di layout.
+  const user = await requireIntern();
 
   const internProfileId = await getInternProfileId(user.id);
   if (!internProfileId) {

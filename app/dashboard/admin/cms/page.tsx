@@ -1,13 +1,14 @@
 import { getDefaultSite, getCmsData } from "@/features/cms/queries";
 import { CmsManager } from "@/features/cms/CmsManager";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { requireAdmin } from "@/features/auth/guards";
 import { BookOpen } from "lucide-react";
 
 export default async function AdminCmsPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Layout dan page dirender bersamaan di App Router, jadi redirect di layout
+  // tidak menghentikan pengambilan data di page ini. Guard peran harus ada di
+  // page-nya sendiri: sebelumnya cukup "ada sesi", sehingga peserta atau
+  // sekolah yang login bisa memuat panel CMS beserta isinya.
+  await requireAdmin();
 
   const { data: site, error: siteErr } = await getDefaultSite();
 

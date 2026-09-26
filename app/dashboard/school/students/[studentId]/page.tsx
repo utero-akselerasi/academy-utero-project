@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-﻿import { createSupabaseServerClient } from "@/lib/supabase/server";
+﻿import { requireSchool } from "@/features/auth/guards";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSchoolProfile, getSchoolStudentDetail } from "@/features/school/queries";
@@ -28,9 +28,8 @@ function getPeriodInfo(startDate: string | null, endDate: string | null) {
 
 export default async function SchoolStudentDetailPage({ params }: { params: Promise<{ studentId: string }> }) {
   const { studentId } = await params;
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Guard peran di page, bukan hanya di layout.
+  const user = await requireSchool();
 
   const { data: schoolProfile } = await getSchoolProfile(user.id);
   if (!schoolProfile) redirect("/dashboard/school");

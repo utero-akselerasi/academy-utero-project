@@ -267,13 +267,32 @@ export async function getMentorSubmissions(allowedInternIds: string[] | null) {
   return { data: mapped, error: null };
 }
 
+/** Katalog lengkap termasuk draft. Hanya untuk halaman staf. */
 export async function getAllCourses() {
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("courses")
     .select("id, title, description, slug, status")
     .order("title", { ascending: true });
-    
+
+  return { data: data ?? [], error };
+}
+
+/**
+ * Katalog untuk peserta: hanya course terbit.
+ *
+ * Halaman peserta dulu memakai getAllCourses() lalu menyaring draft di sisi
+ * render. Itu berarti judul dan deskripsi course yang belum terbit tetap
+ * terkirim dalam payload halaman. Penyaringan dipindah ke query.
+ */
+export async function getPublishedCourses() {
+  const db = await createUteroAcademyServiceRoleClient();
+  const { data, error } = await db
+    .from("courses")
+    .select("id, title, description, slug, status")
+    .eq("status", "published")
+    .order("title", { ascending: true });
+
   return { data: data ?? [], error };
 }
 

@@ -1,13 +1,13 @@
 export const dynamic = "force-dynamic";
 
-﻿import { createSupabaseServerClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+﻿import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { requireIntern } from "@/features/auth/guards";
 import { getInternProfileId, getInternDailyReports } from "@/features/daily-reports/queries";
 import { getInternAttendances, getTodayAttendance } from "@/features/attendance/queries";
 import { getInternCards } from "@/features/tasks/queries";
 import { AttendanceStatusBadge } from "@/features/attendance/AttendanceStatusBadge";
 import { ReportStatusBadge } from "@/features/daily-reports/ReportStatusBadge";
 import { StatsVisualization } from "@/features/dashboard/StatsVisualization";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { 
   ClipboardList, Clock, FileText, BookOpen, 
@@ -59,9 +59,8 @@ function getInternshipPeriodInfo(startDate: string | null, endDate: string | nul
 }
 
 export default async function InternDashboardPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Guard peran di page, bukan hanya di layout.
+  const user = await requireIntern();
 
   const db = await createUteroAcademyServiceRoleClient();
   const internProfileId = await getInternProfileId(user.id);

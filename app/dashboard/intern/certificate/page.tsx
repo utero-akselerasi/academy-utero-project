@@ -1,7 +1,7 @@
 import { getInternCertificate } from "@/features/assessments/queries";
 import { getInternProfileId } from "@/features/daily-reports/queries";
-import { createSupabaseServerClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { requireIntern } from "@/features/auth/guards";
 import Link from "next/link";
 import { Award, Printer, ShieldAlert, Award as CertIcon, ClipboardCheck } from "lucide-react";
 import { AlumniTestimonialForm } from "@/features/cms/AlumniTestimonialForm";
@@ -11,9 +11,8 @@ function formatDate(value: string) {
 }
 
 export default async function InternCertificatePage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Guard peran di page, bukan hanya di layout.
+  const user = await requireIntern();
 
   const internProfileId = await getInternProfileId(user.id);
   if (!internProfileId) {
