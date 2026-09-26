@@ -1,46 +1,34 @@
-import { userHasAnyRole } from "@/features/auth/roles";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { type DailyReport, type DailyReportWithDetails, type DailyReportReview, type DailyReportWithIntern } from "./types";
 
+/**
+ * ID intern_profiles milik satu user. HANYA BACA.
+ *
+ * Fungsi ini dipanggil dari banyak page (GET) dan dari requireCardAccess, jadi
+ * dulu ia membuat baris intern_profiles bila belum ada - menulis di jalur GET
+ * tanpa proteksi CSRF maupun jejak audit, dan bisa dipicu prefetch. Lebih
+ * buruk: hasilnya dipakai sebagai pembanding otorisasi kepemilikan task, jadi
+ * jalur baca ikut membuat data yang menentukan hasil pemeriksaan akses.
+ *
+ * Pembuatan profil sekarang terjadi sekali di aksi eksplisit yang ber-audit
+ * (provisionDomainProfile di features/super-admin/actions.ts). Null di sini
+ * berarti profil belum disiapkan - halaman menampilkan pesan setup, bukan
+ * membuat profil sendiri.
+ */
 export async function getInternProfileId(userId: string): Promise<string | null> {
   const db = await createUteroAcademyServiceRoleClient();
-  const { data } = await db
+  const { data, error } = await db
     .from("intern_profiles")
     .select("id")
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (data?.id) return data.id;
-
-  // Provisioning hanya untuk user yang memang ber-role intern. Tanpa cek ini,
-  // pemanggilan dari user lain membuat profil domain baru dan bisa dipakai
-  // sebagai bukti otorisasi.
-  if (!(await userHasAnyRole(userId, ["intern"]))) return null;
-
-  const { data: userProfile } = await db
-    .from("user_profiles")
-    .select("full_name, phone")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (!userProfile) return null;
-
-  const { data: newProfile, error } = await db
-    .from("intern_profiles")
-    .insert({
-      user_id: userId,
-      full_name: userProfile.full_name,
-      phone: userProfile.phone || null,
-      status: "active"
-    })
-    .select("id")
-    .maybeSingle();
-
   if (error) {
-    console.error("Gagal auto-provision intern profile:", error);
+    console.error("Gagal membaca profil peserta:", error);
     return null;
   }
-  return newProfile?.id ?? null;
+
+  return data?.id ?? null;
 }
 
 export async function getMentorProfileId(userId: string): Promise<string | null> {

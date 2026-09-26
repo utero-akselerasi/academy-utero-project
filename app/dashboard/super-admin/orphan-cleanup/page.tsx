@@ -1,12 +1,16 @@
 ﻿import Link from "next/link";
-import { detectOrphanData } from "@/features/super-admin/queries";
-import { cleanupOrphanDataAction } from "@/features/super-admin/actions";
+import { detectOrphanData, detectMissingDomainProfiles } from "@/features/super-admin/queries";
+import { cleanupOrphanDataAction, backfillDomainProfilesAction } from "@/features/super-admin/actions";
 import { requireSuperAdmin } from "@/features/auth/guards";
 
 export default async function SuperAdminOrphanCleanupPage() {
   await requireSuperAdmin();
 
   const { orphanContacts, orphanInterns, total, error } = await detectOrphanData();
+  // Profil domain yang belum lengkap dilaporkan di halaman yang sama karena
+  // sama-sama soal integritas data, tapi perbaikannya menambah baris - bukan
+  // menghapus - jadi bagiannya dipisah dan tidak ikut tombol "Bersihkan Semua".
+  const { missing: missingProfiles, error: missingError } = await detectMissingDomainProfiles();
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
@@ -112,6 +116,41 @@ export default async function SuperAdminOrphanCleanupPage() {
           </div>
         </>
       )}
+
+      <section className="surface mt-6 overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+        <div className="border-b border-slate-100 bg-slate-50 px-6 py-4">
+          <h3 className="text-lg font-black text-slate-950">Profil Domain Belum Lengkap ({missingProfiles.length})</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            User sudah punya role tapi belum punya baris <code>intern_profiles</code> / <code>mentor_profiles</code>.
+            Tanpa profil ini dashboard-nya menampilkan pesan setup. Aksi di bawah hanya menambah baris yang kurang,
+            tidak menghapus atau mengubah data apa pun.
+          </p>
+        </div>
+        <div className="p-6">
+          {missingError ? (
+            <p className="text-sm font-semibold text-red-700">Gagal memeriksa profil domain. Cek koneksi database.</p>
+          ) : missingProfiles.length === 0 ? (
+            <p className="text-sm text-emerald-700">Semua user dengan role sudah punya profil domain.</p>
+          ) : (
+            <>
+              <div className="mb-4 max-h-64 space-y-2 overflow-y-auto">
+                {missingProfiles.map((row) => (
+                  <div key={row.userId + row.table} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="font-semibold text-slate-900">{row.fullName}</p>
+                    <p className="text-xs text-slate-500">User: {row.userId}</p>
+                    <p className="text-xs text-slate-500">Role: {row.roleCode} &middot; Butuh: {row.table}</p>
+                  </div>
+                ))}
+              </div>
+              <form action={backfillDomainProfilesAction}>
+                <button className="w-full rounded-lg bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-800">
+                  Lengkapi {missingProfiles.length} Profil Domain
+                </button>
+              </form>
+            </>
+          )}
+        </div>
+      </section>
     </main>
   );
 }

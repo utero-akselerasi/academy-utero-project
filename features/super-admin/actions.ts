@@ -3,6 +3,7 @@
 import { requireAdmin, requireSuperAdmin } from "@/features/auth/guards";
 import { userIsSuperAdmin } from "@/features/auth/roles";
 import { createUteroAcademyClient, createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { detectMissingDomainProfiles } from "./queries";
 import { writeAuditLog } from "./audit";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -25,6 +26,70 @@ const schoolSchema = z.object({
 // Guard terpusat dipakai supaya Server Action ini tetap terlindungi meski
 // dipanggil langsung lewat action ID, bukan hanya lewat layout/page.
 const requireUserManagementAccess = requireAdmin;
+
+/**
+ * Siapkan profil domain sesuai role, sekali di titik pemberian role.
+ *
+ * Dulu profil dibuat malas (lazy) saat halaman dibuka - getInternProfileId()
+ * dan features/admin/queries.ts menyisipkan baris di jalur GET. Pembuatan data
+ * harus terjadi di aksi eksplisit yang ber-audit, bukan sebagai efek samping
+ * render. Fungsi ini dipanggil dari assignUserRoleAction dan
+ * createUserManualAction.
+ *
+ * Idempoten: user_id unik di kedua tabel, jadi 23505 (unique violation)
+ * berarti profil sudah ada dan itu bukan kegagalan.
+ */
+async function provisionDomainProfile(
+  db: Awaited<ReturnType<typeof createUteroAcademyServiceRoleClient>>,
+  userId: string,
+  roleCode: string,
+  fallback?: { fullName?: string | null; email?: string | null; phone?: string | null },
+) {
+  if (roleCode === "intern") {
+    let fullName = fallback?.fullName ?? null;
+    let phone = fallback?.phone ?? null;
+
+    if (!fullName) {
+      const { data: userProfile } = await db
+        .from("user_profiles")
+        .select("full_name, phone")
+        .eq("id", userId)
+        .maybeSingle();
+      fullName = (userProfile?.full_name as string | undefined) ?? null;
+      phone = phone ?? ((userProfile?.phone as string | undefined) ?? null);
+    }
+
+    // full_name NOT NULL di skema; tanpa user_profiles tidak ada nama yang
+    // sah untuk dipakai, jadi lebih baik gagal terang daripada membuat baris
+    // dengan nama palsu.
+    if (!fullName) {
+      throw new Error("Profil dasar user belum ada, tidak bisa membuat profil peserta.");
+    }
+
+    const { error } = await db.from("intern_profiles").insert({
+      user_id: userId,
+      full_name: fullName,
+      email: fallback?.email ?? null,
+      phone,
+      status: "active",
+    });
+
+    if (error && error.code !== "23505") {
+      throw new Error("Gagal membuat profil peserta: " + error.message);
+    }
+    return;
+  }
+
+  // Role `mentor` sudah tidak dipakai sebagai peran login (admin = pembimbing),
+  // tapi barisnya masih ada di tabel roles sampai migrasi pembersihan jalan.
+  if (roleCode === "admin" || roleCode === "admin_academy" || roleCode === "mentor") {
+    const { error } = await db.from("mentor_profiles").insert({ user_id: userId });
+
+    if (error && error.code !== "23505") {
+      throw new Error("Gagal membuat profil pembimbing: " + error.message);
+    }
+  }
+}
 
 export async function assignUserRoleAction(formData: FormData) {
   const user = await requireSuperAdmin();
@@ -56,6 +121,28 @@ export async function assignUserRoleAction(formData: FormData) {
     null,
     { roleId: parsed.data.roleId }
   );
+
+  // Profil domain disiapkan di sini, bukan malas saat halaman dibuka. Tanpa ini
+  // pemberian role intern lewat halaman User & Role tidak menghasilkan
+  // intern_profiles sama sekali setelah insert di jalur GET dihapus.
+  const { data: role } = await db
+    .from("roles")
+    .select("code")
+    .eq("id", parsed.data.roleId)
+    .maybeSingle();
+
+  if (role?.code) {
+    await provisionDomainProfile(db, parsed.data.userId, role.code as string);
+
+    await writeAuditLog(
+      user.id,
+      "provision_domain_profile",
+      "user_roles",
+      parsed.data.userId,
+      null,
+      { roleCode: role.code }
+    );
+  }
 
   revalidatePath("/dashboard/super-admin/users");
 }
@@ -166,21 +253,12 @@ export async function createUserManualAction(formData: FormData) {
       .eq("id", roleId)
       .maybeSingle();
 
-    if (roleData) {
-      if (roleData.code === "intern") {
-        await db.from("intern_profiles").insert({
-          user_id: userId,
-          full_name: fullName,
-          phone: phone || null,
-          email: email,
-          status: "active"
-        });
-      } else if (roleData.code === "mentor" || roleData.code === "admin") {
-        // Auto-create mentor_profile agar admin bisa ditugaskan membimbing siswa magang
-        await db.from("mentor_profiles").insert({
-          user_id: userId
-        });
-      }
+    if (roleData?.code) {
+      await provisionDomainProfile(db, userId, roleData.code as string, {
+        fullName,
+        email,
+        phone: phone || null,
+      });
     }
   }
 
@@ -624,4 +702,52 @@ export async function updateInternPeriodAction(formData: FormData) {
   revalidatePath("/dashboard/super-admin/schools");
   revalidatePath("/dashboard/intern");
   revalidatePath("/dashboard/school/students");
+}
+
+/**
+ * Lengkapi profil domain yang belum ada untuk user yang sudah punya role.
+ *
+ * Pengganti eksplisit untuk pembuatan malas yang dulu terjadi di jalur GET.
+ * Hanya menambah baris yang kurang: tidak menghapus, tidak mengubah, dan tidak
+ * menyentuh penempatan atau data peserta yang sudah ada. 23505 ditangani di
+ * provisionDomainProfile sebagai "sudah ada".
+ */
+export async function backfillDomainProfilesAction() {
+  const user = await requireSuperAdmin();
+
+  const { missing, error } = await detectMissingDomainProfiles();
+
+  if (error) {
+    throw new Error("Gagal memeriksa profil yang belum lengkap.");
+  }
+
+  const db = await createUteroAcademyServiceRoleClient();
+
+  let created = 0;
+  const failures: Array<{ userId: string; reason: string }> = [];
+
+  for (const row of missing) {
+    try {
+      await provisionDomainProfile(db, row.userId, row.roleCode);
+      created += 1;
+    } catch (err) {
+      // Satu user tanpa user_profiles tidak boleh menggagalkan sisanya.
+      failures.push({
+        userId: row.userId,
+        reason: err instanceof Error ? err.message : "Tidak diketahui",
+      });
+    }
+  }
+
+  await writeAuditLog(
+    user.id,
+    "backfill_domain_profiles",
+    "system",
+    null,
+    null,
+    { attempted: missing.length, created, failed: failures.length, failures }
+  );
+
+  revalidatePath("/dashboard/super-admin/users");
+  revalidatePath("/dashboard/super-admin/orphan-cleanup");
 }

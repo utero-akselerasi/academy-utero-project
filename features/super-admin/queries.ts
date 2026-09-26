@@ -129,3 +129,74 @@ export async function detectOrphanData() {
   };
 }
 
+
+export type MissingDomainProfile = {
+  userId: string;
+  fullName: string;
+  roleCode: string;
+  table: "intern_profiles" | "mentor_profiles";
+};
+
+/**
+ * User yang punya role tapi belum punya profil domain pendampingnya.
+ *
+ * Dulu profil dibuat malas saat halaman dibuka, jadi kekurangan seperti ini
+ * tidak pernah terlihat. Setelah penulisan di jalur GET dihapus, kekurangan itu
+ * harus tampil eksplisit supaya super admin bisa melengkapinya lewat aksi
+ * ber-audit, bukan lewat efek samping render.
+ *
+ * Hanya membaca.
+ */
+export async function detectMissingDomainProfiles() {
+  const db = await createUteroAcademyServiceRoleClient();
+
+  const [userRolesResult, profilesResult, internsResult, mentorsResult] = await Promise.all([
+    db.from("user_roles").select("user_id, roles(code)").returns<any[]>(),
+    db.from("user_profiles").select("id, full_name").returns<Array<{ id: string; full_name: string }>>(),
+    db.from("intern_profiles").select("user_id").returns<Array<{ user_id: string | null }>>(),
+    db.from("mentor_profiles").select("user_id").returns<Array<{ user_id: string | null }>>(),
+  ]);
+
+  const nameById = new Map((profilesResult.data ?? []).map((p) => [p.id, p.full_name]));
+  const hasIntern = new Set((internsResult.data ?? []).map((r) => r.user_id).filter(Boolean) as string[]);
+  const hasMentor = new Set((mentorsResult.data ?? []).map((r) => r.user_id).filter(Boolean) as string[]);
+
+  const missing: MissingDomainProfile[] = [];
+  // Satu user bisa memegang beberapa role staf (admin + admin_academy), tapi
+  // profil pembimbingnya hanya satu baris. Tanpa dedup, satu kekurangan yang
+  // sama akan terhitung dua kali di laporan maupun di hasil backfill.
+  const seen = new Set<string>();
+
+  for (const row of userRolesResult.data ?? []) {
+    const r = row.roles;
+    const code = (Array.isArray(r) ? r[0]?.code : r?.code) as string | undefined;
+    const userId = row.user_id as string;
+    if (!code || !userId) continue;
+
+    if (code === "intern" && !hasIntern.has(userId)) {
+      if (seen.has(userId + ":intern_profiles")) continue;
+      seen.add(userId + ":intern_profiles");
+      missing.push({
+        userId,
+        fullName: nameById.get(userId) || "(tanpa profil dasar)",
+        roleCode: code,
+        table: "intern_profiles",
+      });
+    } else if ((code === "admin" || code === "admin_academy" || code === "mentor") && !hasMentor.has(userId)) {
+      if (seen.has(userId + ":mentor_profiles")) continue;
+      seen.add(userId + ":mentor_profiles");
+      missing.push({
+        userId,
+        fullName: nameById.get(userId) || "(tanpa profil dasar)",
+        roleCode: code,
+        table: "mentor_profiles",
+      });
+    }
+  }
+
+  return {
+    missing,
+    total: missing.length,
+    error: userRolesResult.error || profilesResult.error || internsResult.error || mentorsResult.error,
+  };
+}
