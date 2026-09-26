@@ -1,5 +1,6 @@
 import { ApplicationStatusForm } from "@/features/admin/ApplicationStatusForm";
 import { type InternshipApplication } from "@/features/admin/types";
+import { resolveStorageUrl } from "@/lib/storage-urls";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
 function formatDate(value: string) {
@@ -18,6 +19,16 @@ export default async function AdminApplicationsPage() {
     .returns<InternshipApplication[]>();
 
   const applications = data ?? [];
+
+  // CV dan portofolio ada di bucket privat `avatars`, jadi ditandatangani di
+  // server. Keduanya ditandatangani sekaligus per baris, bukan berurutan:
+  // halaman ini memuat seluruh riwayat pendaftaran tanpa paginasi.
+  const fileUrls = await Promise.all(
+    applications.map(async (item) => ({
+      cv: await resolveStorageUrl("avatars", item.cv_path),
+      portfolio: await resolveStorageUrl("avatars", item.portfolio_path),
+    })),
+  );
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
@@ -43,7 +54,7 @@ export default async function AdminApplicationsPage() {
           <div className="surface p-8 text-center text-slate-600">Belum ada pendaftaran masuk.</div>
         ) : null}
 
-        {applications.map((item) => (
+        {applications.map((item, index) => (
           <article className="surface p-5" key={item.id}>
             <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
               <div>
@@ -71,8 +82,8 @@ export default async function AdminApplicationsPage() {
                   <div>
                     <dt className="font-bold text-slate-950">Berkas CV</dt>
                     <dd>
-                      {item.cv_path ? (
-                        <a href={item.cv_path} target="_blank" rel="noopener noreferrer" className="text-teal-600 font-bold underline hover:text-teal-800">
+                      {fileUrls[index].cv ? (
+                        <a href={fileUrls[index].cv!} target="_blank" rel="noopener noreferrer" className="text-teal-600 font-bold underline hover:text-teal-800">
                           Lihat/Unduh CV
                         </a>
                       ) : (
@@ -83,8 +94,8 @@ export default async function AdminApplicationsPage() {
                   <div>
                     <dt className="font-bold text-slate-950">Berkas Portofolio</dt>
                     <dd>
-                      {item.portfolio_path ? (
-                        <a href={item.portfolio_path} target="_blank" rel="noopener noreferrer" className="text-teal-600 font-bold underline hover:text-teal-800">
+                      {fileUrls[index].portfolio ? (
+                        <a href={fileUrls[index].portfolio!} target="_blank" rel="noopener noreferrer" className="text-teal-600 font-bold underline hover:text-teal-800">
                           Lihat/Unduh Portofolio
                         </a>
                       ) : (

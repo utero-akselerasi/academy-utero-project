@@ -78,10 +78,18 @@ export async function submitRegistrationAction(
       return { ok: false, message: "Gagal mengunggah berkas CV. Silakan coba lagi." };
     }
 
-    const { data: { publicUrl: cvPublicUrl } } = supabase.storage.from("avatars").getPublicUrl(cvPath);
+    // CV dan portofolio disimpan sebagai object path, bukan URL publik. Berkas
+    // lamaran memuat nama, alamat, nomor telepon, dan riwayat pendidikan pelamar —
+    // sebelum ini semuanya terbaca siapa pun yang tahu path-nya, tanpa login.
+    //
+    // Path-nya berprefix literal `cv/` dan `portfolio/`, BUKAN `{userId}/`,
+    // karena pendaftaran terjadi sebelum akun pelamar ada. Itu sebabnya bucket
+    // privat tidak bisa memakai predikat owner-scoped
+    // `(storage.foldername(name))[1] = auth.uid()::text` — pembacaannya hanya
+    // lewat signed URL dari server (lihat 0032a).
 
     // 2. Upload Portfolio (opsional)
-    let portfolioPublicUrl = null;
+    let portfolioPath = null;
     if (portfolio) {
       const portPath = buildStoragePath("portfolio", portfolio.ext);
       const { error: portUploadError } = await supabase.storage
@@ -91,8 +99,7 @@ export async function submitRegistrationAction(
       if (portUploadError) {
         console.error("Gagal upload Portfolio:", portUploadError);
       } else {
-        const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(portPath);
-        portfolioPublicUrl = publicUrl;
+        portfolioPath = portPath;
       }
     }
 
@@ -104,8 +111,8 @@ export async function submitRegistrationAction(
       school_name: parsed.data.schoolName,
       major: parsed.data.major,
       motivation: parsed.data.motivation,
-      cv_path: cvPublicUrl,
-      portfolio_path: portfolioPublicUrl,
+      cv_path: cvPath,
+      portfolio_path: portfolioPath,
       status: "submitted",
     });
 
