@@ -126,14 +126,57 @@ Total: **62 dari 62 tabel** `utero_academy` punya postur eksplisit.
       `mentor_profiles` bukan bukti otorisasi (keputusan C-2) — dan user lama
       yang cuma punya baris `mentor`/`admin_academy` tetap harus bisa
       dilengkapi profilnya selama baris itu masih hidup.
-- [ ] B0.2b `lib/storage-urls.ts` + konversi **16 titik tulis** (simpan object
-      path, bukan URL) & **~60 titik baca** (tanda tangani di server). Empat
-      jebakan yang harus ditangani eksplisit: cek `.endsWith('.pdf')` harus pindah
-      ke object path karena signed URL membawa `?token=`; `hero_image_path`
-      bolak-balik lewat input tersembunyi klien dan akan menyimpan URL bertoken
-      permanen; halaman cetak sertifikat butuh TTL lebih panjang; dan **lima titik
-      render publik tidak boleh ditandatangani** (bucket `article`/`gallery`/
-      `mentor`/`school-logo` tetap publik, halamannya di-cache)
+- [x] B0.2b `lib/storage-urls.ts` + konversi **16 titik tulis** (simpan object
+      path, bukan URL) & titik baca (tanda tangani di server). **Selesai, `tsc`
+      hijau (`TSC_EXIT=0`).** Delapan domain: absensi, profil, pendaftaran,
+      laporan harian, task, LMS, portal sekolah, template sertifikat, CMS.
+
+      Resolusi selalu ditaruh di **lapisan kueri**, bukan per titik render —
+      aturan yang berulang di kedelapan domain. Melebarkan tipe kolom ke
+      `string | null` dipakai sebagai **alat penemuan**: `tsc` yang menunjukkan
+      titik render mana yang belum menangani objek yatim, bukan grep.
+
+      Keempat jebakan tertangani:
+
+      1. Cek ekstensi dipindah ke object path lewat `isPdfPath()` dan
+         `isImagePath()` di `lib/storage-urls.ts` — signed URL selalu berakhir
+         `?token=...`, jadi keputusan tipe tidak boleh diambil dari URL final.
+      2. `hero_image_path` diselesaikan dengan **memisah state**, bukan mengonversi
+         nilai. `LandingPageEditor` memegang dua state: `heroImagePath` yang
+         dikirim balik lewat form dan `heroImagePreviewUrl` yang dirender. Field
+         tersembunyi ikut diganti nama `heroImageUrl` → `heroImagePath`; nama
+         lamanya justru yang mengundang bug ini.
+      3. Halaman cetak sertifikat dapat TTL lebih panjang.
+      4. Titik render publik tertangani **secara struktural**, bukan lewat
+         pengecualian per titik: `PUBLIC_BUCKETS` merutekan `gallery`/`article`/
+         `mentor`/`school-logo` ke `getPublicUrl()`, dan `0032b` tidak pernah
+         mem-flip keempatnya. Tidak ada token yang bisa masuk ke HTML ter-cache.
+
+      **Dua koreksi terhadap rencana, ditemukan dari sumber:**
+
+      1. `uploadCmsFileAction` melayani **empat** field, bukan hanya
+         `hero_image_path`. Karena itu ia sekarang mengembalikan `{ path, url }` —
+         sebelumnya hanya URL, jadi object path-nya hilang di batas klien.
+      2. **Tiga di antaranya sengaja TIDAK dikonversi.** `skills[].icon_url`,
+         `expertisers[].avatar`, `partnerships[].logo_url` ada di JSONB bebas-isi
+         yang juga memuat path aset lokal aplikasi (`/images/expert-dadik.jpg`)
+         dan URL eksternal tempelan admin. `toObjectPath` memetakan kedua bentuk
+         itu ke `null`, jadi mengonversinya akan **menghapus senyap** gambar yang
+         sudah benar. Ketiganya tetap menyimpan URL; aman karena bucket `gallery`
+         tetap publik. Ini satu-satunya `getPublicUrl()` yang dipertahankan di
+         aplikasi.
+
+      Dua titik baca yang tidak ada di peta awal ditemukan saat pengerjaan:
+      `features/school/queries.ts` dan `app/(public)/blog/[slug]/page.tsx` —
+      keduanya punya kueri sendiri, bukan lewat kueri terpusat. Di
+      `blog/[slug]` resolusinya **hanya** di cabang DB; cabang
+      `artikelApiConfigured()` mengembalikan URL dari `cms.carubra.com`, bucket
+      asing yang `toObjectPath` petakan ke `null`.
+
+      Catatan jujur soal bucket publik: konversi ke object path di sana **tidak**
+      memberi kerahasiaan apa pun (isinya memang publik). Yang didapat cuma dua:
+      kolom DB berhenti menyimpan base URL yang bisa berubah, dan object path-nya
+      tersedia untuk `storage.remove()` kalau penghapusan objek yatim dikerjakan.
 - [ ] B0.2c Ganti `apply-migration.js` dengan `scripts/migrate.mjs` +
       `schema_migrations` + penegakan checksum. Prasyarat, bukan item Batch 6:
       runner sekarang nama berkasnya di-hardcode ke `0004`, fallback ke
@@ -211,7 +254,11 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
 - [ ] B4.2 Content-Security-Policy belum ada sama sekali
 - [~] B4.3 Validasi upload registrasi publik: MIME, ukuran, magic bytes, error generik (C-7) — `lib/uploads.ts` ter-commit, perlu verifikasi magic-bytes per jalur
 - [~] B4.4 Migrasi bucket privat + `file_size_limit` + `allowed_mime_types` + policy `storage.objects` (C-6). Ditulis sebagai `0032a`/`0032b` di B0.1. **Bucket masih publik sampai B0.3c dijalankan.** Cakupannya lebih luas dari dugaan awal: `avatars` adalah keranjang campur — avatar profil bersama CV, portofolio, selfie absensi, surat sakit, dan template sertifikat — jadi satu flag `public` tidak bisa memisahkan avatar dari surat sakit, dan seluruh bucket harus privat
-- [ ] B4.5 Signed URL untuk CV, selfie absensi, bukti laporan (C-6) — dikerjakan di B0.2b, bergantung B4.4. Karena `avatars` jadi privat, **avatar profil pun butuh signed URL**, dan itu dirender di setiap halaman dashboard untuk setiap role — penandatanganannya harus di `ProtectedDashboardLayout` (yang sudah membaca `avatar_path`), bukan per komponen
+- [~] B4.5 Signed URL untuk CV, selfie absensi, bukti laporan (C-6) — **sisi sumber selesai di B0.2b**, tapi belum berlaku sampai B0.3b/B0.3c dijalankan: baris lama masih menyimpan URL penuh dan bucketnya masih publik. Karena `avatars` jadi privat, **avatar profil pun butuh signed URL**, dan itu dirender di setiap halaman dashboard untuk setiap role — penandatanganannya ditaruh di `ProtectedDashboardLayout` (yang sudah membaca `avatar_path`), bukan per komponen.
+
+      `toObjectPath()` sengaja menerima **dua bentuk sekaligus** (URL publik penuh
+      dan object path) justru karena backfill B0.3b masih menunggu izin: satu
+      kolom bisa memuat URL lama di baris lama dan object path di baris baru.
 
 ## Batch 5 — Integritas data (H-2, H-10, H-12, H-13, H-14, M-1, M-2, M-4, M-5, M-7)
 
