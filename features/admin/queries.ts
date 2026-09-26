@@ -1,81 +1,83 @@
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
+/**
+ * Daftar peserta aktif, HANYA BACA.
+ *
+ * Versi sebelumnya menyisipkan baris `intern_profiles` untuk setiap user
+ * berperan intern yang belum punya profil. Itu berarti sekadar membuka halaman
+ * (GET, bisa dipicu prefetch) menulis data - tanpa proteksi CSRF, tanpa jejak
+ * audit, dan baris yang dibuat selalu tanpa email dengan nama fallback
+ * "Peserta Magang". Pembuatan profil sekarang urusan onboarding eksplisit;
+ * fungsi ini tidak lagi menulis apa pun.
+ *
+ * Sekaligus menghapus N+1 query: satu query intern_profiles, bukan satu per
+ * user.
+ */
 export async function getActiveInterns() {
   const db = await createUteroAcademyServiceRoleClient();
-  
+
   // Fetch user_roles who have role code = intern
   const { data: userRoles } = await db
     .from("user_roles")
     .select("user_id, roles(code)")
     .returns<any[]>();
 
-  const internUsers = (userRoles || []).filter(ur => {
-    const r = ur.roles;
-    const code = Array.isArray(r) ? r[0]?.code : r?.code;
-    return code === "intern";
-  });
+  const internUserIds = (userRoles || [])
+    .filter(ur => {
+      const r = ur.roles;
+      const code = Array.isArray(r) ? r[0]?.code : r?.code;
+      return code === "intern";
+    })
+    .map(ur => ur.user_id as string);
 
-  // Fetch all user_profiles for metadata
-  const { data: userProfiles } = await db
-    .from("user_profiles")
-    .select("id, full_name, phone");
-
-  const profilesMap = new Map();
-  if (userProfiles) {
-    userProfiles.forEach(p => profilesMap.set(p.id, p));
+  if (internUserIds.length === 0) {
+    return [];
   }
 
-  const interns = [];
+  const { data: profiles, error } = await db
+    .from("intern_profiles")
+    .select("id, full_name, email, major, status")
+    .eq("status", "active")
+    .in("user_id", internUserIds);
 
-  for (const iu of internUsers) {
-    let { data: profile } = await db
-      .from("intern_profiles")
-      .select("id, full_name, email, major, status")
-      .eq("user_id", iu.user_id)
-      .maybeSingle();
-
-    if (!profile) {
-      const p = profilesMap.get(iu.user_id);
-      const fullName = p?.full_name;
-      const phone = p?.phone;
-
-      // Auto-create intern profile
-      const { data: newProfile } = await db
-        .from("intern_profiles")
-        .insert({
-          user_id: iu.user_id,
-          full_name: fullName || "Peserta Magang",
-          phone: phone || null,
-          status: "active"
-        })
-        .select("id, full_name, email, major, status")
-        .maybeSingle();
-      profile = newProfile;
-    }
-
-    if (profile && profile.status === "active") {
-      interns.push(profile);
-    }
+  if (error) {
+    console.error("Gagal membaca daftar peserta aktif:", error);
+    return [];
   }
 
-  // sort by full_name
-  return interns.sort((a, b) => a.full_name.localeCompare(b.full_name));
+  return (profiles ?? []).sort((a, b) => a.full_name.localeCompare(b.full_name));
 }
 
+/**
+ * Daftar pembimbing yang bisa dipilih, HANYA BACA.
+ *
+ * Sama seperti getActiveInterns(): versi lama menyisipkan baris
+ * `mentor_profiles` saat halaman dibuka. Pembuatan profil pembimbing adalah
+ * urusan super admin (features/super-admin/actions.ts), bukan efek samping
+ * sebuah GET. Admin tanpa mentor_profiles tidak muncul di sini dan memang
+ * belum bisa menerima penempatan - itu keadaan yang benar, bukan alasan untuk
+ * menulis diam-diam.
+ */
 export async function getMentors() {
   const db = await createUteroAcademyServiceRoleClient();
-  
+
   // Fetch user_roles who have role code = admin
   const { data: userRoles } = await db
     .from("user_roles")
     .select("user_id, roles(code)")
     .returns<any[]>();
 
-  const adminUsers = (userRoles || []).filter(ur => {
-    const r = ur.roles;
-    const code = Array.isArray(r) ? r[0]?.code : r?.code;
-    return code === "admin";
-  });
+  const adminUserIds = (userRoles || [])
+    .filter(ur => {
+      const r = ur.roles;
+      const code = Array.isArray(r) ? r[0]?.code : r?.code;
+      return code === "admin";
+    })
+    .map(ur => ur.user_id as string);
+
+  if (adminUserIds.length === 0) {
+    return [];
+  }
 
   // Fetch all user_profiles for metadata
   const { data: userProfiles } = await db
@@ -87,35 +89,23 @@ export async function getMentors() {
     userProfiles.forEach(p => profilesMap.set(p.id, p));
   }
 
-  const mentors = [];
+  const { data: profiles, error } = await db
+    .from("mentor_profiles")
+    .select("id, user_id")
+    .in("user_id", adminUserIds);
 
-  for (const mu of adminUsers) {
-    // Check if mentor/pembimbing profile exists
-    let { data: profile } = await db
-      .from("mentor_profiles")
-      .select("id")
-      .eq("user_id", mu.user_id)
-      .maybeSingle();
-
-    if (!profile) {
-      // Auto-create mentor/pembimbing profile
-      const { data: newProfile } = await db
-        .from("mentor_profiles")
-        .insert({ user_id: mu.user_id })
-        .select("id")
-        .maybeSingle();
-      profile = newProfile;
-    }
-
-    if (profile) {
-      const p = profilesMap.get(mu.user_id);
-      const fullName = p?.full_name;
-      mentors.push({
-        id: profile.id,
-        full_name: fullName || "Admin " + profile.id.slice(0, 4)
-      });
-    }
+  if (error) {
+    console.error("Gagal membaca daftar pembimbing:", error);
+    return [];
   }
+
+  const mentors = (profiles ?? []).map((profile) => {
+    const p = profilesMap.get(profile.user_id);
+    return {
+      id: profile.id as string,
+      full_name: (p?.full_name as string | undefined) || "Admin " + (profile.id as string).slice(0, 4),
+    };
+  });
 
   // sort by name
   return mentors.sort((a, b) => a.full_name.localeCompare(b.full_name));
