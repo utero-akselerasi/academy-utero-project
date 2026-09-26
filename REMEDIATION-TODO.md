@@ -279,9 +279,24 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
 
 ## Batch 4 — Lapisan data: storage, upload, XSS (C-6, C-7, H-4)
 
-- [ ] B4.1 **Sanitasi HTML (stored XSS)** — masih terbuka. Dua sink: `app/(public)/blog/[slug]/page.tsx:50` (`dangerouslySetInnerHTML` atas body CMS) dan `features/lms/components/RichTextViewer.tsx:12` (materi LMS). Penulisnya staf, tapi staf bukan super-admin dan pembacanya publik/peserta (H-4)
-- [ ] B4.2 Content-Security-Policy belum ada sama sekali
-- [~] B4.3 Validasi upload registrasi publik: MIME, ukuran, magic bytes, error generik (C-7) — `lib/uploads.ts` ter-commit, perlu verifikasi magic-bytes per jalur
+- [x] B4.1 **Sanitasi HTML (stored XSS)** — `lib/sanitize.ts` terpasang di **kedua** sink: `app/(public)/blog/[slug]/page.tsx:65` (body CMS) dan `features/lms/components/RichTextViewer.tsx:20` (materi LMS). Penulisnya staf, tapi staf bukan super-admin dan pembacanya publik/peserta (H-4).
+
+      Tiga `dangerouslySetInnerHTML` sisa **bukan** sink XSS dan sengaja dibiarkan: dua blok `<style>` cetak (`certificate/print`, `daily-reports/print`) berisi CSS literal tanpa input user, dan `features/shared/AutoPrint.tsx` justru catatan bahwa `<script>`-nya sudah dihapus.
+- [x] B4.2 Content-Security-Policy — `lib/security-headers.ts`, dipasang dari `proxy.ts` (Next.js 16 hanya mengizinkan salah satu antara `proxy.ts` dan `middleware.ts`). Nonce per-permintaan + `'strict-dynamic'`, jadi chunk Next tetap jalan **tanpa** `'unsafe-inline'` di `script-src`; `'unsafe-eval'` hanya di dev untuk react-refresh.
+
+      CSP di sini adalah **lapis kedua di atas B4.1**, bukan penggantinya: sanitasi bisa terlewat kalau nanti ada sink `innerHTML` baru yang lupa memanggilnya, dan script tanpa nonce tetap tidak dieksekusi browser. Ikut dipasang: `nosniff`, `referrer-policy`, `frame-ancestors 'none'`, `object-src 'none'`, `permissions-policy`, dan HSTS (produksi saja — di dev aplikasi diakses lewat http).
+
+      `img-src` sengaja longgar (`https:`): cover artikel CMS eksternal dari host lain. Ini juga sebabnya `next.config.ts` `remotePatterns` yang salah bukan penghalang — nol pemakaian `next/image` di repo.
+- [x] B4.3 Validasi upload registrasi publik: MIME, ukuran, magic bytes, error generik (C-7). **Verifikasi per jalur selesai: 16 dari 16 titik unggah lewat `validateUpload()`**, dan tak satu pun mengunggah `File` mentah — semuanya mengunggah `.buffer` hasil validasi. Jalur selfie base64 punya `validateBase64Image()` sendiri yang **mengabaikan prefix `data:image/...` dari klien sepenuhnya** dan menentukan tipe dari hasil dekode.
+
+      Yang membuat validasinya bukan sekadar kosmetik:
+
+      - Tipe ditentukan dari **magic byte**, bukan dari `file.type` atau ekstensi nama — keduanya dikirim klien. `contentType` dan `ext` yang dipakai saat unggah adalah hasil deteksi server, jadi berkas yang menyamar sebagai gambar tidak bisa lolos.
+      - Ukuran dicek **dua kali**: sekali dari `file.size` (murah, tapi asalnya klien) lalu sekali lagi dari `buffer.byteLength` setelah berkas benar-benar dibaca.
+      - Batas ukuran diperiksa ulang **per jenis terdeteksi**, bukan cuma terhadap batas terbesar di antara `allowedKinds` — jadi titik yang menerima `["image","document"]` tidak ikut mewarisi batas dokumen untuk gambar.
+      - Nama tampilan disanitasi (kontrol karakter + karakter path Windows dibuang, dipotong 120 karakter) dan punya fallback, jadi nama berkas tak pernah jadi vektor.
+
+      Validasi ini **tetap diperlukan meski bucket-nya publik** — ia menahan berkas yang menyamar, terpisah dari soal siapa yang boleh membaca. Catatan itu sengaja ditulis di keempat titik CMS supaya tidak dibuang sebagai "tidak perlu, kan publik".
 - [~] B4.4 Migrasi bucket privat + `file_size_limit` + `allowed_mime_types` + policy `storage.objects` (C-6). Ditulis sebagai `0032a`/`0032b` di B0.1. **Bucket masih publik sampai B0.3c dijalankan.** Cakupannya lebih luas dari dugaan awal: `avatars` adalah keranjang campur — avatar profil bersama CV, portofolio, selfie absensi, surat sakit, dan template sertifikat — jadi satu flag `public` tidak bisa memisahkan avatar dari surat sakit, dan seluruh bucket harus privat
 - [~] B4.5 Signed URL untuk CV, selfie absensi, bukti laporan (C-6) — **sisi sumber selesai di B0.2b**, tapi belum berlaku sampai B0.3b/B0.3c dijalankan: baris lama masih menyimpan URL penuh dan bucketnya masih publik. Karena `avatars` jadi privat, **avatar profil pun butuh signed URL**, dan itu dirender di setiap halaman dashboard untuk setiap role — penandatanganannya ditaruh di `ProtectedDashboardLayout` (yang sudah membaca `avatar_path`), bukan per komponen.
 
