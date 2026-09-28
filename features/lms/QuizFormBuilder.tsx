@@ -98,16 +98,23 @@ export function QuizFormBuilder({ courseId }: Props) {
 
       <div className="space-y-4 pt-4 border-t border-slate-200">
         <div className="flex justify-between items-center">
-          <label className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1">
-            <HelpCircle size={15} className="text-teal-700" />
+          {/*
+            Dulunya `<label>`, padahal tidak ada satu kontrol pun yang ia
+            labeli — ia judul bagian. `<label>` tanpa sasaran tetap diumumkan
+            pembaca layar sebagai label, jadi pengguna mendengar nama yang
+            merujuk ke kontrol yang tidak ada. `<h4>` menyatakan apa yang
+            sebenarnya ia lakukan, dan ikut masuk ke daftar heading.
+          */}
+          <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1">
+            <HelpCircle size={15} className="text-teal-700" aria-hidden="true" />
             <span>Pertanyaan Kuis ({questions.length})</span>
-          </label>
+          </h4>
           <button
             type="button"
             onClick={addQuestion}
             className="button-secondary text-[10px] py-1 px-2.5 min-h-0 flex items-center gap-1 font-bold border-teal-200 text-teal-800 hover:bg-teal-50"
           >
-            <Plus size={12} />
+            <Plus size={12} aria-hidden="true" />
             <span>Tambah Pertanyaan</span>
           </button>
         </div>
@@ -123,27 +130,48 @@ export function QuizFormBuilder({ courseId }: Props) {
                     onClick={() => removeQuestion(q.id)}
                     className="text-red-500 hover:text-red-700 p-1 rounded-md hover:bg-red-50 transition-all"
                     title="Hapus Pertanyaan"
+                    aria-label={`Hapus pertanyaan ${qIdx + 1}`}
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={14} aria-hidden="true" />
                   </button>
                 )}
               </div>
 
-              {/* Teks Pertanyaan */}
+              {/* Teks Pertanyaan
+
+                  Tidak ada satu pun kontrol di blok pertanyaan ini yang punya
+                  nama terakses (temuan #3): yang ada cuma `placeholder`, yang
+                  hilang begitu pengguna mulai mengetik, dan `title` pada radio,
+                  yang tak sampai ke pembaca layar maupun layar sentuh.
+                  Desainnya sengaja tanpa label terlihat — blok ini berulang
+                  empat kali per pertanyaan — jadi `aria-label` yang menyebut
+                  nomor pertanyaan dan nomor opsinya. Tanpa itu, pembaca layar
+                  mengumumkan selusin "edit text, blank" yang tak bisa
+                  dibedakan satu dari yang lain. */}
               <div className="form-field">
                 <input
                   className="form-input text-xs"
                   placeholder="Ketik pertanyaan di sini..."
+                  aria-label={`Teks pertanyaan ${qIdx + 1}`}
                   value={q.question}
                   onChange={(e) => updateQuestionText(qIdx, e.target.value)}
                   required
                 />
               </div>
 
-              {/* Pilihan Jawaban */}
+              {/* Pilihan Jawaban
+
+                  `role="radiogroup"` + `aria-label` mengikat keempat radio
+                  jadi satu grup bernama. Tanpanya, tiap radio diumumkan
+                  sendirian tanpa konteks bahwa keempatnya adalah pilihan
+                  jawaban dari pertanyaan yang sama. */}
               <div className="space-y-2">
                 <span className="text-[10px] font-bold text-slate-400 block uppercase">Pilihan Jawaban (Ketik Opsi):</span>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div
+                  className="grid gap-2 sm:grid-cols-2"
+                  role="radiogroup"
+                  aria-label={`Jawaban benar untuk pertanyaan ${qIdx + 1}`}
+                >
                   {q.options.map((opt, oIdx) => (
                     <div key={oIdx} className="flex items-center gap-2">
                       <input
@@ -153,10 +181,12 @@ export function QuizFormBuilder({ courseId }: Props) {
                         onChange={() => updateAnswer(qIdx, oIdx)}
                         className="h-3.5 w-3.5 text-teal-600 focus:ring-teal-500 border-slate-300"
                         title="Tandai sebagai jawaban benar"
+                        aria-label={`Tandai opsi ${oIdx + 1} sebagai jawaban benar pertanyaan ${qIdx + 1}`}
                       />
                       <input
                         className="form-input text-xs py-1 px-2"
                         placeholder={`Opsi ${oIdx + 1}`}
+                        aria-label={`Teks opsi ${oIdx + 1} pertanyaan ${qIdx + 1}`}
                         value={opt}
                         onChange={(e) => updateOptionText(qIdx, oIdx, e.target.value)}
                         required
@@ -175,7 +205,7 @@ export function QuizFormBuilder({ courseId }: Props) {
       </div>
 
       <button type="submit" className="button-primary text-xs py-2 w-full min-h-0 font-bold mt-4 flex items-center justify-center gap-1">
-        <Save size={14} />
+        <Save size={14} aria-hidden="true" />
         <span>Simpan Kuis</span>
       </button>
     </form>

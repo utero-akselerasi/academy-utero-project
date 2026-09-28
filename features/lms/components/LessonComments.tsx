@@ -154,7 +154,7 @@ export function LessonComments({
               {getRoleBadge(comment.user_role)}
               {comment.is_pinned && (
                 <span className="flex items-center gap-1 text-xs bg-teal-600 text-white px-2 py-0.5 rounded font-semibold">
-                  <Pin size={12} />
+                  <Pin size={12} aria-hidden="true" />
                   Pinned
                 </span>
               )}
@@ -163,6 +163,13 @@ export function LessonComments({
             <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{comment.content}</p>
           </div>
 
+          {/*
+            Ketiga tombol ini berulang di SETIAP komentar dan hanya beris ikon.
+            Nama satu-satunya ada di `title`, yang tidak sampai ke pembaca layar
+            maupun layar sentuh (temuan #14) — jadi dalam daftar dua puluh
+            komentar, pembaca layar mengumumkan enam puluh "button" yang tak
+            bisa dibedakan. `aria-label` menyebut komentar siapa yang dikenai.
+          */}
           <div className="flex items-center gap-1 flex-shrink-0">
             {!isNested && (
               <button
@@ -170,19 +177,25 @@ export function LessonComments({
                 onClick={() => setReplyingTo(comment.id)}
                 className="p-1.5 text-slate-500 hover:text-teal-600 hover:bg-teal-50 rounded transition-colors"
                 title="Balas"
+                aria-label={`Balas komentar ${comment.user_name}`}
               >
-                <Reply size={14} />
+                <Reply size={14} aria-hidden="true" />
               </button>
             )}
-            
+
             {isMentorOrAdmin && (
               <button
                 type="button"
                 onClick={() => handlePin(comment.id, comment.is_pinned)}
                 className="p-1.5 text-slate-500 hover:text-teal-600 hover:bg-teal-50 rounded transition-colors"
                 title={comment.is_pinned ? "Unpin" : "Pin"}
+                aria-label={
+                  comment.is_pinned
+                    ? `Lepas sematan komentar ${comment.user_name}`
+                    : `Sematkan komentar ${comment.user_name}`
+                }
               >
-                <Pin size={14} className={comment.is_pinned ? "fill-current" : ""} />
+                <Pin size={14} className={comment.is_pinned ? "fill-current" : ""} aria-hidden="true" />
               </button>
             )}
 
@@ -192,18 +205,30 @@ export function LessonComments({
                 onClick={() => handleDelete(comment.id)}
                 className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                 title="Hapus"
+                aria-label={`Hapus komentar ${comment.user_name}`}
               >
-                <Trash2 size={14} />
+                <Trash2 size={14} aria-hidden="true" />
               </button>
             )}
           </div>
         </div>
 
-        {/* Reply form */}
+        {/* Reply form
+
+            Textarea-nya tanpa label (temuan #3): namanya hanya `placeholder`,
+            yang hilang begitu pengguna mulai mengetik. Desainnya memang tanpa
+            label terlihat, jadi labelnya `sr-only` — tetap terhubung lewat
+            `htmlFor`/`id`, jadi mengkliknya tetap memindahkan fokus, dan
+            id-nya diberi akhiran id komentar karena form ini bisa muncul di
+            komentar mana pun. */}
         {replyingTo === comment.id && (
           <div className="mt-3 pt-3 border-t border-slate-200">
+            <label className="sr-only" htmlFor={`replyContent-${comment.id}`}>
+              Balasan untuk komentar {comment.user_name}
+            </label>
             <textarea
               className="form-input text-sm w-full"
+              id={`replyContent-${comment.id}`}
               rows={2}
               value={replyContent}
               onChange={(e) => setReplyContent(e.target.value)}
@@ -216,7 +241,7 @@ export function LessonComments({
                 disabled={isSubmitting || !replyContent.trim()}
                 className="button-primary text-xs py-1.5 px-3 flex items-center gap-1"
               >
-                <Send size={12} />
+                <Send size={12} aria-hidden="true" />
                 <span>Kirim</span>
               </button>
               <button
@@ -246,16 +271,20 @@ export function LessonComments({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
-        <MessageCircle size={20} className="text-slate-600" />
+        <MessageCircle size={20} className="text-slate-600" aria-hidden="true" />
         <h3 className="text-lg font-bold text-slate-900">
           Diskusi & Tanya Jawab ({comments.filter(c => !c.parent_comment_id).length})
         </h3>
       </div>
 
-      {/* New comment form */}
+      {/* New comment form — label `sr-only`, alasannya sama dengan form balasan. */}
       <form onSubmit={handleSubmitComment} className="space-y-3">
+        <label className="sr-only" htmlFor="newComment">
+          Pertanyaan atau komentar tentang materi ini
+        </label>
         <textarea
           className="form-input text-sm w-full"
+          id="newComment"
           rows={3}
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
@@ -267,7 +296,7 @@ export function LessonComments({
           disabled={isSubmitting || !newComment.trim()}
           className="button-primary text-sm flex items-center gap-2"
         >
-          <Send size={16} />
+          <Send size={16} aria-hidden="true" />
           <span>{isSubmitting ? "Mengirim..." : "Kirim Komentar"}</span>
         </button>
       </form>
@@ -276,7 +305,7 @@ export function LessonComments({
       <div className="space-y-4">
         {pinnedComments.length === 0 && regularComments.length === 0 ? (
           <div className="text-center py-12 text-slate-400 bg-slate-50 rounded-lg border border-slate-200">
-            <MessageCircle size={48} className="mx-auto mb-3 opacity-30" />
+            <MessageCircle size={48} className="mx-auto mb-3 opacity-30" aria-hidden="true" />
             <p className="text-sm font-semibold">Belum ada diskusi</p>
             <p className="text-xs mt-1">Jadilah yang pertama bertanya atau berkomentar</p>
           </div>
