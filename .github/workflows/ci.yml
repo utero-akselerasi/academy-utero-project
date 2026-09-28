@@ -1,13 +1,16 @@
-# Gate CI: install -> lint -> typecheck -> build.
+# Gate CI: install -> lint -> typecheck -> test -> build.
 #
-# Tidak ada langkah `test`. Itu bukan kelalaian: repo ini **tidak punya test
-# framework sama sekali** — nol vitest/jest/playwright, nol berkas `*.test.*`.
-# Menambahkan `npm test` yang pasti gagal hanya akan membuat gate ini dimatikan
-# orang. Langkah test ditambahkan di B6.7, bersama framework-nya.
+# Langkah `test` ditambahkan di B6.7 bersama framework-nya (vitest). Sebelum itu
+# repo ini tidak punya test sama sekali, dan komentar di sini mencatat alasannya
+# tidak diisi `npm test` yang pasti gagal — gate yang selalu merah akan dimatikan
+# orang. Sekarang isinya nyata: matriks otorisasi statis
+# (tests/authorization-matrix.test.ts) yang menuntut setiap page, route handler,
+# dan server action punya guard.
 #
-# Yang jadi jaring verifikasi sekarang: `typecheck`. Karena tidak ada test,
-# `tsc` adalah satu-satunya hal yang membuktikan konsistensi tipe lintas modul,
-# jadi langkah itu tidak boleh `continue-on-error`.
+# Dua jaring itu menangkap hal yang berbeda dan keduanya wajib hijau:
+# `typecheck` membuktikan konsistensi tipe lintas modul; `test` membuktikan tak
+# ada permukaan yang bisa dijangkau tanpa guard. Keduanya tidak boleh
+# `continue-on-error`.
 
 name: CI
 
@@ -73,6 +76,13 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      # Ditaruh sebelum `build` dan tanpa `env`: matriks otorisasi membaca berkas
+      # sumber dari disk, tidak menjalankan aplikasi dan tidak menyentuh jaringan
+      # maupun Supabase. Jadi ia tidak butuh satu pun variabel env, dan gagalnya
+      # muncul dalam hitungan detik — bukan setelah menunggu build selesai.
+      - name: Test (matriks otorisasi)
+        run: npm test
 
       # Build memprerender halaman, dan prerender menyentuh lib/supabase/config.ts
       # yang melempar error kalau env Supabase kosong (lib/supabase/config.ts:10).

@@ -407,10 +407,65 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
   - 4 error sisanya diperbaiki setelah dibaca satu per satu, bukan lewat `--fix`: `prefer-const` di `features/attendance/actions.ts` sempat terlihat berbahaya karena `current` ada di dalam `while`, tapi `setDate()` **memutasi objek Date**, bukan menugaskan ulang variabel — jadi `const` benar. `require()` di `features/daily-reports/actions.ts` dinaikkan jadi import statis setelah dipastikan `lib/notification.ts` tidak punya efek samping di level modul.
   - Hasil akhir: **0 error**, 253 warning. `npm run lint:ci` (`--quiet`) EXIT=0.
   - `.github/workflows/ci.yml` baru (sebelumnya repo **tidak punya CI sama sekali**): `npm ci` → `lint:ci` → `lint` (laporan) → `typecheck` → `build` → `npm audit` (laporan). Env Supabase di langkah build **sengaja placeholder palsu dan hardcoded**, bukan GitHub Secrets — build tidak pernah menghubungi Supabase, jadi menaruh kunci asli di CI hanya memperluas permukaan kebocoran.
-  - Langkah `test` **belum ada dan itu disengaja** — lihat B6.7; `npm test` yang pasti gagal akan membuat gate ini dimatikan.
+  - Langkah `test` semula sengaja dikosongkan (`npm test` yang pasti gagal akan membuat gate ini dimatikan); **sudah diisi di B6.7**, ditaruh antara `typecheck` dan `build`.
   - Tiga skrip mati di root dihapus: `test-schema.js`, `test-revisi-error.js`, dan **`_fix_admin_queries_to_srv.js`** — codemod yang plan sebut sebagai akar masalah lubang RLS. Dipastikan sudah teraplikasi ke `features/admin/queries.ts` sebelum dihapus.
   - Verifikasi: `tsc --noEmit` EXIT=0, `npm run build` EXIT=0.
-- [ ] B6.7 **Tidak ada test framework sama sekali** (`package.json` hanya `dev`/`build`/`start`/`typecheck`). Matriks test otorisasi per role × action/route (H-8) — ini yang membuat semua `[~]` di atas tidak bisa naik jadi `[x]`
+- [x] B6.7 **Tidak ada test framework sama sekali** → vitest + matriks otorisasi statis (H-8) — **selesai**, 195 test, 790ms
+  - **vitest, bukan `node --test`.** Node 24 memang menjalankan TypeScript langsung, tapi dua hal
+    yang dibutuhkan di sini tidak ada: ia **tidak meresolusi alias `@/`** dari tsconfig
+    (`ERR_MODULE_NOT_FOUND: Cannot find package '@/lib'`), dan `node:test` tidak punya module
+    mocker. Keduanya diprobe lebih dulu sebelum apa pun dipasang. Tanpa jsdom dan tanpa plugin
+    React — test ini memeriksa otorisasi, bukan render, jadi satu run selesai di bawah satu detik.
+  - Konfignya `vitest.config.mts`, **bukan** `.ts`: paket ini tanpa `"type": "module"`, jadi
+    `vitest.config.ts` dimuat sebagai CommonJS dan gagal. Menambahkan `"type": "module"` akan
+    menyeret seluruh build Next, jadi yang diganti ekstensinya.
+  - **Statis, bukan memanggil tiap halaman dengan sesi tiruan.** Cacat yang benar-benar terjadi di
+    repo ini bukan guard yang salah hitung peran — tapi **guard yang tidak ada** di halaman baru.
+    Test yang mendaftarkan halaman yang sudah kita tahu ada tidak akan pernah menangkapnya. Suite
+    ini menemukan berkas dari disk (37 `page.tsx`, 5 `route.ts`, 14 berkas `"use server"` berisi
+    97 action), jadi berkas baru otomatis masuk cakupan tanpa didaftarkan siapa pun.
+  - **Tiga keputusan desain yang lahir dari laporan palsu, bukan dari teori:**
+    1. **Bandingkan himpunan peran, bukan nama guard.** Versi pertama menuduh halaman super-admin
+       bolong karena layoutnya memakai `requireRole(["super_admin"])` alih-alih
+       `requireSuperAdmin()` — padahal keduanya mengizinkan peran yang sama persis. Menuntut nama
+       tertentu menguji gaya penulisan, bukan siapa yang bisa masuk.
+    2. **Guard halaman ∩ guard layout, bukan guard halaman saja.** `intern/certificate/print` dan
+       `school/reports` memanggil `requireUser()` (hanya menuntut sesi) tapi duduk di bawah layout
+       yang sudah membatasi peran. Guard halaman di situ **memperketat**, tidak memperluas.
+    3. **Resolusi alias wajib.** `features/admin/actions.ts` menulis
+       `const requireStaff = requireAdmin` dan `features/assessments/actions.ts` menulis
+       `const requireAdminUser = requireAdmin`. Pencarian yang hanya mencari nama asli melaporkan
+       keduanya tanpa guard — dan laporan palsu di hari pertama adalah cara tercepat membuat test
+       ini dimatikan orang.
+  - **Per fungsi, bukan per berkas** — inilah yang membedakannya dari `grep`: berkas dengan 35
+    export dan 12 panggilan guard lulus pemeriksaan tingkat-berkas, padahal 23 sisanya bisa
+    terbuka. (Catatan: `grep -c` menghitung **baris**, bukan titik panggil; itu sempat membuat
+    `lms/actions.ts` terlihat punya 23 action tanpa guard, padahal ke-35-nya dijaga.)
+  - Allowlist berbentuk `path → alasan`, bukan daftar jalur: allowlist tanpa alasan pada akhirnya
+    jadi tempat membuang halaman yang gagal. Isinya tiga saja — halaman 403 itu sendiri
+    (memagarinya bikin lingkaran), `api/health` + proksi artikel publik, dan tiga berkas action
+    yang memang dipanggil sebelum sesi ada (login **membuat** sesi; formulir pendaftaran publik).
+  - Tiap blok punya asersi sentinel "menemukan berkas untuk diperiksa" — tanpa itu, `walk()` yang
+    salah jalur menghasilkan run hijau atas **nol kasus**.
+  - **Dibuktikan bisa gagal sebelum dipercaya hijau** — empat probe: action tanpa guard (tertangkap,
+    menyebut nama fungsinya), halaman tanpa guard di bawah layout yang menjaga (lulus, dan itu
+    benar — ia memang terlindungi), guard yang **memperluas** di area super-admin (tertangkap:
+    "Kelebihannya: [admin]"), dan route handler tanpa guard (tertangkap oleh kedua asersi route).
+    Dua laporan palsu yang muncul dari probe adalah bug desain test, dan diperbaiki — bukan
+    dibungkam.
+  - Route handler diperiksa terpisah dan lebih keras: **layout tidak melindunginya**, dan ia wajib
+    memakai varian `requireRoute*` yang **melempar** `RouteAuthorizationError` — `redirect()` di
+    dalam route handler menghasilkan 3xx ke klien API, bukan 401/403, sehingga penolakannya tidak
+    terbaca sebagai penolakan.
+  - CI: langkah `test` ditaruh **sebelum** `build` dan tanpa satu pun `env` — suite ini membaca
+    sumber dari disk, tidak menjalankan aplikasi dan tidak menyentuh jaringan, jadi gagalnya muncul
+    dalam hitungan detik alih-alih setelah build selesai.
+  - **Batas kejujuran, dinyatakan terang di kepala berkas test:** ini memeriksa **bahwa** guard
+    dipanggil, bukan bahwa logikanya benar, dan **sama sekali tidak menyentuh RLS, grant, atau
+    policy database**. Lubang Batch 0 tidak akan tertangkap di sini — lubang itu ada di lapisan
+    yang tak dilewati kode ini. Jadi `[~]` Batch 0 **tetap** `[~]`.
+  - Verifikasi: `npm test` EXIT=0 (195 test), `tsc --noEmit` EXIT=0, `npm run lint` EXIT=0
+    (218 warning warisan, 0 error), `npm run build` EXIT=0.
 
 ## Batch 7 — Aksesibilitas
 
