@@ -135,15 +135,23 @@ export default async function PrintCertificatePage({ searchParams }: PageProps) 
           </div>
 
           <div className="space-y-2">
-            <h2 className="text-4xl font-bold tracking-wide text-teal-900 uppercase">Sertifikat Magang</h2>
+            {/* Dulunya `<h2>` — halaman ini tidak punya `<h1>` sama sekali,
+                jadi navigasi heading tak pernah menyebut apa dokumen ini
+                (temuan #18). Dinaikkan ke `<h1>`, bukan ditambahi `<h1>`
+                baru: judul inilah judul dokumennya, dan halaman cetak tak
+                boleh punya teks tambahan yang ikut tercetak. Ukuran
+                visualnya tak berubah karena kelasnya yang menentukan. */}
+            <h1 className="text-4xl font-bold tracking-wide text-teal-900 uppercase">Sertifikat Magang</h1>
             <p className="text-xs font-sans font-bold tracking-widest text-slate-400">NOMOR: {cert.certificate_number}</p>
           </div>
 
           <div className="space-y-1">
             <p className="text-xs italic text-slate-500">Dengan ini menyatakan bahwa:</p>
-            <h3 className="text-3xl font-black tracking-wide text-slate-900 underline decoration-amber-600 decoration-2 underline-offset-4 mt-2">
+            {/* Ikut naik dari `<h3>` ke `<h2>`: dengan judul di atas jadi
+                `<h1>`, `<h3>` akan melompati satu tingkat. */}
+            <h2 className="text-3xl font-black tracking-wide text-slate-900 underline decoration-amber-600 decoration-2 underline-offset-4 mt-2">
               {displayName}
-            </h3>
+            </h2>
             <p className="text-xs text-slate-500 italic mt-1">telah berhasil menyelesaikan program magang industri di Utero Academy</p>
           </div>
 
