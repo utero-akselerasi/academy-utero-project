@@ -220,6 +220,52 @@ dan aplikasinya tidak akan rusak saat migrasi itu diterapkan.
 - [ ] B0.3b **Backfill kolom storage. Menulis ulang baris produksi — risiko
       tertinggi di batch ini, butuh izin terpisah dan eksplisit.** Satu `UPDATE`
       per kolom memangkas prefix URL jadi object path
+  - **SQL-nya sudah ada dan sudah terverifikasi lokal:**
+    `supabase/manual/B0.3b_backfill_storage_paths.sql`. Kotak centang tetap
+    kosong karena yang belum terjadi adalah **menjalankannya di produksi**, dan
+    itu masih menunggu izin eksplisit.
+  - **Sengaja di luar `supabase/migrations/`.** `scripts/migrate.mjs` hanya
+    menemukan `/^(\d{4}[a-z]?)_.+\.sql$/` di direktori itu, dan `--apply`
+    menjalankan **semua** berkas tertunda berurutan. Kalau backfill ini jadi
+    migrasi bernomor, satu `--apply` akan menyapunya bersama `0032a` —
+    meruntuhkan B0.3a dan B0.3b jadi satu gerbang izin. Ditaruh di tempat yang
+    runner **tidak bisa** jangkau, jadi pemisahan gerbangnya struktural, bukan
+    bergantung pada kehati-hatian operator. Dijalankan manual:
+    `psql "$DATABASE_URL" -f supabase/manual/B0.3b_backfill_storage_paths.sql`.
+  - **Cakupannya 16 kolom + 1 kunci JSONB, bukan 13.** Prosa plan menyebut 13;
+    tabelnya sendiri mendaftar 16 — 13 salah. Palang pengaman `0032b` memeriksa
+    12, dan selisih 4 itu adalah kolom bucket publik yang sengaja ia lewati:
+    12 + 4 = 16. Aritmetikanya dicatat di kepala berkas supaya pembaca
+    berikutnya tidak perlu menurunkannya ulang.
+  - **Diverifikasi dengan dijalankan, bukan dibaca** — di container Docker
+    postgres 17.11 sekali-pakai atas data sintetis. **Produksi tidak pernah
+    disentuh.** Yang terbukti: nilai keluaran benar per kolom; URL Google Drive
+    dan CMS asing tidak tersentuh; urutan `lessons.attachments` terjaga
+    (`jsonb_array_elements ... with ordinality`) dengan elemen non-objek utuh;
+    **idempoten** (run ke-2 = 0 baris, 0 snapshot); prosedur pemulihan di footer
+    bekerja termasuk `::jsonb`; **atomik** (baris yang sudah dipangkas dan
+    disnapshot di tengah run ikut dibuang bersama asersi yang gagal); asersi
+    akhir benar-benar menyala dan menyebut kolom yang melanggar; dan empat
+    mutasi sumber independen (trim slash, penolakan bucket asing, pembuangan
+    token, dekode persen) masing-masing membuat uji mandiri bagian (3) merah.
+  - **Satu celah nyata ditemukan lewat mutasi dan ditutup.** Bagian (3) tidak
+    punya satu pun kasus dengan slash **setelah** penanda bucket, jadi menghapus
+    `regexp_replace(sisa,'^/+','')` di cabang penanda lolos tanpa terdeteksi —
+    dua `regexp_replace` itu ada di cabang berbeda, dan kasus `/uid/foto.jpg`
+    hanya melewati cabang "bukan URL". Tiga kasus ditambahkan (17 total);
+    mutasinya sekarang gagal dan menyebut kedua kasus baru.
+  - **Bug yang ditangkap sebelum verifikasi apa pun:** versi pertama memakai
+    `convert_from(decode(regexp_replace(s,'%([0-9a-fA-F]{2})','\\x\1','g'),'escape'),'utf8')`
+    — pola yang beredar luas, tapi `decode(...,'escape')` hanya menerima `\\`
+    dan oktal `\nnn`, **bukan** hex `\xNN`. Ia akan melempar di setiap escape
+    dan, di dalam blok `exception`, meninggalkan `%20` tidak terdekode secara
+    **senyap** — justru kelas kegagalan yang berkas ini ada untuk mencegahnya.
+    Diganti dengan `b03b_percent_decode()` yang berjalan karakter-per-karakter
+    dan merakit `bytea` sekali di akhir, supaya `%E2%80%99` multi-byte tersusun
+    benar.
+  - **Yang TIDAK dibuktikan:** bahwa nilai produksi berbentuk seperti fixture.
+    Itu tetap tugas inventaris Q1–Q13, dan itulah alasan gerbang izinnya tetap
+    terpisah.
 - [ ] B0.3c Verifikasi nol baris berawalan `http`, baru jalankan `0032b`
 - [ ] B0.3d Jalankan `0034` terakhir; harus selesai tanpa `raise exception`
 - [ ] B0.3e Ulangi probe kunci anon (read-only) sebagai bukti lubang tertutup

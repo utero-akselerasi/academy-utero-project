@@ -12,10 +12,20 @@ import { isImagePath, isPdfPath, isPublicBucket, toObjectPath } from "@/lib/stor
  * kegagalan. Jadi satu-satunya cara tahu aturannya benar adalah menuliskan
  * bentuk nilai yang benar-benar ada di kolom produksi dan mengunci hasilnya.
  *
- * Yang **tidak** diklaim di sini: bahwa SQL backfill nanti memangkas dengan cara
- * yang sama. Backfill-nya belum ditulis. Test ini justru dipakai sebagai spesifikasi
- * saat menulisnya — setiap baris di bawah adalah satu kasus yang SQL-nya harus
- * hasilkan sama.
+ * Yang **tidak** diklaim di sini: bahwa SQL backfill memangkas dengan cara yang
+ * sama. Test ini dipakai sebagai spesifikasi saat menulisnya — setiap baris di
+ * bawah adalah satu kasus yang SQL-nya harus hasilkan sama.
+ *
+ * SQL-nya sekarang ada: `supabase/manual/B0.3b_backfill_storage_paths.sql`, dan
+ * bagian (3)-nya memuat 17 kasus yang mencerminkan berkas ini. Tapi keduanya
+ * **tidak terikat secara mekanis** — tidak ada yang memaksa keduanya sinkron,
+ * jadi perubahan di sini harus diikutkan ke sana dengan tangan.
+ *
+ * Satu penyimpangan disengaja dan tercatat di kedua tempat: untuk masukan
+ * campuran seperti `a%20b%.pdf`, `safeDecode()` JS menyerah total dan
+ * mengembalikan `a%20b%.pdf`, sedangkan SQL-nya mendekode per escape dan
+ * menghasilkan `a b%.pdf` — yang merupakan object path yang benar. SQL-nya lebih
+ * benar di sini, bukan sebaliknya.
  */
 
 const HTTPS_BASE = "https://supabase.carubra.com/storage/v1/object/public/avatars/";
