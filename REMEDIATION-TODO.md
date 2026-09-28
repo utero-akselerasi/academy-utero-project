@@ -912,14 +912,118 @@ Ditemukan pada re-audit yang sama, dicatat supaya tidak hilang:
     ulang saat render dan artikel tidak boleh berubah sendiri tiap disimpan.
   - Verifikasi: `tsc --noEmit` **EXIT=0**, `vitest` **611 lolos**, `npm run lint`
     **EXIT=0**. Nol sentuhan produksi.
-- [ ] **B8.7 Tiga cacat kecil yang sudah terverifikasi:**
-  - `deleteBoardAction` (`features/tasks/actions.ts`) tidak memeriksa baris terpengaruh,
-    jadi hapus yang tak cocok apa pun melaporkan sukses
-  - `is_published === false` alih-alih `!== true` di `features/lms/actions.ts` (dua
-    tempat, plus bentuk sama di `markLessonCompletedAction`) — `null` lolos sebagai
-    terpublikasi
-  - Toggle publish/status tidak memvalidasi `status` terhadap enum — **sebagian
-    selesai** di B8.5: `reviewPermitAction` sudah memvalidasinya; sisanya belum
+- [x] **B8.7 Empat cacat kecil yang sudah terverifikasi** — **selesai**, 40 test baru
+      (total **651**). Aslinya ditulis "tiga cacat"; pemetaan menemukan **empat**, dan
+      satu di antaranya (dropdown enum magang) adalah yang paling terlihat pengguna.
+
+  **(a) `deleteBoardAction` — kegagalan senyap + tombol yang tak berfungsi.**
+  Bentuk lamanya menyatukan otorisasi dengan filter `delete`
+  (`.eq("id", boardId).eq("owner_id", user.id)`). `delete` yang tidak mengenai satu
+  baris pun mengembalikan `error: null`, jadi **tiga keadaan** dilaporkan sebagai satu
+  sukses: terhapus, tidak ada, dan milik staf lain. Yang membuatnya terlihat di UI:
+  `getMentorBoards` (`features/tasks/queries.ts:25-54`) mengembalikan **seluruh** board
+  tanpa filter pemilik — daftar board memang global by design — jadi halaman merender
+  tombol sampah di board milik staf lain dan menekannya tidak melakukan apa pun tanpa
+  pesan apa pun.
+  **Keputusan:** aksinya **dilebarkan**, UI-nya **diketatkan**. Aturannya ditarik ke
+  `features/tasks/board-permissions.ts` (`staffCanDeleteBoard`) dan dipakai **dua kali**:
+  oleh aksi untuk menolak, oleh halaman untuk tidak merender tombolnya. `super_admin`
+  bebas; `admin` hanya miliknya **atau board yatim** — `task_boards.owner_id` adalah
+  `on delete set null`, jadi tanpa cabang itu board yatim mustahil dihapus siapa pun,
+  termasuk pembuatnya yang sudah tidak ada. Fungsinya sinkron & tanpa I/O supaya
+  halaman bisa memanggilnya di dalam `.map()` tanpa menambah kueri per baris;
+  `getUserRoleCodes` dibaca sekali per render.
+
+  **(b) `is_published` — sertifikat terbit lebih awal.** Ini yang paling berkonsekuensi
+  dari keempatnya, dan bentuk aslinya di TODO salah arah (`!== true`).
+  **Keputusan: semantik `!== false` DIPERTAHANKAN — NULL berarti TERBIT.** Bukan
+  pilihan bebas: policy RLS yang sudah ditulis (`0030d_policies_lms.sql:91,306`) memakai
+  `is_published is not false`, jadi membalik aplikasi ke `!== true` akan membuatnya
+  **menyembunyikan baris yang database justru mengizinkan dibaca** — aplikasi dan RLS
+  berbeda pendapat. Yang salah justru **satu titik yang menyimpang**:
+  `features/lms/actions.ts:334` memakai `.neq("is_published", false)`. Di SQL
+  `is_published <> false` bernilai **NULL** untuk baris ber-NULL, dan `WHERE NULL` tidak
+  mengembalikan baris — jadi `neq` **ikut membuang** baris itu. Akibatnya presisi:
+  lesson ber-NULL **bisa dibuka dan diselesaikan peserta tapi tidak ikut dihitung**,
+  sehingga `lessonIds.every(...)` lulus lebih awal dan **sertifikat terbit padahal masih
+  ada materi yang belum selesai.** Tidak ada error di jalur mana pun; yang keliru cuma
+  sertifikatnya. Diganti `.or("is_published.is.null,is_published.eq.true")` — bentuk
+  PostgREST yang benar-benar setara dengan `is not false`.
+  Dua situs lain (`:389` quiz, `:533` assignment) **sengaja tidak diubah**: keduanya
+  `=== false` dan sudah benar. Tipe diperlebar ke `PublishFlag = boolean | null`
+  (`features/lms/types.ts`) supaya TypeScript berhenti membuat `!== false` tampak
+  sia-sia — `0015_lms_publish_status.sql` menambahkan ketiganya `DEFAULT true` **tanpa
+  `NOT NULL`**. `CourseAnnouncement.is_published` dibiarkan `boolean`: satu-satunya jalur
+  tulisnya selalu menyetel `true`, jadi NULL tak terjangkau.
+
+  **(c) `updateCourseStatusAction` tanpa validasi enum.** Divalidasi lewat
+  `features/lms/schemas.ts` (`publishStatusSchema`, disalin persis dari
+  `utero_academy.publish_status`) **meski nol pemanggil di UI** — setiap fungsi yang
+  diekspor dari berkas `"use server"` dapat action ID sendiri dan bisa dipanggil langsung
+  lewat POST; tak adanya form yang memanggilnya **bukan kontrol akses**. Plus penjagaan
+  M-2 nol-baris.
+
+  **(d) Dropdown status magang menawarkan nilai yang bukan anggota enum.** Tidak ada di
+  daftar asli, ditemukan saat pemetaan.
+  `app/dashboard/super-admin/schools/page.tsx` menulis tangan empat opsi termasuk
+  **`inactive`**, yang bukan anggota `utero_academy.internship_status`
+  (`0001_initial_schema.sql:14-21`). Ini **gagal keras di muka super admin**: Postgres
+  menolak seluruh `update` dengan `22P02 invalid input value for enum`, dan pesan mentah
+  itu ditempelkan langsung ke antarmuka lewat
+  `"Gagal memperbarui periode magang: " + error.message` — sementara perubahan tanggal
+  dan jurusan di form yang sama ikut hilang, karena satu `update` menanggung semuanya.
+  Cacat kedua di berkas yang sama lebih sunyi: **`paused`, `failed`, `alumni` sah tapi
+  tak pernah muncul di UI mana pun**, jadi tak ada cara menyetelnya dari aplikasi.
+  Keduanya satu akar — daftar ditulis tangan terpisah dari enum. Diperbaiki dengan
+  `INTERNSHIP_STATUS_OPTIONS` sebagai satu sumber kebenaran, dan `error.message`
+  **dicabut** dari pesan ke pengguna (ia berisi nama kolom/constraint/enum — tidak
+  membantu super admin dan membocorkan bentuk skema).
+
+  **Pelajaran struktural yang ikut dikunci:** dua modul baru ada **karena** Next.js
+  hanya mengizinkan **fungsi async** diekspor dari berkas `"use server"`. Satu `const`
+  array atau satu skema zod dari sana membatalkan seluruh build. Kesalahan ini terjadi
+  **dua kali** dalam satu sesi (`staffCanDeleteBoard`, lalu `INTERNSHIP_STATUS_OPTIONS`),
+  jadi aturannya sekarang diuji, bukan diandalkan pada ingatan.
+
+  **Migrasi baru — DITULIS, TIDAK DIJALANKAN:**
+  `supabase/migrations/0037_lms_publish_not_null.sql`. Backfill `NULL → true` lalu
+  `SET NOT NULL` pada `lessons`/`quizzes`/`assignments`, sehingga `neq` dan
+  `is not false` menjadi setara dan bentuk yang salah tak bisa ditulis lagi. Arah
+  backfill **bukan pilihan bebas**: policy sudah mengizinkan peserta membaca baris
+  ber-NULL dan kemajuan mungkin sudah tercatat atasnya, jadi backfill ke `false` akan
+  **menyembunyikan materi yang sudah dikerjakan peserta**. Idempoten, ada penjaga
+  `information_schema`, `DEFAULT true` ditegaskan ulang (tanpa itu `INSERT` yang tidak
+  menyebut kolom ini gagal `23502` setelah `NOT NULL` berlaku), dan diakhiri asersi yang
+  `raise exception` kalau masih ada kolom nullable — gagal keras alih-alih sukses palsu.
+  `course_announcements.is_published` **sengaja tidak diikutkan**: NULL tak terjangkau di
+  sana, jadi pengetatannya akan mengunci tabel tanpa menutup cacat apa pun.
+
+  **Test baru (40):**
+  - `tests/board-permissions.test.ts` (13) — bentuk lamanya direkonstruksi sebagai
+    "berapa baris terkena" (karena **nol baris** itulah bentuk kegagalannya, bukan
+    error) lalu dibuktikan salah; board yatim diuji tersendiri karena itu cabang yang
+    paling mudah terlewat dan konsekuensinya permanen.
+  - `tests/publish-flag.test.ts` (12) — ketiga predikat (`neq`, `or`, dan policy
+    `is not false`) direkonstruksi sebagai fungsi murni dan dibuktikan **hanya berbeda
+    pada NULL**; ada rekonstruksi `lessonIds.every(...)` yang menunjukkan course lulus
+    lebih awal. Bentuknya dikunci di sumber, karena cacat ini bukan salah hitung
+    melainkan **pilihan operator**. Termasuk asersi bahwa policy masih memakai
+    `is not false` — premis semua yang lain.
+  - `tests/internship-status.test.ts` (15) — anggota enum **dibaca dari migrasi**, bukan
+    disalin ke test, lalu diuji dua arah: tiap opsi harus anggota enum (menangkap
+    `inactive`) **dan** tiap anggota enum harus bisa dipilih (menangkap `paused`/`failed`/
+    `alumni` yang hilang). Plus asersi bahwa tak ada berkas `"use server"` yang
+    mengekspor nilai non-fungsi.
+
+  **Satu perbaikan pada test yang sudah ada:** `tests/authorization-matrix.test.ts`
+  mendeteksi berkas action dengan `.includes('"use server"')`. Kedua modul baru ada
+  justru **karena** aturan itu, jadi keduanya **menyebut** direktifnya di komentar dan
+  test menuduh keduanya sebagai action tanpa guard. Diganti `isServerModule()` yang
+  membuang komentar dan memeriksa bahwa direktif itu pernyataan **pertama** di modul —
+  satu-satunya posisi di mana ia benar-benar berlaku di JavaScript.
+
+  Verifikasi: `tsc --noEmit` **EXIT=0**, `vitest` **651 lolos (16 berkas)**,
+  `npm run lint` **0 error**. Nol sentuhan produksi; `0037` ditulis, tidak dijalankan.
 
 ---
 

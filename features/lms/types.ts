@@ -2,6 +2,28 @@
 // LMS TYPES
 // ============================================
 
+/**
+ * Status publikasi materi LMS.
+ *
+ * `boolean | null`, bukan `boolean`. `0015_lms_publish_status.sql` menambahkan
+ * ketiga kolom `is_published` dengan `DEFAULT true` **tanpa `NOT NULL`**, jadi
+ * NULL benar-benar bisa tersimpan. Mendeklarasikannya `boolean` menyembunyikan
+ * itu dari TypeScript, dan itulah yang membuat perbandingan seperti
+ * `is_published !== false` tampak seperti pemeriksaan yang tak ada gunanya —
+ * padahal justru bentuk itu yang benar.
+ *
+ * Semantiknya dikunci di satu arah: **NULL berarti TERBIT.** Bukan pilihan bebas —
+ * policy RLS yang sudah ditulis (`0030d_policies_lms.sql:91,306`) memakai
+ * `is_published is not false`, jadi aplikasi yang memperlakukan NULL sebagai draft
+ * akan menyembunyikan baris yang database justru mengizinkan dibaca. Karena itu
+ * di seluruh kode LMS bentuknya `!== false`, bukan `=== true`.
+ *
+ * `0037_lms_publish_not_null.sql` menutup ambiguitasnya di tingkat skema. Alias
+ * ini tetap dipertahankan sesudahnya sebagai catatan kenapa perbandingannya
+ * berbentuk begitu.
+ */
+export type PublishFlag = boolean | null;
+
 // Core LMS Types
 export interface Course {
   id: string;
@@ -23,7 +45,7 @@ export interface Lesson {
   video_url?: string;
   attachments?: any[]; // JSONB
   order_index: number;
-  is_published: boolean;
+  is_published: PublishFlag;
   created_at: string;
   updated_at: string;
 }
@@ -39,7 +61,7 @@ export interface Quiz {
   max_attempts?: number;
   retry_delay_minutes: number;
   order_index: number;
-  is_published: boolean;
+  is_published: PublishFlag;
   created_at: string;
   updated_at: string;
 }
@@ -52,7 +74,7 @@ export interface Assignment {
   deadline?: string;
   max_score: number;
   order_index: number;
-  is_published: boolean;
+  is_published: PublishFlag;
   created_at: string;
   updated_at: string;
 }

@@ -1,8 +1,10 @@
 import { deleteBoardAction } from "@/features/tasks/actions";
+import { staffCanDeleteBoard } from "@/features/tasks/board-permissions";
 import { Trash2, ShieldAlert, BarChart2, Eye, Calendar } from "lucide-react";
 import { CreateBoardForm } from "@/features/tasks/CreateBoardForm";
 import { getMentorBoards } from "@/features/tasks/queries";
 import { requireAdmin } from "@/features/auth/guards";
+import { getUserRoleCodes } from "@/features/auth/roles";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import Link from "next/link";
@@ -39,6 +41,10 @@ export default async function MentorTasksPage({ searchParams }: Props) {
   }
 
   const { data: boards, error } = await getMentorBoards(user.id);
+
+  // Dibaca sekali di sini, bukan per board: `staffCanDeleteBoard` sengaja sinkron
+  // supaya keputusan render tombol tidak menambah satu kueri per baris.
+  const roleCodes = await getUserRoleCodes(user.id);
 
   // Monitoring dibatasi scope bimbingan: aksi pada card sudah lewat
   // requireCardAccess, jadi daftarnya tidak boleh lebih luas dari itu.
@@ -163,16 +169,23 @@ export default async function MentorTasksPage({ searchParams }: Props) {
                       Dibuat oleh: <span className="text-teal-700 font-bold">{(board as any).owner_name || "Admin"}</span> pada {formatDate(board.created_at)}
                     </p>
                   </Link>
-                  <form action={deleteBoardAction}>
-                    <input type="hidden" name="boardId" value={board.id} />
-                    <button
-                      type="submit"
-                      className="button-secondary text-red-600 hover:bg-red-50 p-2 min-h-0"
-                      title="Hapus Board"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </form>
+                  {/* Tombol hapus hanya dirender kalau aksinya memang akan
+                      menerimanya. Daftar board bersifat global, jadi tanpa
+                      penjagaan ini tombol muncul di board milik staf lain dan
+                      menekannya melempar error — atau, di bentuk sebelumnya,
+                      tidak melakukan apa pun sama sekali. */}
+                  {staffCanDeleteBoard(roleCodes, user.id, board.owner_id) ? (
+                    <form action={deleteBoardAction}>
+                      <input type="hidden" name="boardId" value={board.id} />
+                      <button
+                        type="submit"
+                        className="button-secondary text-red-600 hover:bg-red-50 p-2 min-h-0"
+                        title="Hapus Board"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </form>
+                  ) : null}
                 </div>
               ))}
             </div>

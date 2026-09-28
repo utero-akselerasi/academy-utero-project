@@ -8,6 +8,7 @@ import { detectMissingDomainProfiles } from "./queries";
 import { writeAuditLog } from "./audit";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { updateInternPeriodSchema } from "./schemas";
 
 const assignRoleSchema = z.object({
   userId: z.string().uuid(),
@@ -696,27 +697,44 @@ export async function updateInternPeriodAction(formData: FormData) {
   const endDate = formData.get("endDate") as string;
   const major = formData.get("major") as string;
   const gradeOrSemester = formData.get("gradeOrSemester") as string;
-  const status = formData.get("status") as string;
+  const rawStatus = formData.get("status");
 
-  if (!internId) {
-    throw new Error("Siswa wajib dipilih.");
+  const parsed = updateInternPeriodSchema.safeParse({
+    internId,
+    status: typeof rawStatus === "string" && rawStatus ? rawStatus : undefined,
+  });
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Status magang tidak valid.");
   }
 
+  const status = parsed.data.status ?? "active";
+
   const db = await createUteroAcademyServiceRoleClient();
-  const { error } = await db
+  const { data, error } = await db
     .from("intern_profiles")
     .update({
       start_date: startDate || null,
       end_date: endDate || null,
       major: major || null,
       grade_or_semester: gradeOrSemester || null,
-      status: status || "active",
+      status,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", internId);
+    .eq("id", parsed.data.internId)
+    .select("id");
 
   if (error) {
-    throw new Error("Gagal memperbarui periode magang: " + error.message);
+    // `error.message` TIDAK ikut disertakan: ia berisi teks mentah PostgreSQL
+    // (nama kolom, nama constraint, nama enum) yang tidak membantu super admin
+    // dan membocorkan bentuk skema ke antarmuka.
+    console.error("Gagal memperbarui periode magang:", error);
+    throw new Error("Gagal memperbarui periode magang.");
+  }
+
+  // M-2: `update` yang tidak mengenai satu baris pun mengembalikan `error: null`.
+  if (!data || data.length === 0) {
+    throw new Error("Periode magang tidak tersimpan: siswa tidak ditemukan.");
   }
 
   await writeAuditLog(

@@ -40,6 +40,24 @@ function walk(dir: string, match: (name: string) => boolean): string[] {
 const read = (abs: string) => readFileSync(abs, "utf8");
 
 /**
+ * Apakah berkas ini benar-benar sebuah modul `"use server"`.
+ *
+ * `.includes('"use server"')` TIDAK cukup, dan itu kesalahan yang sudah terjadi:
+ * `features/tasks/board-permissions.ts` dan `features/super-admin/schemas.ts` ada
+ * justru KARENA berkas `"use server"` tidak boleh mengekspor non-fungsi, jadi
+ * keduanya **menyebut** direktif itu di komentar penjelasnya. Pencarian substring
+ * menuduh kedua berkas itu sebagai action tanpa guard — padahal keduanya fungsi
+ * murni tanpa satu pun kueri.
+ *
+ * Di JavaScript direktif hanya berlaku kalau ia pernyataan **pertama** di modul.
+ * Jadi itulah yang diperiksa: baris kode pertama, setelah komentar dibuang.
+ */
+function isServerModule(src: string): boolean {
+  const tanpaKomentar = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  return /^\s*(["'])use server\1\s*;?/.test(tanpaKomentar);
+}
+
+/**
  * Nama guard yang dipanggil di sebuah berkas, **termasuk lewat alias**.
  *
  * Aliasnya bukan kasus teoretis: `features/admin/actions.ts` menulis
@@ -318,7 +336,7 @@ describe("route handler", () => {
 
 describe("server action", () => {
   const actionFiles = walk(join(ROOT, "features"), n => n.endsWith(".ts"))
-    .filter(f => read(f).includes('"use server"'))
+    .filter(f => isServerModule(read(f)))
     .map(toPosix);
 
   it("menemukan berkas action untuk diperiksa", () => {

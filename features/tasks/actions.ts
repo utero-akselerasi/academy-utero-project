@@ -7,6 +7,7 @@ import { getInternProfileId } from "@/features/daily-reports/queries";
 import { createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
+import { staffCanDeleteBoard } from "./board-permissions";
 import {
   createBoardSchema,
   createListSchema,
@@ -365,17 +366,47 @@ export async function deleteBoardAction(formData: FormData) {
   if (!boardId) throw new Error("Board ID tidak valid.");
 
   const db = await createUteroAcademyServiceRoleClient();
-  
-  // Hapus board jika dimiliki oleh user login
-  const { error } = await db
+
+  // Otorisasi diputuskan dari baris yang dibaca, bukan dari filter `delete`.
+  // Bentuk lamanya menyatukan keduanya (`.eq("owner_id", user.id)` di dalam
+  // `delete`), dan itulah sumber kegagalan senyapnya: `delete` yang tidak
+  // mengenai satu baris pun mengembalikan `error: null`, jadi board yang tidak
+  // ada DAN board milik staf lain sama-sama dilaporkan berhasil dihapus.
+  const { data: board, error: readError } = await db
+    .from("task_boards")
+    .select("id, owner_id")
+    .eq("id", boardId)
+    .maybeSingle();
+
+  if (readError) {
+    console.error("Gagal membaca board:", readError);
+    throw new Error("Gagal memverifikasi board.");
+  }
+
+  if (!board) throw new Error("Board tidak ditemukan.");
+
+  const roleCodes = await getUserRoleCodes(user.id);
+  if (!staffCanDeleteBoard(roleCodes, user.id, board.owner_id as string | null)) {
+    throw new Error("Board ini milik staf lain, jadi tidak bisa kamu hapus.");
+  }
+
+  const { data: deleted, error } = await db
     .from("task_boards")
     .delete()
     .eq("id", boardId)
-    .eq("owner_id", user.id);
+    .select("id");
 
   if (error) {
     console.error("Gagal menghapus board:", error);
     throw new Error("Gagal menghapus board.");
+  }
+
+  // M-2: `delete` yang tidak mengenai satu baris pun mengembalikan `error: null`.
+  // Baris di atas sudah terbukti ada, jadi nol baris di sini berarti sesuatu
+  // menghapusnya di antara dua kueri — bukan keadaan yang boleh lewat sebagai
+  // sukses.
+  if (!deleted || deleted.length === 0) {
+    throw new Error("Board tidak terhapus: tidak ada baris yang terpengaruh.");
   }
 
   revalidatePath("/dashboard/mentor/tasks");

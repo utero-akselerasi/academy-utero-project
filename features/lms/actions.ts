@@ -11,6 +11,7 @@ import { getInternProfileId } from "@/features/daily-reports/queries";
 import { internIsEnrolled } from "./queries";
 import { generateCourseCertificate } from "./certificate-helper";
 import { nilaiKuis, normalkanPertanyaan, uraikanNilaiKelulusan } from "./quiz-scoring";
+import { updateCourseStatusSchema } from "./schemas";
 
 /**
  * Pengelolaan course/lesson/quiz/assignment adalah pekerjaan staff.
@@ -327,11 +328,25 @@ export async function markLessonCompletedAction(formData: FormData) {
 
   // Hanya lesson yang dipublikasikan yang dihitung: lesson draft tidak bisa
   // dibuka peserta, jadi memasukkannya membuat course mustahil selesai.
+  //
+  // `.or("is_published.is.null,is_published.eq.true")`, BUKAN
+  // `.neq("is_published", false)`. Keduanya terlihat setara tapi tidak:
+  // `is_published` nullable (`0015_lms_publish_status.sql` menambahkannya dengan
+  // `DEFAULT true` tanpa `NOT NULL`), dan di SQL `is_published <> false` bernilai
+  // NULL untuk baris ber-NULL — jadi `neq` **ikut membuang** baris itu.
+  //
+  // Seluruh jalur baca (`features/lms/queries.ts`, dan policy
+  // `0030d_policies_lms.sql:91` dengan `is_published is not false`) memperlakukan
+  // NULL sebagai TERBIT. Jadi bentuk lama membuat lesson ber-NULL **bisa dibuka
+  // dan diselesaikan peserta tapi tidak ikut dihitung** — dan karena
+  // `lessonIds.every(...)` hanya melihat yang terhitung, course-nya lulus lebih
+  // awal dan sertifikatnya terbit padahal masih ada materi yang belum selesai.
+  // Tidak ada error di jalur mana pun; yang keliru cuma sertifikatnya.
   const { data: lessons } = await db
     .from("lessons")
     .select("id")
     .eq("course_id", courseId)
-    .neq("is_published", false);
+    .or("is_published.is.null,is_published.eq.true");
 
   const lessonIds = (lessons ?? []).map((l) => l.id as string);
 
@@ -723,21 +738,37 @@ export async function createCourseAction(formData: FormData) {
 
 export async function updateCourseStatusAction(formData: FormData) {
   await requireStaff();
-  const courseId = formData.get("courseId") as string;
-  const status = formData.get("status") as string;
 
-  if (!courseId || !status) throw new Error("Course ID dan status wajib diisi.");
+  // Divalidasi meski nol pemanggil di UI. Setiap fungsi yang diekspor dari
+  // berkas `"use server"` dapat action ID sendiri dan bisa dipanggil langsung
+  // lewat POST — tak adanya form yang memanggilnya bukan kontrol akses.
+  const parsed = updateCourseStatusSchema.safeParse({
+    courseId: formData.get("courseId"),
+    status: formData.get("status"),
+  });
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Status course tidak valid.");
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
 
-  const { error } = await db
+  const { data, error } = await db
     .from("courses")
-    .update({ status })
-    .eq("id", courseId);
+    .update({ status: parsed.data.status })
+    .eq("id", parsed.data.courseId)
+    .select("id");
 
   if (error) {
     console.error("Gagal update status course:", error);
     throw new Error("Gagal memperbarui status course.");
+  }
+
+  // M-2: `update` yang tidak mengenai satu baris pun mengembalikan
+  // `error: null`. Untuk status course itu berarti "course sudah terbit"
+  // dilaporkan berhasil padahal course-nya tidak ada.
+  if (!data || data.length === 0) {
+    throw new Error("Status course tidak tersimpan: course tidak ditemukan.");
   }
 
   revalidatePath("/dashboard/mentor/lms");

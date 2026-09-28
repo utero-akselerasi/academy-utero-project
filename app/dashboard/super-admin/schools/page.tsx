@@ -6,6 +6,7 @@ import {
   updateInternPeriodAction,
   updateSchoolAction,
 } from "@/features/super-admin/actions";
+import { INTERNSHIP_STATUS_OPTIONS } from "@/features/super-admin/schemas";
 import { getSuperAdminSchoolsData } from "@/features/super-admin/queries";
 import { requireSuperAdmin } from "@/features/auth/guards";
 import { SchoolInternSelector } from "@/features/super-admin/components/SchoolInternSelector";
@@ -165,11 +166,16 @@ export default async function SuperAdminSchoolsPage() {
                               </div>
                               <input name="major" defaultValue={intern.major || ""} placeholder="Jurusan" className="rounded border border-slate-300 px-2 py-1 text-xs" />
                               <input name="gradeOrSemester" defaultValue={intern.grade_or_semester || ""} placeholder="Kelas / Semester" className="rounded border border-slate-300 px-2 py-1 text-xs" />
+                              {/* Opsinya diturunkan dari enum `internship_status`,
+                                  tidak ditulis tangan. Daftar lama memuat
+                                  `inactive` yang bukan anggota enum (memilihnya
+                                  membatalkan seluruh simpan), dan menghilangkan
+                                  `paused`/`failed`/`alumni` yang sah tapi tak
+                                  terjangkau dari UI mana pun. */}
                               <select name="status" defaultValue={intern.status} className="rounded border border-slate-300 px-2 py-1 text-xs">
-                                <option value="active">Active</option>
-                                <option value="completed">Completed</option>
-                                <option value="inactive">Inactive</option>
-                                <option value="pending">Pending</option>
+                                {INTERNSHIP_STATUS_OPTIONS.map((opsi) => (
+                                  <option key={opsi.value} value={opsi.value}>{opsi.label}</option>
+                                ))}
                               </select>
                               <button type="submit" className="rounded bg-teal-700 px-2 py-1 text-xs font-bold text-white hover:bg-teal-800">Simpan Masa Magang</button>
                             </form>
