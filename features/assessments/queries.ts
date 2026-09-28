@@ -1,3 +1,4 @@
+import { ATTENDANCE_SETTINGS_ID } from "@/features/attendance/constants";
 import { resolveStorageUrl } from "@/lib/storage-urls";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
@@ -121,7 +122,7 @@ export async function getAttendanceSettings() {
   const { data } = await db
     .from("attendance_settings")
     .select("certificate_template_path, check_in_time, check_out_time, late_tolerance_minutes, monthly_target_hours")
-    .eq("id", "00000000-0000-0000-0000-000000000001")
+    .eq("id", ATTENDANCE_SETTINGS_ID)
     .maybeSingle();
 
   if (!data) return data;

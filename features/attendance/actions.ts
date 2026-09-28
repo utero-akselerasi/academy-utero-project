@@ -1,12 +1,14 @@
 ﻿"use server";
 
+import { ATTENDANCE_SETTINGS_ID } from "./constants";
 import { requireAdmin, requireUser } from "@/features/auth/guards";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createSupabaseServerClient, createUteroAcademyClient, createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { getInternProfileId } from "@/features/daily-reports/queries";
 import { UploadValidationError, buildStoragePath, validateBase64Image, validateUpload } from "@/lib/uploads";
+import { jakartaDateString } from "@/lib/time";
 import { revalidatePath } from "next/cache";
-import { checkInSchema, checkOutSchema, reviewAttendanceSchema } from "./schemas";
+import { attendanceSettingsSchema, checkInSchema, checkOutSchema, reviewAttendanceSchema } from "./schemas";
 
 /**
  * Aksi review/pengaturan absensi hanya untuk staff.
@@ -28,9 +30,62 @@ async function requireInternInScope(userId: string, internId: string | null) {
   }
 }
 
-function getTodayDateLocal() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+type GeofenceSettings = {
+  office_latitude: number | null;
+  office_longitude: number | null;
+  allow_geofencing: boolean | null;
+  radius_meters: number | null;
+};
+
+type GeofenceConfig =
+  | { kind: "disabled" }
+  | { kind: "misconfigured" }
+  | { kind: "active"; latitude: number; longitude: number; radiusMeters: number };
+
+/**
+ * Satu tempat yang menentukan bentuk geofence, dipakai check-in dan check-out.
+ *
+ * Sebelumnya logika ini diduplikasi di dua titik dengan tiga masalah:
+ *
+ * 1. **Koordinat kantor di-hardcode** (`-7.9671`/`112.6375`, Malang) sebagai
+ *    fallback `||`. Kalau kolomnya null, geofence tidak mati — ia berpindah ke
+ *    kota yang mungkin bukan lokasi kantor, lalu **setiap** peserta dinilai di
+ *    luar radius dan dipaksa mengunggah alasan + bukti kegiatan luar. Nilai
+ *    default itu tempatnya di migrasi (`0014`), bukan di kode aplikasi.
+ * 2. **`radius_meters || 100`** — `0` itu falsy, jadi admin yang menyetel radius
+ *    `0` (harus tepat di titik kantor) diam-diam mendapat 100 meter. Diganti
+ *    `??`, jadi hanya `null`/`undefined` yang memicu default.
+ * 3. Baris yang hilang tidak dibedakan dari geofence yang mati:
+ *    `settings?.allow_geofencing` bernilai falsy untuk keduanya.
+ *
+ * `misconfigured` **menolak absensi**, bukan melewati pemeriksaan. Ini pilihan
+ * yang disengaja: melewatinya berarti geofence mati tanpa ada yang tahu, dan
+ * keadaan itu bisa bertahan berbulan-bulan. Menolak dengan pesan yang menyebut
+ * penyebabnya membuat admin memperbaikinya dalam hitungan menit.
+ */
+function resolveGeofence(settings: GeofenceSettings | null): GeofenceConfig {
+  if (!settings?.allow_geofencing) return { kind: "disabled" };
+
+  const latitude = settings.office_latitude;
+  const longitude = settings.office_longitude;
+
+  // `Number.isFinite`, bukan cuma cek null: `double precision` Postgres bisa
+  // mengembalikan NaN, dan `NaN` lolos setiap perbandingan jarak sebagai false
+  // sehingga semua orang terhitung di dalam radius.
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return { kind: "misconfigured" };
+  }
+
+  const radiusMeters = settings.radius_meters ?? 100;
+  if (!Number.isFinite(radiusMeters) || radiusMeters < 0) {
+    return { kind: "misconfigured" };
+  }
+
+  return { kind: "active", latitude: latitude as number, longitude: longitude as number, radiusMeters };
 }
+
+const GEOFENCE_MISCONFIGURED_MESSAGE =
+  "Geofencing aktif tapi koordinat kantor belum diatur. Hubungi admin untuk melengkapi pengaturan absensi.";
 
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371e3; // Earth radius in meters
@@ -70,7 +125,7 @@ async function uploadSelfieBase64(userId: string, base64Data: string, type: 'in'
     return null;
   }
 
-  const today = getTodayDateLocal();
+  const today = jakartaDateString();
   const supabase = createSupabaseServiceRoleClient();
   const filePath = buildStoragePath(`${userId}/attendance_${today}_${type}`, selfie.ext);
   const { error } = await supabase.storage
@@ -104,21 +159,26 @@ export async function checkInAction(_: FormState, formData: FormData): Promise<F
   const { data: settingsIn } = await dbSrvIn
     .from("attendance_settings")
     .select("office_latitude, office_longitude, allow_geofencing, radius_meters")
-    .eq("id", "00000000-0000-0000-0000-000000000001")
+    .eq("id", ATTENDANCE_SETTINGS_ID)
     .maybeSingle();
 
   let isOutOfRange = false;
   let outOfRangeReason = null;
   let outOfRangeProofPath = null;
 
-  if (settingsIn?.allow_geofencing) {
+  const geofenceIn = resolveGeofence(settingsIn);
+  if (geofenceIn.kind === "misconfigured") {
+    return { ok: false, message: GEOFENCE_MISCONFIGURED_MESSAGE };
+  }
+
+  if (geofenceIn.kind === "active") {
     const distance = getDistanceMeters(
       parsed.data.latitude,
       parsed.data.longitude,
-      settingsIn.office_latitude || -7.9671,
-      settingsIn.office_longitude || 112.6375
+      geofenceIn.latitude,
+      geofenceIn.longitude
     );
-    if (distance > (settingsIn.radius_meters || 100)) {
+    if (distance > geofenceIn.radiusMeters) {
       isOutOfRange = true;
       const reason = formData.get("outOfRangeReason") as string | null;
       const proofFile = formData.get("outOfRangeProof") as File | null;
@@ -169,7 +229,7 @@ export async function checkInAction(_: FormState, formData: FormData): Promise<F
   const selfiePath = await uploadSelfieBase64(user.id, selfieBase64, "in");
   if (!selfiePath) return { ok: false, message: "Gagal mengunggah foto selfie." };
   const db = await createUteroAcademyClient();
-  const today = getTodayDateLocal();
+  const today = jakartaDateString();
   const { error } = await db.from("attendances").insert({ 
     intern_id: internId, 
     attendance_date: today, 
@@ -210,20 +270,25 @@ export async function checkOutAction(_: FormState, formData: FormData): Promise<
   const { data: settingsOut } = await dbSrvOut
     .from("attendance_settings")
     .select("office_latitude, office_longitude, allow_geofencing, radius_meters")
-    .eq("id", "00000000-0000-0000-0000-000000000001")
+    .eq("id", ATTENDANCE_SETTINGS_ID)
     .maybeSingle();
 
-  if (settingsOut?.allow_geofencing) {
+  const geofenceOut = resolveGeofence(settingsOut);
+  if (geofenceOut.kind === "misconfigured") {
+    return { ok: false, message: GEOFENCE_MISCONFIGURED_MESSAGE };
+  }
+
+  if (geofenceOut.kind === "active") {
     const distance = getDistanceMeters(
       parsed.data.latitude,
       parsed.data.longitude,
-      settingsOut.office_latitude || -7.9671,
-      settingsOut.office_longitude || 112.6375
+      geofenceOut.latitude,
+      geofenceOut.longitude
     );
-    if (distance > (settingsOut.radius_meters || 100)) {
-      return { 
-        ok: false, 
-        message: "Absen ditolak. Anda berada di luar radius kantor (" + Math.round(distance) + "m > " + (settingsOut.radius_meters || 100) + "m)." 
+    if (distance > geofenceOut.radiusMeters) {
+      return {
+        ok: false,
+        message: "Absen ditolak. Anda berada di luar radius kantor (" + Math.round(distance) + "m > " + geofenceOut.radiusMeters + "m)."
       };
     }
   }
@@ -231,7 +296,7 @@ export async function checkOutAction(_: FormState, formData: FormData): Promise<
   const selfiePath = await uploadSelfieBase64(user.id, selfieBase64, "out");
   if (!selfiePath) return { ok: false, message: "Gagal mengunggah foto selfie." };
   const db = await createUteroAcademyClient();
-  const today = getTodayDateLocal();
+  const today = jakartaDateString();
   const { error } = await db.from("attendances").update({ check_out_at: new Date().toISOString(), check_out_latitude: parsed.data.latitude, check_out_longitude: parsed.data.longitude, check_out_wifi_ssid: parsed.data.wifiSsid || null, check_out_selfie_path: selfiePath, updated_at: new Date().toISOString() }).eq("intern_id", internId).eq("attendance_date", today);
   if (error) {
     console.log("Gagal check-out:", error);
@@ -360,32 +425,76 @@ export async function saveAttendanceSettingsAction(formData: FormData) {
   // Pengaturan global absensi (jam kerja + geofencing) hanya boleh diubah staff.
   await requireStaff();
 
-  const checkInTime = formData.get("checkInTime") as string;
-  const checkOutTime = formData.get("checkOutTime") as string;
-  const lateTolerance = formData.get("lateTolerance") as string;
-  const monthlyTarget = formData.get("monthlyTarget") as string;
-  const officeLatitude = formData.get("officeLatitude") as string;
-  const officeLongitude = formData.get("officeLongitude") as string;
-  const allowGeofencing = formData.get("allowGeofencing") === "true";
-  const radiusMeters = formData.get("radiusMeters") as string;
+  /**
+   * `toOptionalNumber`, bukan `parseFloat` langsung.
+   *
+   * Dua alasan. Pertama, `parseFloat("12abc")` mengembalikan `12` — ia
+   * memotong sampah di belakang alih-alih menolaknya, jadi koordinat yang salah
+   * ketik tersimpan sebagai angka yang terlihat sah. `Number()` menolak seluruh
+   * string itu sebagai `NaN`, dan zod menolak `NaN`.
+   *
+   * Kedua, `Number("")` bernilai `0`, bukan `NaN` — jadi isian kosong harus
+   * dipetakan ke `null` **sebelum** konversi. Tanpa ini, mengosongkan kolom
+   * latitude akan menyimpan koordinat `0,0` (Teluk Guinea), yang membuat setiap
+   * peserta terhitung di luar radius.
+   */
+  const toOptionalNumber = (value: FormDataEntryValue | null): number | null => {
+    if (typeof value !== "string" || value.trim() === "") return null;
+    return Number(value);
+  };
+
+  const parsed = attendanceSettingsSchema.safeParse({
+    checkInTime: (formData.get("checkInTime") as string | null)?.trim() || "08:00",
+    checkOutTime: (formData.get("checkOutTime") as string | null)?.trim() || "17:00",
+    lateToleranceMinutes: toOptionalNumber(formData.get("lateTolerance")) ?? 15,
+    monthlyTargetHours: toOptionalNumber(formData.get("monthlyTarget")) ?? 120,
+    allowGeofencing: formData.get("allowGeofencing") === "true",
+    officeLatitude: toOptionalNumber(formData.get("officeLatitude")),
+    officeLongitude: toOptionalNumber(formData.get("officeLongitude")),
+    radiusMeters: toOptionalNumber(formData.get("radiusMeters")) ?? 100,
+  });
+
+  if (!parsed.success) {
+    // Form ini terikat langsung ke `action={...}` tanpa `useActionState`, jadi
+    // nilai kembali tidak akan pernah terbaca — `throw` adalah satu-satunya
+    // jalur yang sampai ke pengguna. Pesan zod disertakan supaya admin tahu
+    // field mana yang salah, bukan cuma "gagal menyimpan".
+    const detail = parsed.error.issues.map((issue) => issue.message).join(" ");
+    throw new Error("Pengaturan absensi tidak valid. " + detail);
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
-  const { error } = await db.from("attendance_settings").upsert({
-    id: "00000000-0000-0000-0000-000000000001",
-    check_in_time: checkInTime || "08:00",
-    check_out_time: checkOutTime || "17:00",
-    late_tolerance_minutes: lateTolerance ? parseInt(lateTolerance) : 15,
-    monthly_target_hours: monthlyTarget ? parseInt(monthlyTarget) : 120,
-    office_latitude: officeLatitude ? parseFloat(officeLatitude) : -7.9671,
-    office_longitude: officeLongitude ? parseFloat(officeLongitude) : 112.6375,
-    allow_geofencing: allowGeofencing,
-    radius_meters: radiusMeters ? parseInt(radiusMeters) : 100,
-    updated_at: new Date().toISOString()
-  });
+  const { data, error } = await db
+    .from("attendance_settings")
+    .upsert({
+      id: ATTENDANCE_SETTINGS_ID,
+      check_in_time: parsed.data.checkInTime,
+      check_out_time: parsed.data.checkOutTime,
+      late_tolerance_minutes: parsed.data.lateToleranceMinutes,
+      monthly_target_hours: parsed.data.monthlyTargetHours,
+      // Koordinat disimpan apa adanya, termasuk `null`. Fallback
+      // `-7.9671`/`112.6375` (Malang) yang lama dihapus: default itu tempatnya
+      // di migrasi `0014`, dan menyuntikkannya dari kode aplikasi berarti
+      // geofence bisa terbentuk di kota yang tidak pernah dipilih admin.
+      office_latitude: parsed.data.officeLatitude,
+      office_longitude: parsed.data.officeLongitude,
+      allow_geofencing: parsed.data.allowGeofencing,
+      radius_meters: parsed.data.radiusMeters,
+      updated_at: new Date().toISOString()
+    })
+    .select("id");
 
   if (error) {
     console.error("Gagal simpan settings absensi:", error);
     throw new Error("Gagal menyimpan pengaturan absensi.");
+  }
+
+  // M-2: upsert yang tidak mengenai satu baris pun mengembalikan `error: null`.
+  // Tanpa pemeriksaan ini, RLS yang menolak tulis akan tampil ke admin sebagai
+  // penyimpanan yang berhasil — pengaturan geofence terlihat berubah di form
+  // (karena `revalidatePath` memuat ulang) padahal DB tidak bergerak.
+  if (!data || data.length === 0) {
+    throw new Error("Pengaturan absensi tidak tersimpan: tidak ada baris yang terpengaruh.");
   }
 
   revalidatePath("/dashboard/mentor/attendance");

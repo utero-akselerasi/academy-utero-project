@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { ATTENDANCE_SETTINGS_ID } from "@/features/attendance/constants";
 import { AttendanceStatusBadge } from "@/features/attendance/AttendanceStatusBadge";
 import { PendingPermitsList } from "@/features/attendance/PendingPermitsList";
 import { ReviewAttendanceForm } from "@/features/attendance/ReviewAttendanceForm";
@@ -11,6 +12,7 @@ import { requireAdmin } from "@/features/auth/guards";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { isPdfPath, resolveStorageUrl, resolveStorageUrls } from "@/lib/storage-urls";
+import { jakartaDateString, jakartaMinutesOfDay, parseWallClockMinutes } from "@/lib/time";
 import Link from "next/link";
 import { Clock, Settings, User, X, CheckCircle, AlertTriangle, Play, HelpCircle, MapPin, Eye, Download } from "lucide-react";
 
@@ -55,7 +57,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
   const { data: settings } = await db
     .from("attendance_settings")
     .select("*")
-    .eq("id", "00000000-0000-0000-0000-000000000001")
+    .eq("id", ATTENDANCE_SETTINGS_ID)
     .maybeSingle();
 
   const checkInTime = settings?.check_in_time || "08:00";
@@ -112,7 +114,12 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
     : { data: [] as any[] };
 
   // 4. Calculate stats for each intern
-  const [setHour, setMin] = checkInTime.split(":").map(Number);
+  //
+  // Default 08:00 dipilih eksplisit kalau kolomnya tidak berbentuk "HH:MM".
+  // Sebelumnya `split(":").map(Number)`: isi kolom yang rusak jadi `NaN`, dan
+  // perbandingan apa pun terhadap `NaN` bernilai false — artinya jumlah telat
+  // yang ditampilkan ke admin akan **selalu nol** tanpa error apa pun.
+  const scheduledCheckInMinutes = parseWallClockMinutes(checkInTime) ?? 8 * 60;
 
   const mappedInterns = interns.map(intern => {
     const internLogs = (attendances || []).filter(a => a.intern_id === intern.id);
@@ -128,11 +135,15 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
     internLogs.forEach(log => {
       // Late check
       if (log.attendance_type === "present" && log.check_in_at) {
-        const checkInDate = new Date(log.check_in_at);
-        const checkInHour = checkInDate.getHours();
-        const checkInMin = checkInDate.getMinutes();
-        const minutesPastLimit = (checkInHour * 60 + checkInMin) - (setHour * 60 + setMin);
-        if (minutesPastLimit > lateTolerance) {
+        // `jakartaMinutesOfDay`, bukan `getHours()`: yang kedua memakai zona
+        // waktu proses Node, jadi angka telat di dashboard admin ikut bergeser
+        // kalau `TZ` container hilang. Lihat `lib/time.ts`.
+        const actualMinutes = jakartaMinutesOfDay(new Date(log.check_in_at));
+        const minutesPastLimit = actualMinutes - scheduledCheckInMinutes;
+        // `Number.isFinite` menjaga timestamp rusak: `NaN > lateTolerance`
+        // bernilai false, jadi sebenarnya sudah aman — pemeriksaan ini ada
+        // supaya sifat itu eksplisit, bukan kebetulan.
+        if (Number.isFinite(minutesPastLimit) && minutesPastLimit > lateTolerance) {
           lateCount++;
         }
       }
@@ -257,7 +268,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
       proofIsPdf.set(log.id as string, isPdfPath(log.out_of_range_proof_path, "avatars"));
     }
   }
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const today = jakartaDateString();
   const currentMonth = today.slice(0, 7);
 
   return (
@@ -375,13 +386,28 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
             />
           </div>
 
+          {/* Prefill `-7.9671`/`112.6375` (Malang) dihapus, dan `required`
+              ikut dilepas.
+
+              Angka itu bukan nilai tersimpan: kalau kolomnya `null`, admin
+              membuka form, melihat kedua kotak sudah terisi, menyimpan
+              pengaturan lain, dan geofence terpasang di Malang tanpa pernah
+              dipilih siapa pun. Itu lubang yang sama yang baru dicabut dari
+              `saveAttendanceSettingsAction` — kalau dibiarkan di sini, ia
+              masuk kembali lewat UI.
+
+              `required` dilepas karena kolomnya memang nullable: kosong =
+              belum diatur, dan itu keadaan yang harus bisa dinyatakan. Batas
+              rentang koordinat ditegakkan di `attendanceSettingsSchema`, yang
+              juga menolak "geofencing aktif tapi koordinat kosong" — bukan di
+              atribut HTML yang bisa dilewati. */}
           <div className="form-field">
             <label className="form-label text-xs font-bold text-slate-700">Latitude Kantor</label>
             <input
               type="text"
               name="officeLatitude"
-              defaultValue={settings?.office_latitude ?? -7.9671}
-              required
+              defaultValue={settings?.office_latitude ?? ""}
+              placeholder="Belum diatur"
               className="form-input text-xs"
             />
           </div>
@@ -390,8 +416,8 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
             <input
               type="text"
               name="officeLongitude"
-              defaultValue={settings?.office_longitude ?? 112.6375}
-              required
+              defaultValue={settings?.office_longitude ?? ""}
+              placeholder="Belum diatur"
               className="form-input text-xs"
             />
           </div>

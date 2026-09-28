@@ -1,5 +1,6 @@
 "use server";
 
+import { ATTENDANCE_SETTINGS_ID } from "@/features/attendance/constants";
 import { requireAdmin } from "@/features/auth/guards";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
@@ -200,7 +201,7 @@ export async function uploadCertificateTemplateAction(formData: FormData) {
   // di `features/assessments/queries.ts` dan di halaman cetak sertifikat.
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db.from("attendance_settings").upsert({
-    id: "00000000-0000-0000-0000-000000000001",
+    id: ATTENDANCE_SETTINGS_ID,
     certificate_template_path: filePath,
     updated_at: new Date().toISOString()
   });

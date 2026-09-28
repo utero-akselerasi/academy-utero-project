@@ -1,20 +1,12 @@
 import { getMentorProfileId } from "@/features/daily-reports/queries";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { jakartaDateString } from "@/lib/time";
 import { getUserRoleCodes } from "./roles";
 
 export type InternScope =
   | { kind: "global" }
   | { kind: "scoped"; internIds: string[] }
   | { kind: "setup_required" };
-
-function jakartaToday() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Jakarta",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
 
 /**
  * Tentukan intern mana yang boleh dilihat user staff.
@@ -38,7 +30,7 @@ export async function resolveStaffInternScope(userId: string): Promise<InternSco
     return { kind: "setup_required" };
   }
 
-  const today = jakartaToday();
+  const today = jakartaDateString();
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("mentor_assignments")

@@ -1,3 +1,4 @@
+import { ATTENDANCE_SETTINGS_ID } from "@/features/attendance/constants";
 import { getInternCertificate } from "@/features/assessments/queries";
 import { requireUser } from "@/features/auth/guards";
 import { getUserRoleCodes } from "@/features/auth/roles";
@@ -49,7 +50,7 @@ export default async function PrintCertificatePage({ searchParams }: PageProps) 
     .schema("utero_academy")
     .from("attendance_settings")
     .select("certificate_template_path")
-    .eq("id", "00000000-0000-0000-0000-000000000001")
+    .eq("id", ATTENDANCE_SETTINGS_ID)
     .maybeSingle();
   // TTL panjang (`print`, 6 jam) khusus jalur ini. Nilainya disuntikkan ke CSS
   // `background-image: url(...)`, dan rasterisasi cetak baru terjadi setelah

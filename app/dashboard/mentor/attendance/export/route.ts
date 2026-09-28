@@ -1,11 +1,12 @@
+import { ATTENDANCE_SETTINGS_ID } from "@/features/attendance/constants";
 import { RouteAuthorizationError, requireRouteAdmin } from "@/features/auth/guards";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { writeAuditLog } from "@/features/super-admin/audit";
 import { buildCsv, csvResponseHeaders, type CsvCell } from "@/lib/csv";
+import { jakartaMinutesOfDay, parseWallClockMinutes } from "@/lib/time";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
-const SETTINGS_ID = "00000000-0000-0000-0000-000000000001";
 const MAX_RANGE_DAYS = 92;
 
 type AttendanceLog = {
@@ -53,11 +54,23 @@ function parseCalendarDate(value: string | null) {
   return parsed.toISOString().slice(0, 10) === value ? parsed : null;
 }
 
+/**
+ * `jakartaMinutesOfDay`, bukan `getHours()`: `getHours()` memetakan instan ke
+ * jam dinding memakai zona waktu **proses Node**, jadi telat/tidaknya absensi
+ * peserta ikut berubah kalau `TZ` container hilang atau berbeda — lihat
+ * `lib/time.ts` untuk alasan lengkapnya.
+ *
+ * `NaN` dari timestamp yang rusak dikembalikan sebagai 0 menit telat, bukan
+ * dibiarkan menjalar: `NaN` akan lolos filter `> 0` sebagai false lalu muncul
+ * di CSV sebagai sel kosong, sedangkan 0 berarti "tidak terhitung telat" —
+ * yang merupakan sikap yang benar terhadap data yang tidak bisa dibaca.
+ */
 function getLateMinutes(log: AttendanceLog, checkInMinutes: number, lateTolerance: number) {
   if (log.attendance_type !== "present" || !log.check_in_at) return 0;
 
-  const checkInDate = new Date(log.check_in_at);
-  const actualMinutes = checkInDate.getHours() * 60 + checkInDate.getMinutes();
+  const actualMinutes = jakartaMinutesOfDay(new Date(log.check_in_at));
+  if (!Number.isFinite(actualMinutes)) return 0;
+
   const minutesPastSchedule = actualMinutes - checkInMinutes;
 
   return minutesPastSchedule > lateTolerance ? minutesPastSchedule - lateTolerance : 0;
@@ -129,14 +142,18 @@ export async function GET(request: Request) {
   const { data: settings } = await db
     .from("attendance_settings")
     .select("check_in_time, late_tolerance_minutes, monthly_target_hours")
-    .eq("id", SETTINGS_ID)
+    .eq("id", ATTENDANCE_SETTINGS_ID)
     .maybeSingle();
 
-  const checkInTime = settings?.check_in_time || "08:00";
   const lateTolerance = settings?.late_tolerance_minutes ?? 15;
   const monthlyTargetHours = settings?.monthly_target_hours ?? 120;
-  const [checkInHour, checkInMinute] = checkInTime.split(":").map(Number);
-  const checkInMinutes = checkInHour * 60 + checkInMinute;
+
+  // `parseWallClockMinutes` mengembalikan null untuk bentuk yang tidak valid,
+  // jadi default 08:00 dipilih secara eksplisit. Sebelumnya `split(":").map(Number)`
+  // langsung: isi kolom yang rusak menghasilkan `NaN`, dan setiap perbandingan
+  // telat terhadap NaN bernilai false — artinya **tidak ada peserta yang pernah
+  // terhitung telat**, tanpa satu pun error muncul.
+  const checkInMinutes = parseWallClockMinutes(settings?.check_in_time) ?? 8 * 60;
 
   let interns: InternProfile[] = [];
 

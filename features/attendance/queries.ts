@@ -1,4 +1,5 @@
 import { createUteroAcademyClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { jakartaDateString } from "@/lib/time";
 import { type Attendance, type AttendanceWithIntern } from "./types";
 
 export async function getInternAttendances(internProfileId: string) {
@@ -15,7 +16,7 @@ export async function getInternAttendances(internProfileId: string) {
 
 export async function getTodayAttendance(internProfileId: string) {
   const db = await createUteroAcademyClient();
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const today = jakartaDateString();
   const { data } = await db
     .from("attendances")
     .select("*")
