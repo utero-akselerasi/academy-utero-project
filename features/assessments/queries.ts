@@ -87,6 +87,26 @@ export async function getInternAssessment(internProfileId: string) {
   return { data, error };
 }
 
+/**
+ * Sertifikat akhir magang (jalur penilaian) milik satu peserta.
+ *
+ * `.not("assessment_id", "is", null)` WAJIB ada. Tabel `certificates` memuat dua
+ * jenis baris: sertifikat penilaian (punya `assessment_id`) dan sertifikat
+ * penyelesaian course (punya `course_id`). Tanpa filter itu, `maybeSingle()`
+ * melempar `PGRST116` begitu seorang peserta punya keduanya — dan halaman
+ * sertifikat akhirnya menampilkan error, bukan sertifikatnya.
+ *
+ * Kenapa lubang ini belum pernah meledak: insert sertifikat course di
+ * `features/lms/certificate-helper.ts` tidak pernah berhasil sekali pun (lihat
+ * catatan di berkas itu), jadi baris jenis kedua tidak pernah ada. Memperbaiki
+ * helper itu tanpa memasang filter ini akan memindahkan kegagalannya ke sini.
+ *
+ * Disaring lewat `assessment_id`, bukan `certificate_type`: kolom pertama ada
+ * sejak `0001`, sementara `certificate_type` baru ada sejak `0021`. Filter
+ * PostgREST atas kolom yang belum ada di produksi menggagalkan SELURUH kueri,
+ * jadi bergantung pada `0021` di sini berarti halaman sertifikat mati total
+ * kalau migrasi itu ternyata belum terpasang.
+ */
 export async function getInternCertificate(internProfileId: string) {
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -94,6 +114,7 @@ export async function getInternCertificate(internProfileId: string) {
     .from("certificates")
     .select("id, intern_id, certificate_number, file_path, status, issued_at, signed_at, assessments(id, final_score, feedback, score)")
     .eq("intern_id", internProfileId)
+    .not("assessment_id", "is", null)
     .maybeSingle();
 
   if (error || !data) {

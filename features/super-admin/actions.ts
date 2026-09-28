@@ -3,6 +3,7 @@
 import { requireAdmin, requireSuperAdmin } from "@/features/auth/guards";
 import { userIsSuperAdmin } from "@/features/auth/roles";
 import { createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { listAllAuthUsers } from "@/lib/auth-admin";
 import { detectMissingDomainProfiles } from "./queries";
 import { writeAuditLog } from "./audit";
 import { revalidatePath } from "next/cache";
@@ -598,15 +599,36 @@ export async function cleanupOrphanDataAction(formData: FormData) {
   const db = await createUteroAcademyServiceRoleClient();
   const authClient = createSupabaseServiceRoleClient();
 
-  // Fetch semua data untuk deteksi
+  // Fetch semua data untuk deteksi.
+  //
+  // `listAllAuthUsers` menyusuri semua halaman dan MELEMPAR kalau daftarnya
+  // tidak bisa dijamin lengkap. Ini titik paling kritis dari ketiga pemakaian
+  // helper itu: `authUserIds` di bawah menentukan baris `school_contacts` mana
+  // yang DIHAPUS PERMANEN. Dengan `listUsers({ perPage: 1000 })` yang lama,
+  // satu user yang cuma tidak terambil sudah cukup untuk membuat kontaknya
+  // terhapus — dan penghapusannya tercatat di audit log sebagai pembersihan
+  // yang berhasil, jadi tidak ada jejak bahwa itu salah.
   const [allSchoolContacts, allAuthUsers, allInterns, allSchools] = await Promise.all([
     db.from("school_contacts").select("id, user_id, school_id").returns<Array<{ id: string; user_id: string | null; school_id: string }>>(),
-    authClient.auth.admin.listUsers({ perPage: 1000 }),
+    listAllAuthUsers(authClient),
     db.from("intern_profiles").select("id, school_id").returns<Array<{ id: string; school_id: string | null }>>(),
     db.from("schools").select("id").returns<Array<{ id: string }>>(),
   ]);
 
-  const authUserIds = new Set(allAuthUsers.data?.users.map(u => u.id) || []);
+  // Error kueri TIDAK boleh jatuh ke `|| []` di sini. `allSchools.error` yang
+  // lolos menghasilkan `schoolIds` kosong, dan kombinasi itu menandai SETIAP
+  // kontak sekolah sebagai yatim lalu menghapus semuanya. Kegagalan baca harus
+  // menghentikan pembersihan, bukan memperluasnya.
+  if (allSchoolContacts.error || allInterns.error || allSchools.error) {
+    const detail = allSchoolContacts.error?.message
+      ?? allInterns.error?.message
+      ?? allSchools.error?.message;
+    throw new Error(
+      "Pembersihan dibatalkan: data pembanding gagal dibaca, jadi status yatim tidak bisa ditentukan. " + detail,
+    );
+  }
+
+  const authUserIds = new Set(allAuthUsers.map(u => u.id));
   const schoolIds = new Set(allSchools.data?.map(s => s.id) || []);
 
   let deletedCount = 0;

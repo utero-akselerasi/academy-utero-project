@@ -1,4 +1,5 @@
 ﻿import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { listAllAuthUsers } from "@/lib/auth-admin";
 import { isActiveRoleCode } from "@/features/auth/roles";
 import { type Role, type School, type SchoolInternOption, type UserProfile, type UserRole } from "./types";
 
@@ -6,7 +7,7 @@ export async function getSuperAdminUserManagementData() {
   const db = await createUteroAcademyServiceRoleClient();
   const authClient = createSupabaseServiceRoleClient();
 
-  const [profilesResult, rolesResult, userRolesResult, authUsersResult, schoolsResult, schoolContactsResult, internProfilesResult] = await Promise.all([
+  const [profilesResult, rolesResult, userRolesResult, authUsers, schoolsResult, schoolContactsResult, internProfilesResult] = await Promise.all([
     db
       .from("user_profiles")
       .select("id, full_name, phone, is_active, created_at")
@@ -17,16 +18,17 @@ export async function getSuperAdminUserManagementData() {
       .from("user_roles")
       .select("id, user_id, role_id, roles(code, name)")
       .returns<UserRole[]>(),
-    authClient.auth.admin.listUsers({
-      perPage: 1000,
-    }),
+    // `listAllAuthUsers`: kalau halaman pertama saja yang terambil, user di
+    // luar halaman itu kehilangan email dan `last_sign_in_at`-nya di tabel
+    // manajemen, dan `auth_linked` jatuh ke `false` — ia tampil seolah akun
+    // auth-nya hilang padahal cuma tidak ikut terambil.
+    listAllAuthUsers(authClient),
     db.from("schools").select("id, name").order("name").returns<any[]>(),
     db.from("school_contacts").select("id, user_id, school_id, email, schools(name)").returns<any[]>(),
     db.from("intern_profiles").select("user_id, email").returns<Array<{ user_id: string | null; email: string | null }>>()
   ]);
 
   const profiles = profilesResult.data ?? [];
-  const authUsers = authUsersResult.data?.users ?? [];
   const schoolContacts = schoolContactsResult.data ?? [];
   const internProfiles = internProfilesResult.data ?? [];
 
@@ -62,7 +64,11 @@ export async function getSuperAdminUserManagementData() {
     roles: assignableRoles,
     userRoles: userRolesResult.data ?? [],
     schools: schoolsResult.data ?? [],
-    error: profilesResult.error ?? rolesResult.error ?? userRolesResult.error ?? (authUsersResult.error as any) ?? schoolsResult.error ?? schoolContactsResult.error ?? internProfilesResult.error,
+    // `authUsers` tidak lagi menyumbang error di sini: `listAllAuthUsers`
+    // melempar alih-alih mengembalikan `{ error }`, jadi kegagalannya
+    // menggagalkan `Promise.all` — bukan diam-diam lolos sebagai daftar kosong
+    // yang membuat setiap user tampil tanpa email dan tanpa akun auth.
+    error: profilesResult.error ?? rolesResult.error ?? userRolesResult.error ?? schoolsResult.error ?? schoolContactsResult.error ?? internProfilesResult.error,
   };
 }
 
@@ -109,14 +115,39 @@ export async function detectOrphanData() {
   const db = await createUteroAcademyServiceRoleClient();
   const authClient = createSupabaseServiceRoleClient();
 
+  // `listAllAuthUsers`, bukan `listUsers({ perPage: 1000 })`: set id di bawah
+  // dipakai untuk menilai baris lain sebagai yatim, jadi satu user yang cuma
+  // tidak terambil akan tampil sebagai user yang sudah terhapus. Helper-nya
+  // MELEMPAR kalau daftarnya tidak bisa dijamin lengkap — lihat `lib/auth-admin.ts`.
   const [allSchoolContacts, allAuthUsers, allInterns, allSchools] = await Promise.all([
     db.from("school_contacts").select("id, user_id, school_id, name").returns<Array<{ id: string; user_id: string | null; school_id: string; name: string }>>(),
-    authClient.auth.admin.listUsers({ perPage: 1000 }),
+    listAllAuthUsers(authClient),
     db.from("intern_profiles").select("id, school_id, full_name").returns<Array<{ id: string; school_id: string | null; full_name: string }>>(),
     db.from("schools").select("id, name").returns<Array<{ id: string; name: string }>>(),
   ]);
 
-  const authUserIds = new Set(allAuthUsers.data?.users.map(u => u.id) || []);
+  /**
+   * Kueri yang gagal dilaporkan sebagai NOL orphan, bukan sebagai daftar.
+   *
+   * `allSchools.error` yang lolos menghasilkan `schoolIds` kosong, dan dengan
+   * set kosong itu SETIAP kontak sekolah memenuhi syarat yatim. Halaman
+   * pemanggil merender banner error dan daftar orphan secara terpisah, jadi
+   * hasilnya adalah "⚠ Ditemukan 25 Data Orphan" berikut tombol hapusnya,
+   * bersanding dengan peringatan koneksi yang mudah dibaca sebagai keluhan
+   * kosmetik. Kegagalan baca tidak boleh terlihat seperti temuan.
+   */
+  const readError = allSchoolContacts.error || allInterns.error || allSchools.error;
+  if (readError) {
+    return {
+      orphanContacts: [],
+      orphanInterns: [],
+      schoolContactsWithoutSchool: [],
+      total: 0,
+      error: readError,
+    };
+  }
+
+  const authUserIds = new Set(allAuthUsers.map(u => u.id));
   const schoolIds = new Set(allSchools.data?.map(s => s.id) || []);
 
   const orphanContacts = allSchoolContacts.data?.filter((contact) => {
@@ -138,7 +169,9 @@ export async function detectOrphanData() {
     orphanInterns,
     schoolContactsWithoutSchool,
     total: orphanContacts.length + orphanInterns.length + schoolContactsWithoutSchool.length,
-    error: allSchoolContacts.error || allSchools.error,
+    // Selalu null di jalur ini: kegagalan baca sudah kembali lebih awal di atas,
+    // dan `listAllAuthUsers` melempar alih-alih mengembalikan `{ error }`.
+    error: null,
   };
 }
 
@@ -169,6 +202,24 @@ export async function detectMissingDomainProfiles() {
     db.from("intern_profiles").select("user_id").returns<Array<{ user_id: string | null }>>(),
     db.from("mentor_profiles").select("user_id").returns<Array<{ user_id: string | null }>>(),
   ]);
+
+  /**
+   * Sama seperti `detectOrphanData`: kegagalan baca dilaporkan sebagai nol
+   * temuan, bukan sebagai daftar.
+   *
+   * `internsResult.error` yang lolos menghasilkan `hasIntern` kosong, dan
+   * dengan set kosong itu SETIAP user berperan `intern` terlihat belum punya
+   * profil domain. Halaman pemanggil merender `missingProfiles.length` di judul
+   * seksi, di luar cabang error-nya, jadi hasilnya adalah "Profil Domain Belum
+   * Lengkap (44)" berikut tombol backfill-nya.
+   *
+   * `backfillDomainProfilesAction` sendiri sudah `throw` saat `error` terisi,
+   * jadi penulisannya aman. Yang ditutup di sini adalah angka palsu di layar.
+   */
+  const readError = userRolesResult.error || profilesResult.error || internsResult.error || mentorsResult.error;
+  if (readError) {
+    return { missing: [] as MissingDomainProfile[], total: 0, error: readError };
+  }
 
   const nameById = new Map((profilesResult.data ?? []).map((p) => [p.id, p.full_name]));
   const hasIntern = new Set((internsResult.data ?? []).map((r) => r.user_id).filter(Boolean) as string[]);
@@ -213,9 +264,6 @@ export async function detectMissingDomainProfiles() {
     }
   }
 
-  return {
-    missing,
-    total: missing.length,
-    error: userRolesResult.error || profilesResult.error || internsResult.error || mentorsResult.error,
-  };
+  // Selalu null: kegagalan baca sudah kembali lebih awal di atas.
+  return { missing, total: missing.length, error: null };
 }
