@@ -10,7 +10,8 @@ diterapkan.
 Untuk migrasi, `[~]` berarti **berkasnya ditulis dan ter-push, tapi belum dijalankan di DB mana pun.**
 Tidak satu pun migrasi di dokumen ini sudah diterapkan.
 
-Terakhir diperbarui: 2026-09-27 (Batch 0 ditambahkan; B1.5, B4.4, B6.1, B6.3, B6.5 dikoreksi; B6.2/B6.3/B6.4 selesai).
+Terakhir diperbarui: 2026-09-28 (SQL B0.3b ditulis & terverifikasi lokal — kotak centangnya tetap
+kosong karena produksi belum disentuh; B6.8 selesai: `npm audit` 0 kerentanan).
 
 Referensi ID temuan mengikuti Master Deep Audit Report (C-x kritis, H-x tinggi, M-x sedang).
 
@@ -534,6 +535,39 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
     yang tak dilewati kode ini. Jadi `[~]` Batch 0 **tetap** `[~]`.
   - Verifikasi: `npm test` EXIT=0 (195 test), `tsc --noEmit` EXIT=0, `npm run lint` EXIT=0
     (218 warning warisan, 0 error), `npm run build` EXIT=0.
+- [x] B6.8 **Dua advisory `high` sisa ditutup — `npm audit` sekarang 0 kerentanan** (dari 29: 27
+  moderate, 2 high)
+  - Sebelumnya dicatat sebagai pertanyaan terbuka ("apakah perlu ditangani"). Jawabannya: ya, dan
+    **tanpa satu pun kenaikan major** — keduanya ternyata tertambal di dalam rentang caret yang
+    sudah dideklarasikan, jadi bentuk perubahannya sama dengan patch-only `next` yang sudah
+    disetujui.
+  - `nodemailer` `^9.0.3` → `^9.1.1`. Empat advisory sekaligus, semuanya tertambal di `9.1.0`/`9.1.1`:
+    ReDoS kuadratik di `addressparser` (GHSA-2x7j-588g-ccc2, CVSS 7.5 — satu-satunya yang `high`),
+    bypass allowlist domain via IDN/Punycode (GHSA-wmmp-3585-3rmp), bypass validasi domain penerima
+    via mis-parsing komentar RFC 5322 (GHSA-cc9r-2j5m-2m83), dan `resolveContent()` yang melewati
+    `disableFileAccess`/`disableUrlAccess` pada signature lama (GHSA-8m3c-c648-2xjj). Tiga dari
+    empat mengenai **tujuan pengiriman**, dan `lib/notification.ts` mengirim email ke alamat peserta
+    yang datang dari DB — jadi yang ditutup di sini bukan risiko teoretis.
+  - `@tiptap/*` `^3.29.0` → `^3.31.3` (tertambal di `3.30.5`; `3.31.3` yang terbaru). ReDoS
+    kuadratik di parsing atribut Markdown (GHSA-j95f-988m-3j2f, `high`) dan `mergeAttributes()` yang
+    mengubah kunci `__proto__` jadi atribut DOM terwarisi yang bisa dieksekusi
+    (GHSA-cp6q-959q-f8rh — prototype pollution jadi XSS; relevan karena editor ini yang menulis HTML
+    materi LMS, dan sanitasinya B4.1 ada di sisi render, bukan di sisi editor).
+  - **Kenaikan tiptap tidak bisa dilakukan dengan `npm install <paket>@versi`.** Peer `@tiptap/*`
+    dipin **eksak** (`@tiptap/core: "3.31.3"`, bukan caret), dan lockfile memegang seluruh pohon
+    3.29.0, jadi npm menolak dengan `ERESOLVE` di setiap variasi — termasuk saat `@tiptap/core` dan
+    `@tiptap/pm` ikut disebut di root. Yang bekerja: `npm uninstall` kelima paket tiptap lalu
+    pasang ulang, sehingga npm meresolusi pohon transitifnya dari nol. **Tanpa
+    `--force`/`--legacy-peer-deps`** — keduanya sengaja dihindari karena menerima resolusi yang npm
+    sendiri sebut mungkin rusak.
+  - Bukti sampingan dari langkah `uninstall`: `npm audit` melaporkan **0 kerentanan** begitu tiptap
+    dilepas, yang memastikan ke-27 advisory moderate berasal dari pohon itu dan bukan dari
+    dependensi lain yang kebetulan tertutupi.
+  - Nol perubahan kode aplikasi diperlukan. `features/lms/components/RichTextEditor.tsx` adalah
+    satu-satunya titik impor tiptap (5 impor) dan `lib/notification.ts` satu-satunya pemakai
+    nodemailer; tidak ada yang mengimpor `@tiptap/core` langsung.
+  - Verifikasi keempat gerbang CI: `tsc --noEmit` EXIT=0, `npm run lint:ci` EXIT=0, `npm test`
+    EXIT=0 (214 test), `npm run build` EXIT=0, `npm audit` **0 kerentanan**.
 
 ## Batch 7 — Aksesibilitas
 
@@ -591,4 +625,9 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
 - [ ] Konfirmasi package manager yang dipakai di produksi (npm vs pnpm) untuk B6.1
 - [ ] **Izin eksplisit untuk B0.3** — tidak satu pun migrasi B0.1 akan aku jalankan tanpa itu.
       Yang paling butuh izin terpisah: backfill kolom storage (B0.3b), karena ia **menulis ulang
-      baris produksi**
+      baris produksi**. SQL-nya sekarang **sudah ada dan bisa kamu review sebelum memberi izin**:
+      `supabase/manual/B0.3b_backfill_storage_paths.sql`, sengaja di luar `supabase/migrations/`
+      supaya `npm run migrate:apply` **tidak bisa** menjangkaunya dan meruntuhkan gerbang B0.3a
+      dengan B0.3b jadi satu. Sudah dijalankan penuh atas data sintetis di container postgres
+      sekali-pakai (idempoten, atomik, prosedur pemulihan terbukti) — **produksi belum pernah
+      disentuh**
