@@ -79,9 +79,16 @@ export async function getCmsData(siteId: string) {
  * `skills`, `expertisers`, dan `partnerships` **tidak disentuh.** Ketiganya
  * JSONB bebas-isi: `icon_url`, `avatar`, dan `logo_url` di dalamnya bisa berupa
  * path aset lokal aplikasi (`/images/expert-dadik.jpg`), URL eksternal yang
- * ditempel admin, atau object path hasil `uploadCmsFileAction`. Memaksanya lewat
- * `toObjectPath` akan mengembalikan `null` untuk dua bentuk pertama, jadi
- * menyentuhnya justru merusak nilai yang sudah benar.
+ * ditempel admin, atau object path hasil `uploadCmsFileAction`.
+ *
+ * Yang melindungi ketiganya adalah keputusan **tidak memanggil** `toObjectPath`
+ * atas mereka — bukan perilaku fungsi itu. Versi awal komentar ini mengklaim
+ * `toObjectPath` mengembalikan `null` untuk dua bentuk pertama; itu salah, dan
+ * `tests/storage-paths.test.ts` mengunci perilaku sebenarnya. `/images/expert-dadik.jpg`
+ * bukan URL absolut, jadi ia jatuh ke cabang terakhir dan slash depannya dibuang:
+ * hasilnya `images/expert-dadik.jpg` — object path yang akan ditandatangani dan
+ * menghasilkan 404, bukan `null` yang jujur. Jadi mengonversinya akan **merusak
+ * senyap** gambar yang sudah benar, dan perlindungannya harus tetap di sini.
  */
 export async function getLandingPageSettings() {
   const db = await createUteroAcademyServiceRoleClient();

@@ -397,7 +397,7 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
   - Responsnya `{ status: "ok" }` saja — **tanpa versi, commit, hostname, atau isi environment.** Endpoint ini tak terautentikasi dan terekspos ke internet lewat nginx; versi paket adalah informasi yang memudahkan pemilihan exploit.
   - `dynamic = "force-dynamic"` + `cache-control: no-store` — respons ter-cache akan melaporkan "sehat" dari container yang sudah mati.
   - Karena dikecualikan dari matcher, header keamanan dipasang sendiri di route ini lewat `applySecurityHeaders` — pengecualian matcher tidak boleh sekalian jadi pengecualian header.
-- [ ] B6.5 Ganti `apply-migration.js` dengan runner berurutan yang gagal-keras (M-14) — **dipindah ke B0.2c sebagai prasyarat**, bukan lagi item Batch 6: tanpa runner yang gagal-keras, menerapkan migrasi B0.1 ke produksi tidak aman
+- [x] B6.5 Ganti `apply-migration.js` dengan runner berurutan yang gagal-keras (M-14) — **dikerjakan sebagai B0.2c**, bukan lagi item Batch 6: tanpa runner yang gagal-keras, menerapkan migrasi B0.1 ke produksi tidak aman. `scripts/migrate.mjs` ada, `apply-migration.js` sudah dihapus. Lihat B0.2c untuk rinciannya
 - [x] B6.6 Script `lint` + CI: install → lint → typecheck → build → test (H-8)
   - **`next lint` sudah dihapus di Next.js 16** — tidak ada `next-lint.js` di `node_modules/next/dist/cli/`. Jadi tidak ada linter apa pun yang bisa dijalankan di repo ini sebelum ini; eslint dipasang sebagai devDependency dan dipanggil langsung.
   - **eslint dipin ke `^9`, bukan 10.** `eslint-plugin-react` yang dibundel `eslint-config-next@16.3.6` belum mendukung eslint 10: hasilnya `TypeError: contextOrFilename.getFilename is not a function` saat memuat rule `react/display-name`, yaitu lint **gagal jalan sama sekali**. Alasannya dicatat di `eslint.config.mjs` supaya tidak "diperbaiki" balik.
@@ -410,7 +410,7 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
   - Langkah `test` semula sengaja dikosongkan (`npm test` yang pasti gagal akan membuat gate ini dimatikan); **sudah diisi di B6.7**, ditaruh antara `typecheck` dan `build`.
   - Tiga skrip mati di root dihapus: `test-schema.js`, `test-revisi-error.js`, dan **`_fix_admin_queries_to_srv.js`** — codemod yang plan sebut sebagai akar masalah lubang RLS. Dipastikan sudah teraplikasi ke `features/admin/queries.ts` sebelum dihapus.
   - Verifikasi: `tsc --noEmit` EXIT=0, `npm run build` EXIT=0.
-- [x] B6.7 **Tidak ada test framework sama sekali** → vitest + matriks otorisasi statis (H-8) — **selesai**, 195 test, 790ms
+- [x] B6.7 **Tidak ada test framework sama sekali** → vitest + matriks otorisasi statis (H-8) — **selesai**, 214 test, <1s
   - **vitest, bukan `node --test`.** Node 24 memang menjalankan TypeScript langsung, tapi dua hal
     yang dibutuhkan di sini tidak ada: ia **tidak meresolusi alias `@/`** dari tsconfig
     (`ERR_MODULE_NOT_FOUND: Cannot find package '@/lib'`), dan `node:test` tidak punya module
@@ -460,6 +460,28 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
   - CI: langkah `test` ditaruh **sebelum** `build` dan tanpa satu pun `env` — suite ini membaca
     sumber dari disk, tidak menjalankan aplikasi dan tidak menyentuh jaringan, jadi gagalnya muncul
     dalam hitungan detik alih-alih setelah build selesai.
+  - **`tests/storage-paths.test.ts` (19 test) — spesifikasi untuk backfill B0.3b.** Dites lebih dulu
+    dari guard atau policy karena kesalahannya **tidak melempar error**: pola yang salah
+    mengembalikan `null`, dan `null` di aplikasi ini tampil sebagai "gambar tidak ada", bukan
+    sebagai kegagalan. Yang dikunci: URL publik `http://` **dan** `https://` (base-nya pernah
+    berubah, jadi pencocokan tak boleh dibandingkan dengan `NEXT_PUBLIC_SUPABASE_URL`), signed URL
+    beserta `?token=`, slash depan, `%20` yang didekode, `100%.pdf` yang bikin
+    `decodeURIComponent` melempar, penolakan URL beda-bucket dan URL eksternal, serta
+    **idempotensi** — itulah yang membuat backfill aman diulang dan membuat `resolveStorageUrl`
+    boleh dipanggil atas baris lama maupun baris yang sudah dimigrasi. `isPublicBucket` dikunci
+    agar cocok dengan predikat `public_buckets_read` di `0032a`: menyimpang berarti gambar mati
+    atau objek sensitif terbaca tanpa tanda tangan. `isPdfPath` menyertakan bukti regresi lamanya
+    (`signed.endsWith(".pdf") === false`) supaya cek berbasis-URL tidak bisa kembali.
+  - **Dibuktikan bisa gagal lewat dua mutasi ke `lib/storage-urls.ts`**, bukan hanya dibaca ulang:
+    menghapus pemangkasan slash depan menjatuhkan 2 test; menghapus penolakan URL absolut
+    menjatuhkan 3. Sumbernya dipulihkan byte-identik (`git diff --stat` kosong) setelah tiap mutasi.
+  - **Satu komentar salah ditemukan lewat probe, dan dikoreksi:** `features/cms/queries.ts`
+    mengklaim `skills`/`expertisers`/`partnerships` aman karena `toObjectPath` mengembalikan `null`
+    untuk path aset lokal seperti `/images/expert-dadik.jpg`. Probe menunjukkan hasilnya
+    `images/expert-dadik.jpg` — object path yang akan ditandatangani jadi 404, bukan `null` yang
+    jujur. Yang benar-benar melindungi ketiganya adalah keputusan **tidak memanggil**
+    `toObjectPath` atas mereka. Komentarnya diperbaiki supaya perlindungan itu tidak pernah
+    dianggap sudah ditangani di lapisan yang salah.
   - **Batas kejujuran, dinyatakan terang di kepala berkas test:** ini memeriksa **bahwa** guard
     dipanggil, bukan bahwa logikanya benar, dan **sama sekali tidak menyentuh RLS, grant, atau
     policy database**. Lubang Batch 0 tidak akan tertangkap di sini — lubang itu ada di lapisan
