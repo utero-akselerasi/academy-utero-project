@@ -15,7 +15,12 @@ import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { ImagePreview } from "@/features/daily-reports/ImagePreview";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Trash2, Calendar, ClipboardCheck, Paperclip, User, ArrowLeft, Kanban as KanbanIcon, List as ListIcon, AlertCircle, X, ChevronRight, BarChart2 } from "lucide-react";
+import { RouteModal } from "@/components/ui/route-modal";
+// `X` dibuang bersama tautan tutup buatan sendiri — `Modal` menyediakannya
+// sekarang, lengkap dengan nama terakses. Lima ikon lain (`Calendar`,
+// `ClipboardCheck`, `AlertCircle`, `ChevronRight`, `BarChart2`) memang sudah tak
+// terpakai sejak sebelumnya.
+import { Trash2, Paperclip, User, ArrowLeft, Kanban as KanbanIcon, List as ListIcon } from "lucide-react";
 
 type Props = {
   params: Promise<{ boardId: string }>;
@@ -245,10 +250,25 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
         </div>
       )}
 
-      {/* POPUP MODAL DETAIL TUGAS (KANBAN PREVIEW ALA PLANE) */}
+      {/* POPUP MODAL DETAIL TUGAS (KANBAN PREVIEW ALA PLANE)
+
+          Overlay kelima di luar daftar audit dengan cacat yang sama (temuan #2):
+          tanpa `role="dialog"`, tanpa Escape, tanpa jebakan fokus. Ia
+          dikendalikan URL lewat `?detailCardId=`, jadi `RouteModal`.
+
+          Tombol tutup bawaan `Modal` ditaruh absolut di sudut, dan grup tombol
+          di bilah judul diberi `pr-9` supaya tombol hapus tidak tertindih. */}
       {detailCard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
+        <RouteModal
+          closeHref={"/dashboard/mentor/tasks/" + boardId + "?view=" + activeView}
+          title={`Detail tugas ${detailCard.title}`}
+          hideTitle
+          closeLabel="Tutup detail tugas"
+          panelClassName="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden flex flex-col max-h-[85vh]"
+          headerClassName="absolute top-4 right-5 z-10"
+          closeClassName="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
+        >
+          <>
             {/* Header Modal */}
             <div className="flex items-center justify-between bg-slate-50 px-6 py-4 border-b border-slate-200">
               <div className="min-w-0">
@@ -259,25 +279,27 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
                   {detailCard.title}
                 </h3>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 pr-9">
                 {/* Form Hapus Card */}
                 <form action={deleteCardAction}>
                   <input type="hidden" name="cardId" value={detailCard.id} />
                   <input type="hidden" name="boardId" value={board.id} />
+                  {/*
+                    Penghapusan permanen yang dulunya hanya bernama "button" —
+                    keterangannya cuma ada di `title`, yang tidak sampai ke
+                    pembaca layar maupun layar sentuh (temuan #14). `aria-label`
+                    menyebut tugas mana yang dihapus; `title` dipertahankan
+                    untuk pengguna tetikus.
+                  */}
                   <button
                     type="submit"
                     className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 transition-all flex items-center justify-center"
                     title="Hapus Tugas Selamanya"
+                    aria-label={`Hapus tugas ${detailCard.title} selamanya`}
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={16} aria-hidden="true" />
                   </button>
                 </form>
-                <Link
-                  href={"/dashboard/mentor/tasks/" + boardId + "?view=" + activeView}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
-                >
-                  <X size={18} />
-                </Link>
               </div>
             </div>
 
@@ -332,15 +354,20 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
               <div className="p-6 bg-slate-50/50 space-y-5">
                 <h4 className="text-xs font-black text-slate-950 uppercase tracking-wider border-b border-slate-100 pb-2">Properties</h4>
 
-                {/* Assignee Form */}
+                {/* Assignee Form
+
+                    Kedua `<label>` di kolom ini tanpa `htmlFor` (temuan #3):
+                    tidak diumumkan saat select-nya difokus, dan mengkliknya
+                    tidak memindahkan fokus ke kontrolnya. */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-500 block">Ditugaskan Kepada</label>
+                  <label className="text-[11px] font-bold text-slate-500 block" htmlFor="cardAssignee">Ditugaskan Kepada</label>
                   <form action={assignCardToInternAction} className="flex gap-1.5">
                     <input name="cardId" type="hidden" value={detailCard.id} />
                     <input name="boardId" type="hidden" value={board.id} />
-                    <select 
-                      name="internId" 
-                      className="border border-slate-200 rounded-lg text-xs px-2 bg-white h-8 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none text-slate-850 font-bold" 
+                    <select
+                      id="cardAssignee"
+                      name="internId"
+                      className="border border-slate-200 rounded-lg text-xs px-2 bg-white h-8 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none text-slate-850 font-bold"
                       defaultValue={detailCard.intern_id || ""}
                     >
                       <option value="">Belum ditugaskan</option>
@@ -356,11 +383,12 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
 
                 {/* Priority Form */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-500 block">Tingkat Prioritas</label>
+                  <label className="text-[11px] font-bold text-slate-500 block" htmlFor="cardPriority">Tingkat Prioritas</label>
                   <form action={updateCardPriorityAction} className="flex gap-1.5">
                     <input name="cardId" type="hidden" value={detailCard.id} />
-                    <select 
-                      name="priority" 
+                    <select
+                      id="cardPriority"
+                      name="priority"
                       className="border border-slate-200 rounded-lg text-xs px-2 bg-white h-8 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none text-slate-850 font-bold"
                       defaultValue={detailCard.priority || "medium"}
                     >
@@ -441,8 +469,8 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
                 Tutup
               </Link>
             </div>
-          </div>
-        </div>
+          </>
+        </RouteModal>
       )}
     </main>
   );

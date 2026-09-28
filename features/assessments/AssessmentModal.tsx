@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { saveAssessmentAction } from "@/features/assessments/actions";
-import { Award, X, Check, CheckCircle2, Plus, Trash2 } from "lucide-react";
+import { Modal } from "@/components/ui/modal";
+import { Award, Check, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type Props = {
@@ -84,24 +85,48 @@ export function AssessmentModal({ intern, searchQuery }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+    /*
+      Dialog ini dipindah ke `Modal` bersama (temuan #2 dan #13). Sebelumnya ia
+      `<div>` biasa: tanpa `role="dialog"`, tanpa Escape, tanpa jebakan fokus,
+      dan tombol tutupnya hanya ikon `X` tanpa nama terakses.
+
+      `open` selalu `true`: dialog ini dikendalikan route — halaman induknya hanya
+      merendernya ketika ada `detailIntern`, dan penutupannya berupa
+      `router.push` kembali ke daftar.
+
+      `onClose` menolak saat `isPending`. Markup lama hanya menonaktifkan tombol
+      `X`, jadi jalur keluar yang baru (Escape dan klik latar) perlu penjaga yang
+      sama — menutup di tengah penyimpanan akan menavigasi keluar selagi server
+      action masih berjalan.
+
+      Judulnya `hideTitle`: bilah judul visual di bawah sudah ada dalam desain,
+      dan nama untuk pembaca layar dibuat lebih lengkap dari yang terlihat
+      (nama siswa ada di subjudul terpisah, yang tidak terbaca sebagai satu
+      kesatuan saat dialog diumumkan).
+    */
+    <Modal
+      open
+      onClose={() => {
+        if (isPending) return;
+        handleClose();
+      }}
+      title={`Penilaian akhir untuk ${intern.full_name}`}
+      hideTitle
+      closeLabel="Tutup penilaian"
+      panelClassName="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]"
+      headerClassName="absolute top-6 right-5 z-10"
+      closeClassName="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
+    >
+      <>
         {/* Header */}
         <div className="flex items-center justify-between bg-slate-50 px-6 py-4 border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-2 text-teal-700">
-            <Award size={20} />
+            <Award size={20} aria-hidden="true" />
             <div>
               <h3 className="text-lg font-black text-slate-900">Penilaian Akhir</h3>
               <p className="text-xs text-slate-400 font-semibold">Siswa: {intern.full_name}</p>
             </div>
           </div>
-          <button
-            onClick={handleClose}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
-            disabled={isPending}
-          >
-            <X size={18} />
-          </button>
         </div>
 
         {/* Form Body */}
@@ -117,7 +142,7 @@ export function AssessmentModal({ intern, searchQuery }: Props) {
                   onClick={handleAddCriteria}
                   className="text-[10px] font-bold text-teal-700 hover:text-teal-900 flex items-center gap-0.5 border border-teal-200 bg-teal-50 px-2 py-0.5 rounded"
                 >
-                  <Plus size={10} /> Tambah Kriteria
+                  <Plus size={10} aria-hidden="true" /> Tambah Kriteria
                 </button>
               )}
             </div>
@@ -132,6 +157,7 @@ export function AssessmentModal({ intern, searchQuery }: Props) {
                     onChange={(e) => handleCriteriaChange(idx, "name", e.target.value)}
                     required
                     placeholder="Nama Kriteria (misal: Disiplin)"
+                    aria-label={`Nama kriteria ${idx + 1}`}
                     disabled={isFinalized || isPending}
                     className="form-input text-xs flex-1"
                   />
@@ -144,6 +170,7 @@ export function AssessmentModal({ intern, searchQuery }: Props) {
                     min="0"
                     max="100"
                     placeholder="Skor"
+                    aria-label={c.name ? `Skor untuk ${c.name}` : `Skor kriteria ${idx + 1}`}
                     disabled={isFinalized || isPending}
                     className="form-input text-xs w-20 text-center font-bold"
                   />
@@ -151,9 +178,10 @@ export function AssessmentModal({ intern, searchQuery }: Props) {
                     <button
                       type="button"
                       onClick={() => handleRemoveCriteria(idx)}
+                      aria-label={c.name ? `Hapus kriteria ${c.name}` : `Hapus kriteria ${idx + 1}`}
                       className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded"
                     >
-                      <Trash2 size={13} />
+                      <Trash2 size={13} aria-hidden="true" />
                     </button>
                   )}
                 </div>
@@ -178,7 +206,7 @@ export function AssessmentModal({ intern, searchQuery }: Props) {
           {isFinalized && (
             <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg text-teal-800 text-xs font-bold space-y-1">
               <span className="flex items-center gap-1">
-                <CheckCircle2 size={14} className="shrink-0" />
+                <CheckCircle2 size={14} className="shrink-0" aria-hidden="true" />
                 <span>Penilaian telah difinalisasi.</span>
               </span>
               <p className="font-medium text-[10px] text-slate-500">
@@ -214,14 +242,14 @@ export function AssessmentModal({ intern, searchQuery }: Props) {
                   disabled={isPending}
                   className="button-primary text-xs h-9 py-0 px-3.5 min-h-0 font-bold flex items-center gap-1"
                 >
-                  <Check size={14} />
+                  <Check size={14} aria-hidden="true" />
                   <span>{isPending && submitType === "finalize" ? "Memproses..." : "Finalisasi"}</span>
                 </button>
               </>
             )}
           </div>
         </form>
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 }

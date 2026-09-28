@@ -14,7 +14,8 @@ import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { isPdfPath, resolveStorageUrl, resolveStorageUrls } from "@/lib/storage-urls";
 import { jakartaDateString, jakartaMinutesOfDay, parseWallClockMinutes } from "@/lib/time";
 import Link from "next/link";
-import { Clock, Settings, User, X, CheckCircle, AlertTriangle, Play, HelpCircle, MapPin, Eye, Download } from "lucide-react";
+import { RouteModal } from "@/components/ui/route-modal";
+import { Clock, Settings, User, CheckCircle, AlertTriangle, Play, HelpCircle, MapPin, Eye, Download } from "lucide-react";
 
 type Props = {
   searchParams: Promise<{ detailInternId?: string; showSettings?: string; date?: string }>;
@@ -311,28 +312,32 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
         </summary>
         
         <div className="p-5 border-t border-slate-200 bg-slate-50/50">
+          {/* Setiap `<label>` di halaman ini dulunya tanpa `htmlFor` (temuan #3).
+              Label yang tidak terhubung tidak diumumkan saat kontrolnya difokus —
+              pembaca layar menyebut "edit text, blank" — dan mengkliknya tidak
+              memindahkan fokus ke kontrolnya. */}
           <form action="/dashboard/mentor/attendance/export" method="get" className="grid gap-3 md:grid-cols-5 md:items-end">
             <div className="form-field">
-              <label className="form-label text-xs font-bold text-slate-700">Mode Export</label>
-              <select name="mode" defaultValue="monthly" className="form-input text-xs">
+              <label className="form-label text-xs font-bold text-slate-700" htmlFor="exportMode">Mode Export</label>
+              <select id="exportMode" name="mode" defaultValue="monthly" className="form-input text-xs">
                 <option value="monthly">Bulanan</option>
                 <option value="range">Custom Range</option>
               </select>
             </div>
             <div className="form-field">
-              <label className="form-label text-xs font-bold text-slate-700">Bulan</label>
-              <input type="month" name="month" defaultValue={currentMonth} className="form-input text-xs" />
+              <label className="form-label text-xs font-bold text-slate-700" htmlFor="exportMonth">Bulan</label>
+              <input id="exportMonth" type="month" name="month" defaultValue={currentMonth} className="form-input text-xs" />
             </div>
             <div className="form-field">
-              <label className="form-label text-xs font-bold text-slate-700">Tanggal Mulai</label>
-              <input type="date" name="start" defaultValue={today} className="form-input text-xs" />
+              <label className="form-label text-xs font-bold text-slate-700" htmlFor="exportStart">Tanggal Mulai</label>
+              <input id="exportStart" type="date" name="start" defaultValue={today} className="form-input text-xs" />
             </div>
             <div className="form-field">
-              <label className="form-label text-xs font-bold text-slate-700">Tanggal Selesai</label>
-              <input type="date" name="end" defaultValue={today} className="form-input text-xs" />
+              <label className="form-label text-xs font-bold text-slate-700" htmlFor="exportEnd">Tanggal Selesai</label>
+              <input id="exportEnd" type="date" name="end" defaultValue={today} className="form-input text-xs" />
             </div>
             <button type="submit" className="button-primary flex min-h-0 items-center justify-center gap-2 px-4 py-2 text-xs font-bold h-[42px]">
-              <Download size={14} />
+              <Download size={14} aria-hidden="true" />
               Export
             </button>
           </form>
@@ -344,8 +349,9 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
       {showSettings === "true" && (
         <form action={saveAttendanceSettingsAction} className="surface p-5 bg-white border border-slate-200 rounded-xl mb-6 grid gap-4 md:grid-cols-4 items-end animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700">Jam Masuk (Check-In) *</label>
+            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingCheckInTime">Jam Masuk (Check-In) *</label>
             <input
+              id="settingCheckInTime"
               type="text"
               name="checkInTime"
               defaultValue={checkInTime}
@@ -355,8 +361,9 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
             />
           </div>
           <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700">Jam Pulang (Check-Out) *</label>
+            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingCheckOutTime">Jam Pulang (Check-Out) *</label>
             <input
+              id="settingCheckOutTime"
               type="text"
               name="checkOutTime"
               defaultValue={checkOutTime}
@@ -366,8 +373,9 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
             />
           </div>
           <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700">Toleransi Terlambat (Menit) *</label>
+            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingLateTolerance">Toleransi Terlambat (Menit) *</label>
             <input
+              id="settingLateTolerance"
               type="number"
               name="lateTolerance"
               defaultValue={lateTolerance}
@@ -376,8 +384,9 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
             />
           </div>
           <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700">Target Magang (Jam/Bulan) *</label>
+            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingMonthlyTarget">Target Magang (Jam/Bulan) *</label>
             <input
+              id="settingMonthlyTarget"
               type="number"
               name="monthlyTarget"
               defaultValue={targetHours}
@@ -402,8 +411,9 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
               juga menolak "geofencing aktif tapi koordinat kosong" — bukan di
               atribut HTML yang bisa dilewati. */}
           <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700">Latitude Kantor</label>
+            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingOfficeLatitude">Latitude Kantor</label>
             <input
+              id="settingOfficeLatitude"
               type="text"
               name="officeLatitude"
               defaultValue={settings?.office_latitude ?? ""}
@@ -412,8 +422,9 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
             />
           </div>
           <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700">Longitude Kantor</label>
+            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingOfficeLongitude">Longitude Kantor</label>
             <input
+              id="settingOfficeLongitude"
               type="text"
               name="officeLongitude"
               defaultValue={settings?.office_longitude ?? ""}
@@ -422,8 +433,9 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
             />
           </div>
           <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700">Radius Absensi (Meter)</label>
+            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingRadiusMeters">Radius Absensi (Meter)</label>
             <input
+              id="settingRadiusMeters"
               type="number"
               name="radiusMeters"
               defaultValue={settings?.radius_meters ?? 100}
@@ -432,8 +444,9 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
             />
           </div>
           <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700">Aktifkan Geofencing GPS</label>
+            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingAllowGeofencing">Aktifkan Geofencing GPS</label>
             <select
+              id="settingAllowGeofencing"
               name="allowGeofencing"
               defaultValue={settings?.allow_geofencing ? "true" : "false"}
               className="border border-slate-200 rounded-lg text-xs px-2 bg-white h-9 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none text-slate-850 font-bold w-full"
@@ -509,22 +522,34 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
         </div>
       )}
 
-      {/* POPUP DETAIL MODAL ABSENSI INTERN */}
+      {/* POPUP DETAIL MODAL ABSENSI INTERN
+
+          Dialog terakhir dari sebelas yang ditemukan audit (temuan #2). Ia
+          dikendalikan URL, bukan state: dibuka lewat `?detailInternId=`, dan
+          ditutup dengan kembali ke `/dashboard/mentor/attendance`.
+
+          Halaman ini server component, jadi ia tidak bisa menyerahkan `onClose`
+          ke `Modal` — closure tidak melintasi batas server/klien. `RouteModal`
+          menyediakannya di sisi klien dengan menavigasi ke `closeHref`, supaya
+          Escape dan klik latar benar-benar MENUTUP dialognya, bukan cuma
+          menyembunyikan panel selagi URL-nya masih menunjuk ke dialog terbuka. */}
       {selectedIntern && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
+        <RouteModal
+          closeHref="/dashboard/mentor/attendance"
+          title={`Detail absensi ${selectedIntern.full_name}`}
+          hideTitle
+          closeLabel="Tutup detail absensi"
+          panelClassName="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden flex flex-col max-h-[85vh]"
+          headerClassName="absolute top-4 right-5 z-10"
+          closeClassName="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
+        >
+          <>
             {/* Header Modal */}
             <div className="flex items-center justify-between bg-slate-50 px-6 py-4 border-b border-slate-200">
               <div>
                 <h3 className="text-lg font-black text-slate-900">{selectedIntern.full_name}</h3>
                 <p className="text-xs text-teal-700 font-bold">{selectedIntern.major || "No Major"} — {selectedIntern.email}</p>
               </div>
-              <Link
-                href="/dashboard/mentor/attendance"
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
-              >
-                <X size={18} />
-              </Link>
             </div>
 
             {/* Isi Modal */}
@@ -712,8 +737,8 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
                 Tutup
               </Link>
             </div>
-          </div>
-        </div>
+          </>
+        </RouteModal>
       )}
     </main>
   );

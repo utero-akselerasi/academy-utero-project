@@ -4,7 +4,11 @@ import { ImagePreview } from "@/features/daily-reports/ImagePreview";
 import { requireAdmin } from "@/features/auth/guards";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import Link from "next/link";
-import { FileText, Award, Eye, X, Check, Search, Calendar, ExternalLink, BookOpen, ArrowRight, PlusCircle, Plus } from "lucide-react";
+import { RouteModal } from "@/components/ui/route-modal";
+// `X` dibuang bersama tombol tutup buatan sendiri — `Modal` yang menyediakannya
+// sekarang, lengkap dengan nama terakses. `FileText`, `Award`, `Calendar`, dan
+// `ExternalLink` memang sudah tak terpakai sejak sebelumnya.
+import { Eye, Check, Search, BookOpen, ArrowRight, PlusCircle, Plus } from "lucide-react";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date(value));
@@ -239,46 +243,54 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      {/* POPUP MODAL TAMBAH KELAS BARU */}
+      {/* POPUP MODAL TAMBAH KELAS BARU
+
+          Dua dialog di halaman ini juga di luar daftar audit tapi bercacat sama
+          (temuan #2), dan dua label form di dialog pertama tanpa `htmlFor`
+          (temuan #3). Keduanya dikendalikan URL, jadi `RouteModal`. */}
       {isCreateCourseOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+        <RouteModal
+          closeHref={"/dashboard/mentor/lms?status=" + statusFilter + "&q=" + searchQuery + "&cQ=" + courseQuery}
+          title="Tambah kelas / course baru"
+          hideTitle
+          closeLabel="Tutup form tambah kelas"
+          panelClassName="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col"
+          headerClassName="absolute top-4 right-5 z-10"
+          closeClassName="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
+        >
+          <>
             {/* Header Modal */}
             <div className="flex items-center justify-between bg-slate-50 px-6 py-4 border-b border-slate-200">
               <h3 className="text-base font-black text-slate-950 flex items-center gap-1.5">
-                <PlusCircle size={16} className="text-teal-700" />
+                <PlusCircle size={16} className="text-teal-700" aria-hidden="true" />
                 <span>Tambah Kelas / Course Baru</span>
               </h3>
-              <Link
-                href={"/dashboard/mentor/lms?status=" + statusFilter + "&q=" + searchQuery + "&cQ=" + courseQuery}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
-              >
-                <X size={18} />
-              </Link>
             </div>
 
             {/* Form */}
             <form action={createCourseAction} className="p-6 space-y-4">
               <div className="form-field">
-                <label className="form-label text-xs font-bold text-slate-700">Judul Kelas / Course *</label>
+                <label className="form-label text-xs font-bold text-slate-700" htmlFor="newCourseTitle">Judul Kelas / Course *</label>
                 <input
                   className="form-input text-sm"
+                  id="newCourseTitle"
                   name="title"
                   placeholder="Judul Kelas (misal: Dasar-dasar Design Graphic)"
                   required
                 />
               </div>
-              
+
               <div className="form-field">
-                <label className="form-label text-xs font-bold text-slate-700">Deskripsi Kelas</label>
+                <label className="form-label text-xs font-bold text-slate-700" htmlFor="newCourseDescription">Deskripsi Kelas</label>
                 <textarea
                   className="form-input text-xs"
+                  id="newCourseDescription"
                   name="description"
                   rows={3}
                   placeholder="Deskripsi singkat mengenai kelas..."
                 />
               </div>
-              
+
               <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
                 <Link
                   href={"/dashboard/mentor/lms?status=" + statusFilter + "&q=" + searchQuery + "&cQ=" + courseQuery}
@@ -287,31 +299,33 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
                   Batal
                 </Link>
                 <button type="submit" className="button-primary text-sm font-bold flex items-center gap-1">
-                  <Plus size={16} />
+                  <Plus size={16} aria-hidden="true" />
                   <span>Buat Kelas</span>
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+          </>
+        </RouteModal>
       )}
 
       {/* POPUP DETAIL PENILAIAN TUGAS */}
       {detailSub && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
+        <RouteModal
+          closeHref={"/dashboard/mentor/lms?status=" + statusFilter + "&q=" + searchQuery + "&cQ=" + courseQuery}
+          title={`Review tugas ${detailSub.intern_name}: ${detailSub.assignment_title}`}
+          hideTitle
+          closeLabel="Tutup review tugas"
+          panelClassName="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col max-h-[85vh]"
+          headerClassName="absolute top-4 right-5 z-10"
+          closeClassName="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
+        >
+          <>
             {/* Header Modal */}
             <div className="flex items-center justify-between bg-slate-50 px-6 py-4 border-b border-slate-200">
               <div>
                 <h3 className="text-base font-black text-slate-900">Review Tugas Peserta</h3>
                 <p className="text-xs text-slate-400 font-semibold">{detailSub.intern_name} - {detailSub.assignment_title}</p>
               </div>
-              <Link
-                href={"/dashboard/mentor/lms?status=" + statusFilter + "&q=" + searchQuery + "&cQ=" + courseQuery}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
-              >
-                <X size={18} />
-              </Link>
             </div>
 
             {/* Content */}
@@ -366,7 +380,7 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
                     />
                   </div>
                   <button type="submit" className="button-primary text-xs py-2 w-full min-h-0 font-bold flex items-center justify-center gap-1">
-                    <Check size={14} />
+                    <Check size={14} aria-hidden="true" />
                     <span>Simpan Nilai & Selesai</span>
                   </button>
                 </form>
@@ -382,8 +396,8 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
                 Tutup
               </Link>
             </div>
-          </div>
-        </div>
+          </>
+        </RouteModal>
       )}
     </main>
   );

@@ -17,6 +17,7 @@ import {
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { Modal } from "@/components/ui/modal";
 
 type Props = {
   profiles: UserProfile[];
@@ -375,24 +376,45 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
         </div>
       </div>
 
+      {/*
+        Keenam dialog di berkas ini dipindah ke `Modal` bersama (temuan #2).
+
+        Sebelumnya tiap satu adalah `<div className="fixed inset-0">` tanpa
+        `role="dialog"`, tanpa Escape, tanpa jebakan fokus, dan tombol tutupnya
+        hanya ikon `X` tanpa nama (temuan #13). Dialog di halaman inilah yang
+        paling merugikan kalau fokusnya bocor: isinya reset password dan
+        penghapusan akun permanen, jadi pengguna keyboard yang fokusnya berpindah
+        ke halaman di belakang bisa menekan Enter pada kontrol yang tidak ia
+        lihat.
+
+        Bentuk pemanggilannya seragam: `panelClassName` menyalin kelas panel lama
+        apa adanya, `headerClassName` menaruh tombol tutup absolut supaya bilah
+        judul yang sudah ada dalam desain tidak berganda, dan `title` dibuat
+        menyebut nama penggunanya — di layar nama itu ada di dalam isi dialog,
+        tapi tanpa ini pengumuman pembukaan dialog tidak menyebut sedang menangani
+        siapa.
+      */}
+
       {/* POPUP MODAL ADD USER */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+      <Modal
+        open={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="Tambah user baru"
+        hideTitle
+        closeLabel="Tutup form tambah user"
+        panelClassName="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] overflow-y-auto"
+        headerClassName="absolute top-4 right-5 z-10"
+        closeClassName="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
+      >
+        <>
             <div className="flex items-center justify-between bg-slate-50 px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-2 text-teal-700">
-                <UserPlus size={20} />
+                <UserPlus size={20} aria-hidden="true" />
                 <h3 className="text-lg font-black text-slate-950">Tambah User Baru</h3>
               </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
-              >
-                <X size={18} />
-              </button>
             </div>
 
-            <form 
+            <form
               action={async (formData) => {
                 try {
                   await createUserManualAction(formData);
@@ -447,33 +469,41 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                   type="submit" 
                   className="button-primary text-sm font-semibold flex items-center gap-1"
                 >
-                  <Plus size={16} />
+                  <Plus size={16} aria-hidden="true" />
                   <span>Buat Akun</span>
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+        </>
+      </Modal>
 
       {/* POPUP MODAL EDIT PROFILE */}
-      {editingProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+      <Modal
+        open={editingProfile !== null}
+        onClose={() => setEditingProfile(null)}
+        title={editingProfile ? `Edit profil ${editingProfile.full_name}` : "Edit profil user"}
+        hideTitle
+        closeLabel="Tutup form edit profil"
+        panelClassName="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] overflow-y-auto"
+        headerClassName="absolute top-4 right-5 z-10"
+        closeClassName="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
+      >
+        {/*
+          Isi dialog ini dibungkus penjaga `editingProfile &&` sendiri, bukan
+          mengandalkan `open` saja. `Modal` memang tidak merender isi saat tertutup,
+          tapi JSX-nya tetap dievaluasi di sini — tanpa penjaga, `editingProfile.id`
+          akan dibaca dari `null` pada setiap render saat dialog tertutup.
+        */}
+        {editingProfile && (
+          <>
             <div className="flex items-center justify-between bg-slate-50 px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-2 text-teal-700">
-                <Settings size={20} />
+                <Settings size={20} aria-hidden="true" />
                 <h3 className="text-lg font-black text-slate-950">Edit Profil User</h3>
               </div>
-              <button
-                onClick={() => setEditingProfile(null)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
-              >
-                <X size={18} />
-              </button>
             </div>
 
-            <form 
+            <form
               action={async (formData) => {
                 try {
                   await updateUserAdminAction(formData);
@@ -532,30 +562,33 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                   type="submit" 
                   className="button-primary text-sm font-semibold flex items-center gap-1.5"
                 >
-                  <Save size={16} />
+                  <Save size={16} aria-hidden="true" />
                   <span>Simpan Perubahan</span>
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* POPUP MODAL CHANGE ROLE */}
-      {changingRoleUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+      <Modal
+        open={changingRoleUser !== null}
+        onClose={() => setChangingRoleUser(null)}
+        title={changingRoleUser ? `Ubah role untuk ${changingRoleUser.full_name}` : "Ubah role pengguna"}
+        hideTitle
+        closeLabel="Tutup pengaturan role"
+        panelClassName="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] overflow-y-auto"
+        headerClassName="absolute top-4 right-5 z-10"
+        closeClassName="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
+      >
+        {changingRoleUser && (
+          <>
             <div className="flex items-center justify-between bg-slate-50 px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-2 text-teal-700">
-                <Shield size={20} />
+                <Shield size={20} aria-hidden="true" />
                 <h3 className="text-lg font-black text-slate-950 font-bold">Ubah Role Pengguna</h3>
               </div>
-              <button
-                onClick={() => setChangingRoleUser(null)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
-              >
-                <X size={18} />
-              </button>
             </div>
 
             <div className="p-6 space-y-6">
@@ -575,13 +608,22 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                     (rolesByUser.get(changingRoleUser.id) ?? []).map((ur) => (
                       <form action={removeUserRoleAction} key={ur.id} className="inline-block" onSubmit={() => setTimeout(() => setChangingRoleUser(null), 100)}>
                         <input name="id" type="hidden" value={ur.id} />
-                        <button 
+                        {/*
+                          Nama terakses tombol ini dulunya hanya nama role-nya —
+                          "ADMIN" — jadi tidak ada petunjuk bahwa mengkliknya
+                          MENGHAPUS role itu. Satu-satunya keterangan ada di
+                          `title`, yang tidak sampai ke pembaca layar maupun
+                          layar sentuh (temuan #14). `aria-label` menyatakan
+                          aksinya; `title` dipertahankan untuk pengguna tetikus.
+                        */}
+                        <button
                           className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-red-50 border border-red-200 text-red-700 text-xs font-bold hover:bg-red-100 transition-all uppercase"
                           type="submit"
                           title="Klik untuk menghapus role"
+                          aria-label={`Hapus role ${ur.roles?.name || "ini"} dari ${changingRoleUser.full_name}`}
                         >
                           <span>{ur.roles?.name || "Role"}</span>
-                          <X size={12} className="shrink-0" />
+                          <X size={12} className="shrink-0" aria-hidden="true" />
                         </button>
                       </form>
                     ))
@@ -614,11 +656,12 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                           </option>
                         ))}
                     </select>
-                    <button 
-                      className="button-primary text-sm px-4 min-h-0 flex items-center justify-center shrink-0" 
+                    <button
+                      className="button-primary text-sm px-4 min-h-0 flex items-center justify-center shrink-0"
                       type="submit"
+                      aria-label="Tambahkan role terpilih"
                     >
-                      <Plus size={16} />
+                      <Plus size={16} aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -634,28 +677,31 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* POPUP MODAL RESET PASSWORD */}
-      {resetPasswordUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+      <Modal
+        open={resetPasswordUser !== null}
+        onClose={() => setResetPasswordUser(null)}
+        title={resetPasswordUser ? `Reset password ${resetPasswordUser.full_name}` : "Reset password user"}
+        hideTitle
+        closeLabel="Tutup form reset password"
+        panelClassName="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] overflow-y-auto"
+        headerClassName="absolute top-4 right-5 z-10"
+        closeClassName="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
+      >
+        {resetPasswordUser && (
+          <>
             <div className="flex items-center justify-between bg-slate-50 px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-2 text-teal-700">
-                <Key size={20} />
+                <Key size={20} aria-hidden="true" />
                 <h3 className="text-lg font-black text-slate-950 font-bold">Reset Password User</h3>
               </div>
-              <button
-                onClick={() => setResetPasswordUser(null)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
-              >
-                <X size={18} />
-              </button>
             </div>
 
-            <form 
+            <form
               action={async (formData) => {
                 try {
                   await resetUserPasswordAction(formData);
@@ -695,37 +741,40 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                 >
                   Batal
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="button-primary text-sm font-semibold flex items-center gap-1.5"
                 >
-                  <Save size={16} />
+                  <Save size={16} aria-hidden="true" />
                   <span>Ubah Password</span>
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* POPUP MODAL LINK SCHOOL / INSTANSI */}
-      {linkingSchoolUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+      <Modal
+        open={linkingSchoolUser !== null}
+        onClose={() => setLinkingSchoolUser(null)}
+        title={linkingSchoolUser ? `Hubungkan instansi untuk ${linkingSchoolUser.full_name}` : "Hubungkan instansi"}
+        hideTitle
+        closeLabel="Tutup form hubungkan instansi"
+        panelClassName="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] overflow-y-auto"
+        headerClassName="absolute top-4 right-5 z-10"
+        closeClassName="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
+      >
+        {linkingSchoolUser && (
+          <>
             <div className="flex items-center justify-between bg-slate-50 px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-2 text-teal-700">
-                <GraduationCap size={20} />
+                <GraduationCap size={20} aria-hidden="true" />
                 <h3 className="text-lg font-black text-slate-950 font-bold">Hubungkan Instansi / Sekolah</h3>
               </div>
-              <button
-                onClick={() => setLinkingSchoolUser(null)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
-              >
-                <X size={18} />
-              </button>
             </div>
 
-            <form 
+            <form
               action={async (formData) => {
                 try {
                   const { linkSchoolContactAction } = await import("@/features/super-admin/actions");
@@ -781,37 +830,48 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                 >
                   Batal
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="button-primary text-sm font-semibold flex items-center gap-1.5"
                 >
-                  <Save size={16} />
+                  <Save size={16} aria-hidden="true" />
                   <span>Hubungkan</span>
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
+      {/*
+        Dialog paling berbahaya di aplikasi: satu submit menghapus akun auth
+        beserta seluruh data relasinya, permanen. Tanpa jebakan fokus, Tab bisa
+        membawa pengguna keyboard ke kontrol di belakang dialog yang tak terlihat
+        — termasuk kembali ke tombol "Hapus Permanen" ini tanpa konteks apa pun
+        yang terbaca. Karena itulah konversi ke `Modal` penting di sini, bukan
+        cuma kerapian.
+      */}
       {/* POPUP MODAL CONFIRM DELETE */}
-      {deletingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+      <Modal
+        open={deletingUser !== null}
+        onClose={() => setDeletingUser(null)}
+        title={deletingUser ? `Konfirmasi hapus pengguna ${deletingUser.full_name}` : "Konfirmasi hapus pengguna"}
+        hideTitle
+        closeLabel="Tutup konfirmasi hapus"
+        panelClassName="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] overflow-y-auto"
+        headerClassName="absolute top-4 right-5 z-10"
+        closeClassName="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-100/50 transition-all"
+      >
+        {deletingUser && (
+          <>
             <div className="flex items-center justify-between bg-red-50 px-6 py-4 border-b border-red-200">
               <div className="flex items-center gap-2 text-red-700">
-                <Trash2 size={20} />
+                <Trash2 size={20} aria-hidden="true" />
                 <h3 className="text-lg font-black text-red-950 font-bold">Hapus Pengguna</h3>
               </div>
-              <button
-                onClick={() => setDeletingUser(null)}
-                className="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-100/50 transition-all"
-              >
-                <X size={18} />
-              </button>
             </div>
 
-            <form 
+            <form
               action={async (formData) => {
                 try {
                   await deleteUserAction(formData);
@@ -843,18 +903,18 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                 >
                   Batal
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="button-primary bg-red-600 hover:bg-red-700 border-red-600 text-sm font-semibold flex items-center gap-1.5 text-white"
                 >
-                  <Trash2 size={16} />
+                  <Trash2 size={16} aria-hidden="true" />
                   <span>Hapus Permanen</span>
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
