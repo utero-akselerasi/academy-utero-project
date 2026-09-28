@@ -3,8 +3,7 @@ import { requireRole } from "@/features/auth/guards";
 import { type RoleCode, getUserRoleCodes, resolveActiveRole } from "@/features/auth/roles";
 import { resolveStorageUrl } from "@/lib/storage-urls";
 import { createUteroAcademyClient } from "@/lib/supabase/server";
-import { Award, Globe } from "lucide-react";
-import { DashboardShell } from "./DashboardShell";
+import { DashboardShell, type NavIconName } from "./DashboardShell";
 
 type Props = {
   allowedRoles: RoleCode[];
@@ -20,7 +19,20 @@ const roleLabelMap: Record<RoleCode, string> = {
   intern: "Peserta Magang",
 };
 
-const sidebarItemsMap: Record<RoleCode, { label: string; href: string; icon: string }[]> = {
+/**
+ * `icon` bertipe `NavIconName`, bukan `string` (M-7).
+ *
+ * Dengan `string`, nama ikon yang tidak ada di `iconMap` milik `DashboardShell`
+ * lolos kompilasi dan gagal senyap saat render — itulah yang terjadi pada
+ * `"BookOpen"` di ketiga menu LMS: ikonnya jatuh ke fallback dashboard sehingga
+ * sidebar punya dua item dengan ikon sama, tanpa satu pun error. Tipe ini
+ * memindahkan kesalahan itu ke `tsc`.
+ *
+ * Import `Award` dan `Globe` dari `lucide-react` ikut dihapus: keduanya tidak
+ * pernah dipakai di berkas ini — yang ada hanya string namanya — jadi komponen
+ * ikonnya masuk ke bundle tanpa pernah dirender di sini.
+ */
+const sidebarItemsMap: Record<RoleCode, { label: string; href: string; icon: NavIconName }[]> = {
   super_admin: [
     { label: "Pusat Kendali", href: "/dashboard/super-admin", icon: "LayoutDashboard" },
     { label: "User & Role", href: "/dashboard/super-admin/users", icon: "Users" },

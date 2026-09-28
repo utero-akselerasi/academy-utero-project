@@ -360,8 +360,13 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
   - **`srcObject` dipindah ke effect.** Sebelumnya dipasang di dalam `startCamera` dengan penjaga `if (videoRef.current)`, padahal elemen `<video>` hanya dirender ketika `cameraActive` true — render itu belum terjadi saat `startCamera` menetapkannya. Penugasan yang terlewat muncul sebagai kotak hitam tanpa satu pun error.
   - **Bug sampingan yang ikut ditutup:** `takePhoto` jatuh ke `640 x 480` saat `video.videoWidth` masih 0, dan `drawImage` dari video yang belum punya frame menghasilkan kanvas KOSONG. Hasilnya selfie hitam yang tersimpan sebagai bukti absensi tanpa peringatan apa pun. Sekarang menolak dan meminta tangkap ulang.
   - Gate: `tsc` 0, `eslint --quiet` 0, `npm run build` 0.
-- [ ] B5.9 Perbaiki `\n` literal + `iconMap` `BookOpen` (M-5, M-7)
-- [ ] B5.9 Perbaiki `\n` literal + `iconMap` `BookOpen` (M-5, M-7)
+- [x] B5.9 Perbaiki `\n` literal + `iconMap` `BookOpen` (M-5, M-7)
+  - **M-5 ternyata sudah tertutup lebih dulu.** Audit melaporkan escape literal di dalam JSX pada `app/dashboard/super-admin/page.tsx:33`. Berkasnya bersih sekarang, dan `git log` menunjukkan penyebabnya ikut terbawa commit `71f3c56d` (guard otorisasi + hardening CSV). Disapu seluruh `app/`, `features/`, `components/` untuk `\n` literal di JSX — nol hasil. Dicatat apa adanya, bukan diklaim sebagai perbaikan baru.
+  - **M-7 nyata:** `BookOpen` tidak ada di `iconMap` (`features/auth/DashboardShell.tsx`), padahal **tiga** menu memakainya — "LMS Penilaian" untuk `super_admin` dan `admin`, serta "LMS Pembelajaran" untuk `intern`. Ikonnya ditambahkan.
+  - **Yang sebenarnya jadi bug: fallback-nya, bukan ikon yang hilang.** `iconMap[item.icon] || LayoutDashboard` membuat nama ikon yang tak dikenal tampil sebagai ikon dashboard — jadi sidebar punya dua item dengan ikon identik dan tidak ada satu pun error, log, atau peringatan build. Kegagalan yang tampak seperti keberhasilan. Fallback-nya dihapus.
+  - **Ditutup lewat tipe, supaya tidak bisa terulang.** `icon` naik dari `string` ke `NavIconName = keyof typeof iconMap`, diturunkan dari peta itu sendiri lewat `satisfies`. Dengan `string`, nama yang salah lolos kompilasi dan gagal senyap saat render; sekarang ia error `tsc` di `sidebarItemsMap`. Diverifikasi empiris: menyisipkan `icon: "NotARealIcon"` menghasilkan 2 error `tsc`, jadi tipenya benar-benar menggigit dan bukan pelebaran senyap.
+  - **Temuan sampingan:** `import { Award, Globe } from "lucide-react"` di `ProtectedDashboardLayout.tsx` tidak pernah dipakai — berkas itu hanya menyebut nama ikonnya sebagai string. Dihapus.
+  - Gate: `tsc` 0, `eslint --quiet` 0, `npm run build` 0.
 
 ## Batch 6 — Release engineering & CI (C-9, H-7, H-8, M-14, M-16)
 

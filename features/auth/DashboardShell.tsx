@@ -3,29 +3,23 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  Menu, X, LogOut, User, Settings, ChevronDown, 
-  LayoutDashboard, Users, FileSpreadsheet, UserCheck, 
-  Kanban, Clock, FileText, CheckSquare, GraduationCap, Award, Globe, LayoutTemplate
+import {
+  Menu, X, LogOut, User, Settings, ChevronDown,
+  LayoutDashboard, Users, FileSpreadsheet, UserCheck,
+  Kanban, Clock, FileText, CheckSquare, GraduationCap, Award, Globe, LayoutTemplate,
+  BookOpen
 } from "lucide-react";
 
-type NavItem = {
-  label: string;
-  href: string;
-  icon: string;
-};
-
-type Props = {
-  userName: string;
-  userEmail: string;
-  avatarUrl: string | null;
-  roleLabel: string;
-  navItems: NavItem[];
-  logoutAction: () => void;
-  children: React.ReactNode;
-};
-
-const iconMap: Record<string, React.ComponentType<any>> = {
+/**
+ * Ikon sidebar yang tersedia.
+ *
+ * `BookOpen` hilang dari peta ini (M-7), padahal tiga menu memakainya:
+ * "LMS Penilaian" untuk super_admin dan admin, dan "LMS Pembelajaran" untuk
+ * peserta. Fallback `|| LayoutDashboard` di bawah membuat ketiganya merender
+ * ikon dashboard — jadi sidebar menampilkan dua item dengan ikon identik dan
+ * tidak ada satu pun error, log, maupun peringatan build.
+ */
+const iconMap = {
   LayoutDashboard,
   Users,
   FileSpreadsheet,
@@ -37,7 +31,35 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   GraduationCap,
   Award,
   Globe,
-  LayoutTemplate
+  LayoutTemplate,
+  BookOpen,
+} satisfies Record<string, React.ComponentType<{ size?: number; className?: string }>>;
+
+/**
+ * Nama ikon yang sah, diturunkan dari `iconMap` itu sendiri.
+ *
+ * Sebelumnya `icon` bertipe `string`, jadi nama ikon yang tidak ada di peta
+ * lolos kompilasi dan gagal secara SENYAP saat render lewat fallback di bawah.
+ * Itu persis yang terjadi pada `BookOpen`. Dengan tipe ini, nama yang tak ada
+ * di peta menjadi error `tsc` di `sidebarItemsMap` — bukan ikon yang salah di
+ * layar yang harus ada orang yang menyadarinya.
+ */
+export type NavIconName = keyof typeof iconMap;
+
+type NavItem = {
+  label: string;
+  href: string;
+  icon: NavIconName;
+};
+
+type Props = {
+  userName: string;
+  userEmail: string;
+  avatarUrl: string | null;
+  roleLabel: string;
+  navItems: NavItem[];
+  logoutAction: () => void;
+  children: React.ReactNode;
 };
 
 export function DashboardShell({ 
@@ -81,7 +103,13 @@ export function DashboardShell({
         {/* Navigation Menu */}
         <nav className="flex-1 space-y-1 px-4 py-6 overflow-y-auto">
           {navItems.map((item) => {
-            const IconComponent = iconMap[item.icon] || LayoutDashboard;
+            // Fallback `|| LayoutDashboard` DIHAPUS. Justru fallback itulah yang
+            // menyembunyikan M-7 selama ini: ikon yang tidak ada di peta tampil
+            // sebagai ikon dashboard, jadi kesalahannya tidak pernah terlihat
+            // sebagai kesalahan. Sekarang `item.icon` bertipe `NavIconName`,
+            // sehingga nama yang salah tertangkap `tsc` dan pencarian ini tidak
+            // bisa mengembalikan undefined.
+            const IconComponent = iconMap[item.icon];
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link
