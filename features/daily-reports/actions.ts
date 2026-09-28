@@ -1,6 +1,7 @@
 "use server";
 
 import { requireAdmin, requireUser } from "@/features/auth/guards";
+import { HOST_DRIVE_DIIZINKAN, isAllowedDriveLink } from "@/lib/external-links";
 import { notifyDailyReportRevisionRequested } from "@/lib/notification";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
@@ -142,8 +143,25 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
     }
   }
 
-  // Jika ada Google Drive link, masukkan juga ke daily_report_attachments
-  if (googleDriveLink && (googleDriveLink.includes("google.com") || googleDriveLink.includes("drive.google.com"))) {
+  // Link Google Drive disimpan sebagai attachment ber-`mime_type: "url"`.
+  //
+  // Pemeriksaannya dulu `googleDriveLink.includes("google.com")`, yang bukan
+  // pemeriksaan host sama sekali: `http://google.com.penyerang.net/muatan`,
+  // `https://jahat.com/?x=google.com`, dan `javascript:alert(1)//google.com`
+  // semuanya lolos dan tersimpan — lalu dirender sebagai tautan yang **diklik
+  // pembimbing** saat mereview. Itu jalur phishing ke akun berhak lebih tinggi
+  // daripada pengirimnya. Sekarang lewat `isAllowedDriveLink()`.
+  if (googleDriveLink) {
+    // Ditolak dengan pesan, bukan dibuang diam-diam. Bentuk lama membiarkan
+    // cabang `if` gagal tanpa suara, jadi peserta yang salah menempel link
+    // melihat laporannya "berhasil" padahal lampirannya tidak pernah ada.
+    if (!isAllowedDriveLink(googleDriveLink)) {
+      return {
+        ok: false,
+        message: `Link lampiran harus URL https dari ${HOST_DRIVE_DIIZINKAN.join(" atau ")}.`,
+      };
+    }
+
     await db.from("daily_report_attachments").insert({
       report_id: finalReportId,
       file_path: googleDriveLink,

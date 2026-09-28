@@ -214,9 +214,57 @@ export function validateBase64Image(dataUrl: string): ValidatedUpload {
  * Membuat path objek storage yang unik dan tidak bisa ditebak.
  * Memakai UUID, bukan Date.now(), agar dua upload bersamaan tidak bertabrakan
  * dan pemanggil tidak perlu lagi memakai upsert: true.
+ *
+ * **Ini satu-satunya penghasil object path di seluruh aplikasi** — ke-16 titik
+ * unggah memanggilnya. Karena itu ia juga tempat yang benar untuk menolak
+ * traversal, dan bukan cuma di titik panggil masing-masing.
+ *
+ * Pemangkasan lamanya `prefix.replace(/^\/+|\/+$/g, "")` hanya membuang slash di
+ * **ujung**. `../` di tengah lolos utuh, jadi `prefix` yang isinya berasal dari
+ * `formData` bisa memindahkan unggahan ke prefix lain — termasuk lintas jalur
+ * dalam bucket campur `avatars`, tempat CV, selfie, dan surat sakit berdampingan.
+ *
+ * Melempar, bukan membersihkan diam-diam: kalau segmen dibuang tanpa suara,
+ * pemanggil menyimpan path yang berbeda dari yang ia yakini dan objeknya jadi
+ * tak terjangkau. Semua pemanggil sah memberi prefix yang tetap atau berasal
+ * dari UUID baris DB, jadi lemparan di sini berarti cacat kode atau serangan —
+ * dua hal yang memang harus berhenti keras.
  */
 export function buildStoragePath(prefix: string, ext: string): string {
-  const cleanPrefix = prefix.replace(/^\/+|\/+$/g, "");
+  if (typeof prefix !== "string") {
+    throw new Error("Prefix path storage tidak valid.");
+  }
+
+  // Slash ANTAR segmen memang sah — `lessons/<id>`, `<userId>/attendance_in`,
+  // `assignment/<id>/<internId>` semuanya bentuk yang dipakai. Yang tidak sah
+  // adalah isi segmennya, jadi pemeriksaannya per segmen, bukan atas seluruh
+  // string.
+  const segmen = prefix.split("/").filter((s) => s !== "");
+
+  for (const s of segmen) {
+    // `.` dan `..` adalah traversal. Backslash karena Supabase memperlakukannya
+    // sebagai karakter biasa sementara sebagian alat tidak — beda tafsir itu
+    // sendiri sudah cukup alasan menolak. Karakter kendali (termasuk NUL dan
+    // newline) karena ia bisa memotong path di lapisan yang tidak menyangkanya.
+    if (s === "." || s === "..") {
+      throw new Error("Prefix path storage tidak valid.");
+    }
+    if (s.includes("\\") || /[\u0000-\u001f\u007f]/.test(s)) {
+      throw new Error("Prefix path storage tidak valid.");
+    }
+    if (s.trim() !== s) {
+      throw new Error("Prefix path storage tidak valid.");
+    }
+  }
+
+  // `ext` selalu berasal dari `detectFileType()` (deteksi isi berkas, bukan nama
+  // dari klien), jadi pemeriksaan ini tak seharusnya kena. Ada supaya pemanggil
+  // baru yang menyusupkan ekstensi dari klien berhenti di sini.
+  if (!/^[a-z0-9]+$/.test(ext)) {
+    throw new Error("Ekstensi berkas tidak valid.");
+  }
+
+  const cleanPrefix = segmen.join("/");
   const name = `${randomUUID()}.${ext}`;
   return cleanPrefix ? `${cleanPrefix}/${name}` : name;
 }

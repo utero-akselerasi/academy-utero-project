@@ -171,7 +171,32 @@ export async function uploadLessonAttachmentAction(formData: FormData) {
   const supabase = createSupabaseServiceRoleClient();
   const db = await createUteroAcademyServiceRoleClient();
 
-  const filePath = buildStoragePath(`lessons/${lessonId}`, attachment.ext);
+  // Lesson dibaca DULU, sebelum apa pun diunggah. Dua alasan:
+  //
+  // 1. `lessonId` datang mentah dari `formData` dan dulu hanya diperiksa
+  //    tidak-kosong, lalu langsung disisipkan ke segmen path storage
+  //    (`lessons/${lessonId}`). Nilai seperti `../../avatars/settings` membuat
+  //    unggahan mendarat di prefix lain. Yang dipakai membangun path sekarang
+  //    adalah `lesson.id` — UUID dari baris DB, bukan teks dari klien. Polanya
+  //    sama dengan `requireCardAccess` di `features/tasks/actions.ts`.
+  // 2. Urutan lama mengunggah lebih dulu, jadi `lessonId` yang tidak cocok baris
+  //    mana pun meninggalkan objek yatim di bucket — nol `storage.remove()` di
+  //    seluruh repo, jadi tak ada yang membersihkannya.
+  const { data: lesson, error: lessonError } = await db
+    .from("lessons")
+    .select("id, attachments")
+    .eq("id", lessonId)
+    .maybeSingle();
+
+  if (lessonError) {
+    console.error("Gagal membaca lesson:", lessonError);
+    throw new Error("Materi tidak dapat diverifikasi.");
+  }
+  if (!lesson) {
+    throw new Error("Materi tidak ditemukan.");
+  }
+
+  const filePath = buildStoragePath(`lessons/${lesson.id}`, attachment.ext);
 
   const { error: uploadError } = await supabase.storage
     .from("learning")
@@ -185,14 +210,8 @@ export async function uploadLessonAttachmentAction(formData: FormData) {
     throw new Error("Gagal mengunggah file.");
   }
 
-  const { data: lesson } = await db
-    .from("lessons")
-    .select("attachments")
-    .eq("id", lessonId)
-    .maybeSingle();
+  const currentAttachments = Array.isArray(lesson.attachments) ? lesson.attachments : [];
 
-  const currentAttachments = Array.isArray(lesson?.attachments) ? lesson.attachments : [];
-  
   // Kunci `path` menyimpan OBJECT PATH, bukan URL publik. Bucket `learning`
   // memang sudah privat di seed `0002_storage_buckets.sql`; 0007 yang memaksanya
   // publik. Pembacaannya lewat `signLessonAttachments()` di
@@ -377,6 +396,50 @@ export async function submitQuizAttemptAction(formData: FormData) {
 
   if (!(await internIsEnrolled(internProfileId, courseId))) {
     throw new Error("Kamu belum terdaftar di course ini.");
+  }
+
+  // Batas percobaan ditegakkan DI SINI, bukan hanya di UI. `can_attempt_quiz`
+  // (`0026_quiz_retry_limit.sql`) sudah ada sejak lama tapi tidak punya satu pun
+  // pemanggil di seluruh repo — jadi `max_attempts` dan `retry_delay_minutes`
+  // hanya menyembunyikan tombol, dan pemanggilan action ini secara langsung
+  // melewatinya sepenuhnya. Kuis adalah dasar penerbitan sertifikat, jadi
+  // percobaan tak terbatas berarti nilai kelulusan bisa dicapai dengan mengulang.
+  //
+  // RPC dipakai apa adanya, bukan dihitung ulang di TypeScript: `0026` sudah
+  // memuat aturannya (batas percobaan + jeda antar percobaan), dan menduplikasinya
+  // di sini akan membuat dua sumber kebenaran yang bisa menyimpang tanpa suara.
+  const { data: gate, error: gateErr } = await db.rpc("can_attempt_quiz", {
+    p_user_id: user.id,
+    p_quiz_id: quizId,
+  });
+
+  // Gagal keras kalau gerbangnya sendiri bermasalah. Kalau RPC-nya error atau
+  // tidak mengembalikan baris, keadaan sebenarnya TIDAK diketahui — dan default
+  // yang benar untuk gerbang otorisasi yang tidak bisa menjawab adalah menolak,
+  // bukan membiarkan lolos.
+  if (gateErr) {
+    console.error("Gagal memeriksa batas percobaan kuis:", gateErr);
+    throw new Error("Batas percobaan kuis tidak dapat diperiksa. Coba lagi.");
+  }
+
+  const gateRow = Array.isArray(gate) ? gate[0] : gate;
+
+  if (!gateRow) {
+    throw new Error("Batas percobaan kuis tidak dapat diperiksa. Coba lagi.");
+  }
+
+  if (gateRow.can_attempt !== true) {
+    // `reason` datang dari RPC dan sudah berupa teks yang bisa dibaca; petakan
+    // ke pesan Indonesia supaya tidak ada string Inggris bocor ke peserta.
+    const alasan =
+      gateRow.reason === "Maximum attempts reached"
+        ? "Kamu sudah mencapai batas maksimum percobaan untuk kuis ini."
+        : gateRow.reason === "Please wait before retrying"
+          ? "Belum boleh mencoba lagi. Tunggu jeda antar percobaan selesai."
+          : gateRow.reason === "User is not an intern"
+            ? "Hanya peserta yang bisa mengumpulkan kuis."
+            : "Kamu tidak bisa mengumpulkan kuis ini sekarang.";
+    throw new Error(alasan);
   }
 
   const questions = Array.isArray(quiz.questions) ? quiz.questions : [];

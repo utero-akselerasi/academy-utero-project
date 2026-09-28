@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { submitDailyReportAction, type DailyReportFormState } from "@/features/daily-reports/actions";
+import { HOST_DRIVE_DIIZINKAN, isAllowedDriveLink } from "@/lib/external-links";
 import { useActionState, useState, useRef, useEffect } from "react";
 import { Paperclip, X, AlertTriangle, Link as LinkIcon } from "lucide-react";
 import Link from "next/link";
@@ -90,9 +91,18 @@ export function DailyReportForm({ editReport }: Props) {
   const hasOversizedFile = false;
 
   const driveLinkRequired = hasOversizedFile;
-  const isDriveLinkValid = !driveLink || driveLink.includes("google.com") || driveLink.includes("drive.google.com");
-  
-  const canSubmit = !hasOversizedFile || (driveLink && isDriveLinkValid);
+
+  // Satu fungsi yang sama dengan yang dipakai server action. Sebelumnya di sini
+  // ada `driveLink.includes("google.com")` sendiri — pemeriksaan klien yang
+  // terpisah dari pemeriksaan server adalah cara lubang ini lahir. Penegakan
+  // tetap ada di server (`submitDailyReportAction`); ini cuma umpan balik cepat.
+  const isDriveLinkValid = !driveLink || isAllowedDriveLink(driveLink);
+
+  // Dulu: `!hasOversizedFile || (driveLink && isDriveLinkValid)`. Karena
+  // `hasOversizedFile` konstan `false`, ruas kiri selalu `true` dan
+  // `isDriveLinkValid` tak pernah memblokir apa pun — tombolnya aktif untuk link
+  // apa pun. Sekarang link tak valid benar-benar menonaktifkan submit.
+  const canSubmit = isDriveLinkValid && (!driveLinkRequired || Boolean(driveLink));
 
   return (
     <form action={formAction} className="surface grid gap-5 p-6 bg-white">
@@ -270,11 +280,12 @@ export function DailyReportForm({ editReport }: Props) {
           />
         </div>
         <p className="text-xs text-slate-400 mt-1">
-          Gunakan kolom ini jika melampirkan link dari Google Drive.
+          Gunakan kolom ini jika melampirkan link dari Google Drive. Wajib URL
+          https dari {HOST_DRIVE_DIIZINKAN.join(" atau ")}.
         </p>
         {driveLink && !isDriveLinkValid ? (
           <p className="text-xs text-red-600 mt-1 font-semibold">
-            Link harus mengandung drive.google.com atau google.com
+            Link harus URL https dari {HOST_DRIVE_DIIZINKAN.join(" atau ")}.
           </p>
         ) : null}
       </div>

@@ -10,9 +10,10 @@ diterapkan.
 Untuk migrasi, `[~]` berarti **berkasnya ditulis dan ter-push, tapi belum dijalankan di DB mana pun.**
 Tidak satu pun migrasi di dokumen ini sudah diterapkan.
 
-Terakhir diperbarui: 2026-09-28 (ke-42 migrasi terbukti jalan di container sekali-pakai, `0034`
-lolos tanpa `raise`; **16 berkas ber-BOM UTF-8 ditemukan & diperbaiki** — bukti independen
-penyimpangan produksi; 351 test lolos).
+Terakhir diperbarui: 2026-09-29 (**Batch 8** — re-audit membantah klaimku sendiri bahwa tak ada
+lagi yang bisa ditutup tanpa produksi: 3 kerentanan aktif ditemukan & ditutup — batas percobaan
+kuis tak ditegakkan, validasi link Drive cuma substring, `lessonId` mentah masuk path storage;
+**391 test lolos**, nol sentuhan produksi).
 
 Referensi ID temuan mengikuti Master Deep Audit Report (C-x kritis, H-x tinggi, M-x sedang).
 
@@ -719,6 +720,114 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
     sekali.
   - Verifikasi tiap bagian: `tsc --noEmit` EXIT=0, `eslint` nol error, `npm run build` EXIT=0.
     **Belum diuji dengan pembaca layar sungguhan** — tidak ada test framework (B6.7).
+
+---
+
+## Batch 8 — Cacat aktif yang ditemukan saat re-audit (tidak ada di laporan awal)
+
+Batch ini lahir dari satu pertanyaan: "berarti apa langkah selanjutnya?" Aku sudah
+menyatakan **"tak ada lagi yang bisa aku tutup tanpa menyentuh produksi"**. Klaim itu
+**salah**, dan re-audit membuktikannya. Tiga kerentanan aktif ditemukan, semuanya bisa
+ditutup tanpa menyentuh produksi sama sekali.
+
+Kenapa ketiganya lolos dari audit pertama: audit itu mencari **guard yang hilang**, dan
+ketiga cacat ini punya guard. Yang salah adalah **isi** pemeriksaannya — dan
+`tests/authorization-matrix.test.ts` bersifat statis (ia memastikan guard *dipanggil*,
+bukan bahwa logikanya benar), jadi 195 test-nya tetap hijau di atas ketiganya.
+
+- [x] **B8.1 Batas percobaan kuis tidak ditegakkan sama sekali** — **selesai**
+  - `can_attempt_quiz` sudah ada sejak `0026_quiz_retry_limit.sql`, lengkap dengan
+    `max_attempts` dan `retry_delay_minutes`. Wrapper TypeScript-nya
+    (`checkCanAttemptQuiz`, `features/lms/actions.ts`) punya **nol pemanggil di seluruh
+    repo**. `submitQuizAttemptAction` hanya memeriksa publikasi + pendaftaran, jadi
+    peserta bisa mengulang kuis tanpa batas dan mengambil skor terbaik.
+  - Diperbaiki dengan **memanggil RPC yang sudah ada**, bukan menyalin logikanya ke
+    TypeScript. Duplikasi berarti dua sumber kebenaran atas `max_attempts`, dan yang di
+    TypeScript akan menyimpang begitu kolomnya berubah.
+  - **Fail closed:** kalau RPC-nya error atau tidak mengembalikan baris, pengumpulan
+    **ditolak**. Gerbang otorisasi yang tidak bisa menjawab harus menolak, bukan
+    meneruskan.
+
+- [x] **B8.2 Validasi link Google Drive cuma pencarian substring** — **selesai**
+  - `googleDriveLink.includes("google.com")` bukan pemeriksaan host. Yang lolos:
+    `http://google.com.penyerang.net/muatan` (`google.com` cuma awalan hostname),
+    `https://jahat.com/?x=google.com` (di query string), `https://jahat.com/#google.com`
+    (di fragment), `https://drive.google.com@penyerang.net/x` (userinfo), dan
+    `javascript:alert(1)//google.com` (bukan HTTP sama sekali).
+  - **Kenapa ini bukan sekadar data kotor:** nilainya tersimpan di
+    `daily_report_attachments.file_path` dengan `mime_type: "url"`, lalu dirender sebagai
+    tautan yang **diklik pembimbing** saat mereview. Jadi ia jalur phishing dari akun
+    peserta ke akun yang haknya lebih tinggi.
+  - Diperbaiki di `lib/external-links.ts`: parse dengan `new URL()`, wajib `https:`,
+    hostname harus **sama persis** dengan `drive.google.com` atau `docs.google.com`.
+    Bukan `endsWith(".google.com")` — itu tetap menerima `sites.google.com`, host yang
+    menyajikan halaman buatan pengguna.
+  - **Satu fungsi dipakai server action DAN form klien.** Sebelumnya masing-masing punya
+    pemeriksaan sendiri — persis cara lubang ini lahir.
+  - Dua cacat sampingan ikut terperbaiki:
+    - Server action dulu **membuang link tak valid tanpa suara** (cabang `if` gagal, tak
+      ada pesan). Peserta melihat "laporan berhasil" padahal lampirannya tak pernah ada.
+      Sekarang ditolak dengan pesan.
+    - `canSubmit` di `DailyReportForm.tsx` berbentuk
+      `!hasOversizedFile || (driveLink && isDriveLinkValid)`, dan `hasOversizedFile`
+      konstan `false` — jadi ruas kiri selalu `true` dan `isDriveLinkValid` **tak pernah
+      memblokir apa pun**. Pemeriksaan kliennya ada tapi mati.
+
+- [x] **B8.3 `lessonId` mentah dari `formData` masuk ke segmen path storage** — **selesai**
+  - `uploadLessonAttachmentAction` mengambil `lessonId` dari form, memeriksanya hanya
+    tidak-kosong, lalu menyisipkannya ke `buildStoragePath("lessons/" + lessonId, ext)`.
+    `buildStoragePath` memangkas dengan `prefix.replace(/^\/+|\/+$/g, "")` — hanya slash
+    di **ujung**, jadi `../` di tengah lolos utuh.
+  - Diperbaiki di **dua lapis**, karena satu lapis saja meninggalkan yang lain rapuh:
+    1. **Titik panggil:** baris `lessons` dibaca dari DB lebih dulu, dan yang dipakai
+       membangun path adalah `lesson.id` — UUID dari DB, bukan teks dari klien. Polanya
+       sama dengan `requireCardAccess` di `features/tasks/actions.ts`. Urutan lama
+       mengunggah dulu, jadi `lessonId` yang tak cocok baris mana pun meninggalkan objek
+       yatim (nol `storage.remove()` di seluruh repo).
+    2. **Helper:** `buildStoragePath` sekarang menolak per segmen — `.`, `..`, backslash,
+       karakter kendali, dan spasi di ujung. Ia **satu-satunya penghasil object path** di
+       aplikasi (ke-16 titik unggah memanggilnya), jadi penjagaan di sini menutup semua
+       titik sekaligus, termasuk titik unggah baru yang belum ditulis.
+  - **Melempar, bukan membersihkan diam-diam.** Segmen yang dibuang tanpa suara membuat
+    pemanggil menyimpan path berbeda dari yang dipakai, dan objeknya jadi tak terjangkau.
+
+- [x] **B8.4 Test untuk ketiga perbaikan** — **selesai**, 42 test baru (total **391**)
+  - `tests/external-links.test.ts` — tiap kasus bypass ditulis dengan **asersi ganda**:
+    `.includes()` memang meloloskannya, DAN fungsi baru menolaknya. Bentuk itu dipilih
+    supaya kembali ke substring membuat test **gagal**, bukan cuma jadi dokumentasi.
+  - `tests/build-storage-path.test.ts` — pola yang sama untuk traversal: pemangkasan lama
+    dibuktikan meloloskan `..`, versi sekarang melempar.
+  - Verifikasi: `tsc --noEmit` **EXIT=0**, `vitest` **391 lolos**, `eslint --quiet`
+    **EXIT=0**. Nol sentuhan produksi.
+
+### Belum dikerjakan di batch ini
+
+Ditemukan pada re-audit yang sama, dicatat supaya tidak hilang:
+
+- [ ] **B8.5 Test untuk logika keputusan senyap** — kesalahannya **tidak melempar**, cuma
+      mengembalikan nilai salah, jadi hanya test yang bisa menangkapnya:
+  - `resolveGeofence` + haversine `getDistanceMeters` (`features/attendance/actions.ts`),
+    keduanya tidak diekspor
+  - Hitung skor penilaian (`features/assessments/actions.ts`) — `parseFloat("abc")` → `NaN`,
+    dan `NaN` **lolos setiap pemeriksaan rentang**, lalu `finalScore: NaN` memicu
+    penerbitan sertifikat
+  - Penilaian kuis (`features/lms/actions.ts`) — `===` ketat, jadi `correct_answer`
+    numerik di JSONB memberi **skor 0 untuk semua orang**
+  - Loop tanggal izin (`features/attendance/actions.ts`) — `endDate < start_date`
+    menghasilkan nol iterasi, tanpa suara
+- [ ] **B8.6 Test untuk fungsi murni `lib/` yang nol test:** `detectFileType`
+      (HTML/SVG lolos sebagai gambar = XSS tersimpan), `jakartaMinutesOfDay`
+      (komentarnya sendiri mencatat bug pergeseran 12 jam `hourCycle`, tanpa test yang
+      menguncinya), `jakartaDateString`, `parseWallClockMinutes`, `lib/csv.ts`
+      (injeksi formula), `sanitizeRichText` (dipakai dengan `dangerouslySetInnerHTML`),
+      `sanitizeDisplayName`
+- [ ] **B8.7 Tiga cacat kecil yang sudah terverifikasi:**
+  - `deleteBoardAction` (`features/tasks/actions.ts`) tidak memeriksa baris terpengaruh,
+    jadi hapus yang tak cocok apa pun melaporkan sukses
+  - `is_published === false` alih-alih `!== true` di `features/lms/actions.ts` (dua
+    tempat, plus bentuk sama di `markLessonCompletedAction`) — `null` lolos sebagai
+    terpublikasi
+  - Toggle publish/status tidak memvalidasi `status` terhadap enum
 
 ---
 
