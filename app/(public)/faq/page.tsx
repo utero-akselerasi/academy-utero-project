@@ -34,9 +34,15 @@ export default async function FaqPage() {
         ) : (
           faqs.map((faq) => (
             <details key={faq.id} className="group border border-slate-200 rounded-xl bg-white p-5 shadow-sm transition-all [&_summary::-webkit-details-marker]:hidden">
-              <summary className="flex items-center justify-between cursor-pointer focus:outline-none">
+              {/* `focus:outline-none` dibuang, bukan diganti (temuan #7).
+                  `<summary>` adalah satu-satunya kontrol di kartu ini, jadi
+                  tanpa penanda fokus pengguna keyboard tak punya cara tahu
+                  pertanyaan mana yang akan terbuka saat menekan Enter. Cincin
+                  global `:focus-visible` di `app/globals.css` mengambil alih
+                  begitu penekan ini hilang. */}
+              <summary className="flex items-center justify-between cursor-pointer">
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <HelpCircle size={16} className="text-teal-700" />
+                  <HelpCircle size={16} className="text-teal-700" aria-hidden="true" />
                   <span>{faq.question}</span>
                 </h3>
                 <span className="transition duration-300 group-open:-rotate-180 text-xs text-slate-400">

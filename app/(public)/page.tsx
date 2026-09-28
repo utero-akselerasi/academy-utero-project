@@ -446,9 +446,11 @@ export default async function HomePage() {
             <div className="space-y-4">
               {activeFaqs.map((faq) => (
                 <details key={faq.id} className="group border border-slate-200 rounded-2xl bg-white p-5 shadow-sm transition-all [&_summary::-webkit-details-marker]:hidden">
-                  <summary className="flex items-center justify-between cursor-pointer focus:outline-none">
+                  {/* `focus:outline-none` dibuang, bukan diganti (temuan #7) —
+                      alasannya sama dengan FAQ di `app/(public)/faq/page.tsx`. */}
+                  <summary className="flex items-center justify-between cursor-pointer">
                     <h3 className="text-xs md:text-sm font-black text-slate-900 flex items-center gap-2">
-                      <HelpCircle size={16} className="text-teal-700" />
+                      <HelpCircle size={16} className="text-teal-700" aria-hidden="true" />
                       <span>{faq.question}</span>
                     </h3>
                     <span className="transition duration-300 group-open:-rotate-180 text-xs text-slate-400">

@@ -93,6 +93,32 @@ select {
 }
 
 /*
+ * Badan editor teks kaya (temuan #7).
+ *
+ * `RichTextEditor` dulunya memakai `focus:outline-none` pada div
+ * contenteditable-nya, jadi tidak ada penanda sama sekali saat kursor masuk ke
+ * badan editor lewat keyboard.
+ *
+ * Cincin globalnya tidak bisa dipakai apa adanya: pembungkus editor
+ * ber-`overflow-hidden` (supaya sudut bilah alatnya rapi), dan `outline-offset`
+ * positif menaruh cincinnya di luar batas anak — jadi cincin di badan editor
+ * terpotong tiga sisi. Karena itu cincinnya dipindah ke pembungkus, yang
+ * batasnya memang batas terlihat editor ini.
+ *
+ * `:focus-within`, bukan `:focus-visible`: yang menerima fokus adalah
+ * contenteditable di dalam, bukan pembungkusnya. Dan `:focus-visible` tidak
+ * cocok di sini — kursor teks memang harus terlihat juga saat diklik tetikus.
+ */
+.rich-text-body:focus {
+  outline: none;
+}
+
+.rich-text-shell:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/*
  * Tautan lompat ke konten utama (temuan #16).
  *
  * Disembunyikan di luar viewport, BUKAN dengan `display: none` atau
