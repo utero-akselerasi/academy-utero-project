@@ -850,12 +850,68 @@ bukan bahwa logikanya benar), jadi 195 test-nya tetap hijau di atas ketiganya.
 ### Belum dikerjakan di batch ini
 
 Ditemukan pada re-audit yang sama, dicatat supaya tidak hilang:
-- [ ] **B8.6 Test untuk fungsi murni `lib/` yang nol test:** `detectFileType`
-      (HTML/SVG lolos sebagai gambar = XSS tersimpan), `jakartaMinutesOfDay`
-      (komentarnya sendiri mencatat bug pergeseran 12 jam `hourCycle`, tanpa test yang
-      menguncinya), `jakartaDateString`, `parseWallClockMinutes`, `lib/csv.ts`
-      (injeksi formula), `sanitizeRichText` (dipakai dengan `dangerouslySetInnerHTML`),
-      `sanitizeDisplayName`
+- [x] **B8.6 Test untuk fungsi murni `lib/` yang nol test** — **selesai**, 111 test baru
+      (total **611**). Keempat modul dikunci, dan **satu cacat nyata ditemukan lewat
+      test** (lihat butir `parseWallClockMinutes` di bawah).
+  - `tests/detect-file-type.test.ts` (29 test) — `detectFileType` +
+    `sanitizeDisplayName`. Ia **satu-satunya** yang menentukan sebuah berkas boleh
+    masuk storage, dan `validateUpload` mempercayainya penuh: `mime`-nya dipakai
+    sebagai `contentType`, `ext`-nya jadi ekstensi object path. SVG/HTML yang lolos
+    sebagai gambar = **stored XSS dilayani dari domain sendiri**. Komentar
+    `lib/uploads.ts:38` menyatakan SVG "sengaja tidak diizinkan"; test ini yang
+    menjadikannya bukti, bukan pernyataan niat. Ikut dikunci: nama `.jpg` tidak
+    menolong HTML, magic byte wajib di offset 0 (PDF dengan HTML di depan **ditolak**,
+    beda dari browser yang menerimanya sampai offset 1024), dan RIFF tanpa `WEBP` di
+    offset 8 ditolak karena WAV/AVI juga RIFF. **Dua risiko sisa dicatat eksplisit
+    sebagai test, bukan ditutupi:** polyglot GIF/JS lolos sebagai `image/gif` (tak ada
+    pemeriksaan magic byte yang bisa menolaknya tanpa menolak GIF asli — yang menahan
+    adalah `contentType` yang dipaksa, `allowed_mime_types` per bucket, dan CSP), dan
+    ZIP apa pun lolos sebagai `docx` termasuk JAR/APK.
+  - `tests/time.test.ts` (24 test) — **bug 12 jam `hourCycle` yang didokumentasikan di
+    `lib/time.ts:57` tapi belum pernah diuji sekarang jadi asersi.** Tanpa
+    `hourCycle: "h23"`, `en-CA` memakai siklus 12 jam: 00:30 WIB diformat
+    `"12:30 a.m."` dan bagian `hour`-nya `"12"`, jadi hasilnya **750** bukan 30 —
+    selisih 12 jam yang menandai check-in tengah malam sebagai telat. Testnya
+    merekonstruksi bentuk tanpa `h23`, membuktikan ia memberi 750, lalu membuktikan
+    implementasinya tidak. Hapus `h23` dan test **gagal**. Ikut dikunci: semua instan
+    ditulis UTC eksplisit supaya hasilnya tidak ikut `TZ` mesin — premis yang justru
+    sedang diuji; `jakartaMinutesOfDay` mengembalikan `NaN` bukan `0` untuk `Date`
+    invalid (menit ke-0 berarti "check-in tepat tengah malam" = telat 8 jam, jadi
+    kesalahan data tidak boleh menyamar jadi pelanggaran peserta) dan **tidak melempar**
+    padahal `formatToParts` melempar `RangeError`; `jakartaDateString` benar untuk
+    17:30 UTC yang sudah hari berikutnya di WIB, kasus yang membuat
+    `toISOString().slice(0,10)` salah sehari.
+  - **Cacat nyata yang ditemukan lewat test ini: `parseWallClockMinutes` MELEMPAR
+    `TypeError` untuk masukan non-string.** Bentuknya cuma `if (!value) return null`
+    lalu `value.trim()`. Kedua pemanggilnya menyalurkan `settings?.check_in_time`
+    langsung dari Supabase (`app/dashboard/mentor/attendance/page.tsx:123` dan
+    `.../export/route.ts:156`), jadi satu nilai bertipe lain merobohkan **seluruh
+    render halaman absensi** dan **route unduh CSV** — bukan satu baris. Fungsi ini ada
+    justru untuk menahan data rusak, jadi ia tidak boleh ikut runtuh. Diperbaiki:
+    parameter jadi `unknown` dengan penjagaan `typeof`.
+  - `tests/csv.test.ts` (30 test) — ekspor CSV dibuka admin **di Excel/Sheets**, dan
+    isinya berasal dari kolom yang diisi peserta. Formula peserta berjalan **di mesin
+    admin dengan hak admin, di luar semua lapisan aplikasi** — CSP tidak berlaku di
+    Excel. Dikunci: keenam pemicu (`= + - @` tab CR), serangan nyata DDE/`WEBSERVICE`/
+    `HYPERLINK`, pemicu di tengah sel **tidak** diprefiks (supaya "Rp5.000 - Rp10.000"
+    dan "a@b.com" tidak rusak), urutan prefiks-sebelum-gandakan-kutip, BOM UTF-8, CRLF
+    antar baris. `sanitizeCsvFilename` masuk header `Content-Disposition`, jadi CRLF di
+    dalamnya adalah **penyuntikan header HTTP**; ada asersi menyeluruh bahwa apa pun
+    masukannya hasilnya tak memuat CR/LF dan tepat dua kutip ganda.
+  - `tests/sanitize.test.ts` (28 test) — hasilnya dirender dengan
+    `dangerouslySetInnerHTML`, masukannya ditulis staf, pembacanya publik atau seluruh
+    peserta **termasuk super admin yang membuka halaman yang sama**. Dikunci: `<script>`
+    beserta isinya, seluruh kelas atribut `on*` (termasuk kapitalisasi campur dan
+    `onerror =` berspasi), `javascript:`/`data:` dalam berbagai penyamaran termasuk
+    entitas HTML, `<iframe>/<object>/<embed>/<form>/<base>/<meta>/<link>`, `<svg>`,
+    `<style>` dan atribut `style` (clickjacking **tanpa skrip** lewat `position:fixed`
+    seukuran layar), `rel="noopener"` yang **menimpa** pilihan penulis, dan HTML rusak
+    yang mengandalkan pemulihan parser. **Separuh testnya menguji isi yang harus
+    BERTAHAN** — whitelist terlalu ketat juga kegagalan senyap: staf kehilangan
+    tulisannya tanpa peringatan. Termasuk asersi idempotensi, karena isi disanitasi
+    ulang saat render dan artikel tidak boleh berubah sendiri tiap disimpan.
+  - Verifikasi: `tsc --noEmit` **EXIT=0**, `vitest` **611 lolos**, `npm run lint`
+    **EXIT=0**. Nol sentuhan produksi.
 - [ ] **B8.7 Tiga cacat kecil yang sudah terverifikasi:**
   - `deleteBoardAction` (`features/tasks/actions.ts`) tidak memeriksa baris terpengaruh,
     jadi hapus yang tak cocok apa pun melaporkan sukses

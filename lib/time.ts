@@ -99,7 +99,14 @@ export function jakartaMinutesOfDay(instant: Date): number {
  * Mengembalikan `null` kalau bentuknya tidak valid, supaya pemanggil memilih
  * default secara eksplisit.
  */
-export function parseWallClockMinutes(value: string | null | undefined): number | null {
+export function parseWallClockMinutes(value: unknown): number | null {
+  // `typeof`, bukan cuma `!value`: nilainya dibaca dari Supabase dan kedua
+  // pemanggil menyalurkannya langsung (`settings?.check_in_time`). Kalau
+  // kolomnya pernah bertipe lain — atau baris JSON menyimpan angka — `.trim()`
+  // melempar `TypeError` dan yang runtuh bukan satu baris, melainkan **seluruh
+  // render halaman absensi** dan **route unduh CSV**. Fungsi ini ada justru untuk
+  // menahan data rusak, jadi ia tidak boleh ikut runtuh karenanya.
+  if (typeof value !== "string") return null;
   if (!value) return null;
 
   const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
