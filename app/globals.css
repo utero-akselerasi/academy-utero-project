@@ -53,6 +53,69 @@ select {
   font: inherit;
 }
 
+/*
+ * Penanda fokus keyboard global (temuan aksesibilitas #7).
+ *
+ * `focus:outline-none` dipakai di enam tempat — `DashboardShell` (dua),
+ * `CmsManager`, `RichTextEditor`, halaman FAQ, dan landing — tanpa satu pun
+ * penggantinya. Akibatnya pengguna keyboard kehilangan jejak: fokus tetap
+ * berpindah, tapi tidak ada apa pun di layar yang menunjukkan di mana ia berada.
+ *
+ * Ditulis di sini, bukan dengan menambal keenam tempat itu satu per satu, karena
+ * yang berikutnya menulis `focus:outline-none` tidak akan tahu harus menambalnya.
+ * Aturan ini berlaku ke seluruh aplikasi dan tidak bisa dilupakan.
+ *
+ * Kenapa ini MENANG atas `focus:outline-none`: Tailwind v4 memancarkan utilitasnya
+ * di dalam `@layer utilities`, dan CSS tanpa layer selalu mengalahkan CSS
+ * ber-layer — tak peduli spesifisitasnya. Jadi `.focus\:outline-none:focus`
+ * (spesifisitas lebih tinggi) tetap kalah dari aturan ini. Itu juga sebabnya
+ * aturan ini TIDAK ditaruh di dalam `@layer`.
+ *
+ * `:focus-visible`, bukan `:focus`: peramban hanya mencocokkannya untuk fokus
+ * keyboard, jadi cincin ini tidak muncul saat tombol diklik tetikus — yang
+ * justru alasan orang menulis `focus:outline-none` sejak awal.
+ *
+ * `outline-offset` membuat cincinnya tetap terlihat pada tombol berlatar gelap
+ * (sidebar) maupun terang.
+ */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/*
+ * Cincin terang khusus di dalam sidebar gelap. Merah `--primary` di atas
+ * `slate-900` kontrasnya tidak cukup untuk jadi penanda fokus.
+ */
+.sidebar-dark :focus-visible {
+  outline-color: #ffffff;
+}
+
+/*
+ * Tautan lompat ke konten utama (temuan #16).
+ *
+ * Disembunyikan di luar viewport, BUKAN dengan `display: none` atau
+ * `visibility: hidden` — keduanya mengeluarkan elemen dari urutan Tab, jadi
+ * tautannya tidak akan pernah bisa difokus dan tidak ada gunanya.
+ */
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -64px;
+  z-index: 10000;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #ffffff;
+  font-weight: 700;
+  transition: top 150ms ease-in-out;
+}
+
+.skip-link:focus {
+  top: 8px;
+}
+
 .form-field {
   display: grid;
   gap: 6px;

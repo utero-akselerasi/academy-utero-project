@@ -120,14 +120,14 @@ export function LearningAnalytics({ dailyActivities, summary }: LearningAnalytic
                   <span className="text-muted-foreground">Quiz Avg</span>
                   <span className="font-semibold">{summary.averageScoreQuiz}%</span>
                 </div>
-                <Progress value={summary.averageScoreQuiz} className="h-2" />
+                <Progress value={summary.averageScoreQuiz} label="Rata-rata nilai kuis" className="h-2" />
               </div>
               <div>
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-muted-foreground">Assignment Avg</span>
                   <span className="font-semibold">{summary.averageScoreAssignment}%</span>
                 </div>
-                <Progress value={summary.averageScoreAssignment} className="h-2" />
+                <Progress value={summary.averageScoreAssignment} label="Rata-rata nilai tugas" className="h-2" />
               </div>
             </div>
           </CardContent>

@@ -9,8 +9,30 @@ export default function PublicLayout({
 }>) {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
+      {/*
+        Tautan lompat ke konten utama (temuan aksesibilitas #16). Setiap halaman
+        publik mengulang seluruh navigasi header, jadi tanpa ini pengguna keyboard
+        harus menelusuri ulang setiap tautan navigasi di setiap halaman sebelum
+        mencapai isinya.
+
+        Elemen PERTAMA di dalam layout, bukan di dalam `Header`: ia harus jadi
+        target Tab pertama, dan di dalam header ia akan berada setelah logo.
+
+        Sasarannya `id` di pembungkus layout ini, bukan `<main>` masing-masing
+        halaman — kesembilan halaman publik punya `<main>` sendiri, jadi id di
+        sini adalah satu-satunya sasaran yang pasti ada di semuanya.
+
+        `tabIndex={-1}` pada sasaran WAJIB: pembungkus `div` tidak bisa difokus
+        secara alami, dan meloncat ke elemen yang tak bisa difokus hanya
+        menggulirkan halaman — fokus keyboard tetap tertinggal di header, jadi
+        Tab berikutnya kembali ke navigasi dan tautannya tidak melakukan apa pun
+        yang berguna.
+      */}
+      <a href="#main-content" className="skip-link">
+        Lewati ke konten utama
+      </a>
       <Header />
-      <div className="flex-1">
+      <div id="main-content" tabIndex={-1} className="flex-1 outline-none">
         {children}
       </div>
       <footer className="bg-slate-900 text-slate-400 py-10 border-t border-slate-800 text-xs shrink-0">

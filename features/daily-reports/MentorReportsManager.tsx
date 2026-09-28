@@ -4,8 +4,8 @@ import { useState } from "react";
 import { ReportStatusBadge } from "./ReportStatusBadge";
 import { ReviewReportForm } from "./ReviewReportForm";
 import { ImagePreview } from "./ImagePreview";
-import { PDFPreview } from "./PDFPreview";
-import { Users, FileText, Calendar, Filter, Eye, X, Printer, CheckCircle, HelpCircle } from "lucide-react";
+import { Modal } from "@/components/ui/modal";
+import { Eye, Printer } from "lucide-react";
 import Link from "next/link";
 
 // Diimpor dari types.ts, bukan dideklarasikan ulang. Salinan lokalnya dulu
@@ -125,57 +125,101 @@ export function MentorReportsManager({ reports }: Props) {
         </div>
       ) : (
         <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {/*
+            `<article onClick>` diganti `<button>` (temuan #6).
+
+            Kartu ini adalah SATU-SATUNYA jalan membuka riwayat laporan seorang
+            peserta, dan `<article>` tidak bisa difokus maupun ditekan dengan
+            Enter/Space. Jadi admin yang memakai keyboard tidak punya cara apa pun
+            mencapai data itu — bukan sekadar merepotkan, fiturnya benar-benar
+            tertutup.
+
+            `<article>` yang dibungkus `<button>` bukan pilihan: HTML melarang
+            konten interaktif di dalam tombol, dan `<h3>` di dalam tombol pun tidak
+            diumumkan sebagai judul. Jadi elemennya diganti, bukan dibungkus, dan
+            `<h3>` turun jadi `<span>` — nama pesertanya sudah ikut masuk ke nama
+            terakses tombolnya.
+          */}
           {uniqueInterns.map((intern) => (
-            <article 
+            <button
               key={intern.id}
+              type="button"
               onClick={() => {
                 setSelectedInternId(intern.id);
                 setTimeFilter("all");
                 setStatusFilter("all");
               }}
+              aria-label={
+                intern.pendingCount > 0
+                  ? `${intern.name}, ${intern.reportsCount} laporan harian, ${intern.pendingCount} menunggu review`
+                  : `${intern.name}, ${intern.reportsCount} laporan harian`
+              }
               className="surface p-3 sm:p-5 bg-white border border-slate-200 rounded-2xl hover:border-teal-500 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between items-center text-center gap-2 sm:gap-3 relative group"
             >
+              {/*
+                Lencana, nama, dan hitungan semuanya `aria-hidden`: ketiganya sudah
+                ada di `aria-label` tombol, jadi tanpa ini pembaca layar
+                mengumumkan setiap potongnya dua kali.
+              */}
               {intern.pendingCount > 0 && (
-                <span className="absolute top-3 right-3 h-5 min-w-5 px-1.5 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center animate-pulse">
+                <span
+                  className="absolute top-3 right-3 h-5 min-w-5 px-1.5 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center animate-pulse"
+                  aria-hidden="true"
+                >
                   {intern.pendingCount}
                 </span>
               )}
-              
-              <div className="h-10 w-10 sm:h-16 sm:w-16 rounded-full bg-teal-50 text-teal-800 font-black text-sm sm:text-xl flex items-center justify-center border border-teal-150">
+
+              <span className="h-10 w-10 sm:h-16 sm:w-16 rounded-full bg-teal-50 text-teal-800 font-black text-sm sm:text-xl flex items-center justify-center border border-teal-150" aria-hidden="true">
                 {intern.name.charAt(0)}
-              </div>
+              </span>
 
-              <div>
-                <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm group-hover:text-teal-700 transition-colors line-clamp-2 break-words min-h-[2rem] flex items-center justify-center">
+              <span aria-hidden="true">
+                <span className="block font-extrabold text-slate-900 text-xs sm:text-sm group-hover:text-teal-700 transition-colors line-clamp-2 break-words min-h-[2rem] flex items-center justify-center">
                   {intern.name}
-                </h3>
-                <p className="text-[10px] text-slate-400 font-semibold mt-1">ID: {intern.id.slice(0, 8)}</p>
-              </div>
+                </span>
+                <span className="block text-[10px] text-slate-400 font-semibold mt-1">ID: {intern.id.slice(0, 8)}</span>
+              </span>
 
-              <div className="w-full bg-slate-50 border border-slate-100 p-1.5 sm:p-2 rounded-xl text-center text-[10px] sm:text-xs font-bold text-slate-600 mt-1 sm:mt-2">
-                <span>{intern.reportsCount} Laporan Harian</span>
-              </div>
-            </article>
+              <span className="w-full bg-slate-50 border border-slate-100 p-1.5 sm:p-2 rounded-xl text-center text-[10px] sm:text-xs font-bold text-slate-600 mt-1 sm:mt-2" aria-hidden="true">
+                {intern.reportsCount} Laporan Harian
+              </span>
+            </button>
           ))}
         </div>
       )}
 
-      {/* POPUP MODAL RIWAYAT LAPORAN PER INTERN */}
+      {/*
+        POPUP RIWAYAT LAPORAN PER INTERN — dipindah ke `Modal` bersama (temuan #2).
+
+        Overlay lamanya `<div>` biasa: tanpa `role="dialog"`, tanpa Escape, tanpa
+        jebakan fokus, tanpa pemulihan fokus. Pembaca layar tidak diberi tahu apa
+        pun saat ia muncul, dan Tab berjalan lurus keluar ke halaman di belakangnya.
+
+        `hideTitle` + `headerClassName` absolut: bilah judul visualnya sudah ada di
+        dalam isi dialog ini, jadi baris judul bawaan `Modal` tidak boleh menambah
+        bilah kedua. Judulnya tetap di DOM untuk `aria-labelledby` — hanya
+        disembunyikan secara visual — dan tombol tutupnya diposisikan tepat di
+        tempat tombol X yang lama.
+      */}
       {selectedIntern && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
+        <Modal
+          open
+          onClose={() => setSelectedInternId(null)}
+          title={`Laporan bimbingan ${selectedIntern.name}`}
+          hideTitle
+          closeLabel="Tutup riwayat laporan"
+          panelClassName="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh]"
+          headerClassName="absolute top-4 right-5 z-10"
+          closeClassName="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
+        >
+          <>
             {/* Header Modal */}
             <div className="flex items-center justify-between bg-slate-50 px-6 py-4 border-b border-slate-200">
               <div>
                 <span className="text-[9px] font-black uppercase text-teal-700">Laporan Bimbingan</span>
                 <h3 className="text-base font-black text-slate-950 mt-0.5">{selectedIntern.name}</h3>
               </div>
-              <button
-                onClick={() => setSelectedInternId(null)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
-              >
-                <X size={18} />
-              </button>
             </div>
 
             {/* Filter and Print bar */}
@@ -213,10 +257,17 @@ export function MentorReportsManager({ reports }: Props) {
                   <span>Cetak PDF Rekap</span>
                 </Link>
 
-                {/* Filter Status */}
+                {/*
+                  `aria-label` pada `<select>` (temuan #3): kontrol ini tidak punya
+                  `<label>` sama sekali, jadi pembaca layar mengumumkannya sebagai
+                  "combo box" tanpa keterangan apa yang sedang difilter. Label
+                  visualnya memang tidak ada di desain, jadi `aria-label` — bukan
+                  `htmlFor` — yang tepat di sini.
+                */}
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
+                  aria-label="Filter status laporan"
                   className="border border-slate-200 rounded-lg text-xs px-2 bg-white h-8 w-32 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none text-slate-850 font-bold"
                 >
                   <option value="all">Semua Status</option>
@@ -233,26 +284,35 @@ export function MentorReportsManager({ reports }: Props) {
                 <p className="text-sm text-slate-500 italic py-8 text-center">Tidak ada laporan bimbingan yang cocok dengan filter.</p>
               ) : (
                 <div className="grid gap-4">
+                  {/*
+                    `<article onClick>` kedua, diganti `<button>` dengan alasan sama
+                    (temuan #6): ini satu-satunya jalan ke form review, dan
+                    `<article>` tidak bisa difokus maupun ditekan Enter.
+
+                    `ReportStatusBadge` dibiarkan di dalam tombol karena ia hanya
+                    merender teks berwarna — bukan kontrol.
+                  */}
                   {filteredReports.map((report) => (
-                    <article 
-                      key={report.id} 
-                      className="p-4 border border-slate-150 rounded-xl bg-slate-50/50 hover:bg-slate-50 hover:border-teal-300 transition-all cursor-pointer flex justify-between items-start gap-4"
+                    <button
+                      key={report.id}
+                      type="button"
+                      className="w-full text-left p-4 border border-slate-150 rounded-xl bg-slate-50/50 hover:bg-slate-50 hover:border-teal-300 transition-all cursor-pointer flex justify-between items-start gap-4"
                       onClick={() => setActiveReportId(report.id)}
                     >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
+                      <span className="space-y-1">
+                        <span className="flex items-center gap-2">
                           <span className="font-extrabold text-slate-900 text-xs">{formatDate(report.report_date)}</span>
                           <ReportStatusBadge status={report.status} />
-                        </div>
-                        <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mt-1">
+                        </span>
+                        <span className="block text-xs text-slate-500 line-clamp-2 leading-relaxed mt-1">
                           {report.today_work}
-                        </p>
-                      </div>
-                      <span className="button-secondary text-[10px] py-1 px-2 min-h-0 font-bold shrink-0 flex items-center gap-1">
-                        <Eye size={10} />
-                        <span>Detail & Review</span>
+                        </span>
                       </span>
-                    </article>
+                      <span className="button-secondary text-[10px] py-1 px-2 min-h-0 font-bold shrink-0 flex items-center gap-1">
+                        <Eye size={10} aria-hidden="true" />
+                        <span>Detail &amp; Review</span>
+                      </span>
+                    </button>
                   ))}
                 </div>
               )}
@@ -268,26 +328,36 @@ export function MentorReportsManager({ reports }: Props) {
                 Tutup
               </button>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
 
-      {/* POPUP DETAIL REPORT & FEEDBACK FORM */}
+      {/*
+        POPUP DETAIL & FORM REVIEW — dipindah ke `Modal` bersama (temuan #2).
+
+        Yang ini dibuka DARI dalam dialog pertama. `Modal` memulihkan fokus ke
+        elemen yang memegangnya sebelum dibuka, jadi menutup dialog ini
+        mengembalikan fokus ke kartu laporan yang diklik di dalam dialog riwayat —
+        bukan ke awal dokumen.
+      */}
       {activeReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+        <Modal
+          open
+          onClose={() => setActiveReportId(null)}
+          title={`Review laporan harian ${formatDate(activeReport.report_date)}`}
+          hideTitle
+          closeLabel="Tutup detail laporan"
+          panelClassName="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col"
+          headerClassName="absolute top-4 right-5 z-10"
+          closeClassName="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
+        >
+          <>
             {/* Header */}
             <div className="flex items-center justify-between bg-slate-50 px-6 py-4 border-b border-slate-200">
               <div>
                 <span className="text-[9px] font-black uppercase text-teal-700">Review Laporan Harian</span>
                 <h3 className="text-sm font-black text-slate-950 mt-0.5">{formatDate(activeReport.report_date)}</h3>
               </div>
-              <button
-                onClick={() => setActiveReportId(null)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all"
-              >
-                <X size={18} />
-              </button>
             </div>
 
             {/* Body */}
@@ -389,8 +459,8 @@ export function MentorReportsManager({ reports }: Props) {
                 Kembali
               </button>
             </div>
-          </div>
-        </div>
+          </>
+        </Modal>
       )}
     </div>
   );

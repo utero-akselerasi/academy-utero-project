@@ -63,7 +63,11 @@ export function BadgeDisplay({ badges, allBadges, userPoints }: BadgeDisplayProp
                 <span>Progress to Level {userPoints.level + 1}</span>
                 <span className="font-semibold">{userPoints.level_progress}%</span>
               </div>
-              <Progress value={userPoints.level_progress} className="h-3" />
+              <Progress
+                value={userPoints.level_progress}
+                label={`Kemajuan menuju level ${userPoints.level + 1}`}
+                className="h-3"
+              />
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
