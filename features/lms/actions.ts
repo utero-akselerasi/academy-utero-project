@@ -10,6 +10,7 @@ import { redirect } from "next/navigation";
 import { getInternProfileId } from "@/features/daily-reports/queries";
 import { internIsEnrolled } from "./queries";
 import { generateCourseCertificate } from "./certificate-helper";
+import { nilaiKuis, normalkanPertanyaan, uraikanNilaiKelulusan } from "./quiz-scoring";
 
 /**
  * Pengelolaan course/lesson/quiz/assignment adalah pekerjaan staff.
@@ -442,24 +443,24 @@ export async function submitQuizAttemptAction(formData: FormData) {
     throw new Error(alasan);
   }
 
-  const questions = Array.isArray(quiz.questions) ? quiz.questions : [];
-  const answers: { question_id: string; selected_option: string }[] = [];
-  
-  let correctCount = 0;
+  // Penilaiannya dipindah ke `./quiz-scoring` supaya bisa diuji — lihat berkas
+  // itu untuk rantai tiga cacat yang membuat SETIAP peserta mendapat skor 0:
+  // nama field form tidak cocok saat kuis dibuat, kunci `answer` vs
+  // `correct_answer` saat dinilai, dan indeks vs teks opsi saat dibandingkan.
+  const { score, jawaban: answers, tidakTerskor } = nilaiKuis(quiz.questions, (nama) => {
+    const nilai = formData.get(nama);
+    return typeof nilai === "string" ? nilai : null;
+  });
 
-  for (const q of questions) {
-    const ans = formData.get("q_" + q.id) as string;
-    answers.push({
-      question_id: q.id,
-      selected_option: ans || ""
-    });
-
-    if (ans === q.correct_answer) {
-      correctCount++;
-    }
+  if (tidakTerskor > 0) {
+    // Dicatat, bukan dilempar: peserta tidak boleh kehilangan pengumpulannya
+    // karena kunci jawaban yang salah disiapkan admin. Skornya sudah dihitung
+    // hanya dari pertanyaan yang bisa dinilai, jadi peserta tidak dirugikan —
+    // tapi tanpa log ini kuis rusak tak akan pernah terlihat siapa pun.
+    console.error(
+      `Kuis ${quizId}: ${tidakTerskor} pertanyaan tanpa kunci jawaban sah, dilewati saat penilaian.`,
+    );
   }
-
-  const score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
 
   const { error: insertErr } = await db.from("quiz_attempts").insert({
     quiz_id: quizId,
@@ -816,16 +817,26 @@ export async function createQuizAction(formData: FormData) {
   const title = formData.get("title") as string;
   const passingScore = formData.get("passingScore") as string;
   const timeLimitMinutes = formData.get("timeLimitMinutes") as string;
-  const questionsJson = formData.get("questions") as string;
+  // `questionsJson` — nama yang benar-benar dipancarkan `QuizFormBuilder.tsx:71`.
+  // Dulu `formData.get("questions")`, yang tidak ada, jadi `JSON.parse(null || "[]")`
+  // → `[]` dan **setiap kuis tersimpan tanpa satu pun pertanyaan**, tanpa keluhan.
+  // Peserta lalu selalu mendapat 0 karena `questions.length > 0 ? … : 0`.
+  const questionsJson = formData.get("questionsJson") as string;
 
   if (!courseId || !title) throw new Error("Course ID dan Judul wajib diisi.");
 
-  let questions = [];
+  let mentah: unknown;
   try {
-    questions = JSON.parse(questionsJson || "[]");
-  } catch (e) {
+    mentah = JSON.parse(questionsJson || "[]");
+  } catch {
     throw new Error("Format pertanyaan tidak valid.");
   }
+
+  // Menormalkan ke bentuk kanonik (`correct_answer` = teks opsi benar) sekaligus
+  // menolak kuis yang tidak bisa dinilai. Dulu bentuk apa pun tersimpan diam-diam.
+  const questions = normalkanPertanyaan(mentah);
+
+  const nilaiKelulusan = uraikanNilaiKelulusan(passingScore);
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -833,7 +844,7 @@ export async function createQuizAction(formData: FormData) {
     course_id: courseId,
     title,
     questions,
-    passing_score: passingScore ? parseFloat(passingScore) : null,
+    passing_score: nilaiKelulusan,
     time_limit_minutes: timeLimitMinutes ? parseInt(timeLimitMinutes) : null
   });
 

@@ -6,6 +6,7 @@ import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
+import { hitungSkorAspekTetap, hitungSkorKriteria } from "./scoring";
 
 // Guard terpusat: cek role lewat semua baris user_roles dan izinkan super_admin.
 // Guard lama pakai maybeSingle() sehingga user multi-role gagal.
@@ -32,31 +33,25 @@ export async function saveAssessmentAction(formData: FormData) {
     throw new Error("Kamu tidak membimbing peserta ini, jadi tidak bisa menilainya.");
   }
 
-  let scoreJson: Record<string, number> = {};
-  let totalScore = 0;
+  // Hitungannya dipindah ke `./scoring` supaya bisa diuji — lihat berkas itu
+  // untuk tiga cacat senyap yang diperbaiki, yang paling parah: `parseFloat("abc")`
+  // → `NaN`, dan `NaN` **lolos setiap pemeriksaan rentang** karena perbandingan
+  // dengan `NaN` selalu `false`. Dulu itu berarti `final_score` tersimpan null,
+  // status `finalized`, dan **sertifikat tetap diterbitkan**.
+  const hasil =
+    criteriaNames.length > 0
+      ? hitungSkorKriteria(criteriaNames, criteriaScores)
+      : hitungSkorAspekTetap({
+          technical: formData.get("technical") as string | null,
+          discipline: formData.get("discipline") as string | null,
+          attitude: formData.get("attitude") as string | null,
+        });
 
-  if (criteriaNames.length > 0) {
-    criteriaNames.forEach((name, idx) => {
-      const scoreVal = parseFloat(criteriaScores[idx] || "0");
-      if (scoreVal < 0 || scoreVal > 100) {
-        throw new Error("Setiap nilai kriteria harus antara 0 s.d. 100.");
-      }
-      scoreJson[name] = scoreVal;
-      totalScore += scoreVal;
-    });
-  } else {
-    const technical = parseFloat(formData.get("technical") as string || "0");
-    const discipline = parseFloat(formData.get("discipline") as string || "0");
-    const attitude = parseFloat(formData.get("attitude") as string || "0");
-    if (technical < 0 || technical > 100 || discipline < 0 || discipline > 100 || attitude < 0 || attitude > 100) {
-      throw new Error("Nilai harus berupa angka antara 0 s.d. 100.");
-    }
-    scoreJson = { technical, discipline, attitude };
-    totalScore = technical + discipline + attitude;
+  if (!hasil.ok) {
+    throw new Error(hasil.message);
   }
 
-  const numCriteria = Object.keys(scoreJson).length || 3;
-  const finalScore = Math.round((totalScore / numCriteria) * 100) / 100;
+  const { scoreJson, finalScore } = hasil;
 
   const db = await createUteroAcademyServiceRoleClient();
 

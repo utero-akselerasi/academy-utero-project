@@ -9,6 +9,8 @@ import { UploadValidationError, buildStoragePath, validateBase64Image, validateU
 import { jakartaDateString } from "@/lib/time";
 import { revalidatePath } from "next/cache";
 import { attendanceSettingsSchema, checkInSchema, checkOutSchema, reviewAttendanceSchema } from "./schemas";
+import { GEOFENCE_MISCONFIGURED_MESSAGE, getDistanceMeters, resolveGeofence } from "./geofence";
+import { rentangTanggalIzin } from "./permit-dates";
 
 /**
  * Aksi review/pengaturan absensi hanya untuk staff.
@@ -28,76 +30,6 @@ async function requireInternInScope(userId: string, internId: string | null) {
   if (!internId || !scope.internIds.includes(internId)) {
     throw new Error("Kamu tidak membimbing peserta ini.");
   }
-}
-
-type GeofenceSettings = {
-  office_latitude: number | null;
-  office_longitude: number | null;
-  allow_geofencing: boolean | null;
-  radius_meters: number | null;
-};
-
-type GeofenceConfig =
-  | { kind: "disabled" }
-  | { kind: "misconfigured" }
-  | { kind: "active"; latitude: number; longitude: number; radiusMeters: number };
-
-/**
- * Satu tempat yang menentukan bentuk geofence, dipakai check-in dan check-out.
- *
- * Sebelumnya logika ini diduplikasi di dua titik dengan tiga masalah:
- *
- * 1. **Koordinat kantor di-hardcode** (`-7.9671`/`112.6375`, Malang) sebagai
- *    fallback `||`. Kalau kolomnya null, geofence tidak mati — ia berpindah ke
- *    kota yang mungkin bukan lokasi kantor, lalu **setiap** peserta dinilai di
- *    luar radius dan dipaksa mengunggah alasan + bukti kegiatan luar. Nilai
- *    default itu tempatnya di migrasi (`0014`), bukan di kode aplikasi.
- * 2. **`radius_meters || 100`** — `0` itu falsy, jadi admin yang menyetel radius
- *    `0` (harus tepat di titik kantor) diam-diam mendapat 100 meter. Diganti
- *    `??`, jadi hanya `null`/`undefined` yang memicu default.
- * 3. Baris yang hilang tidak dibedakan dari geofence yang mati:
- *    `settings?.allow_geofencing` bernilai falsy untuk keduanya.
- *
- * `misconfigured` **menolak absensi**, bukan melewati pemeriksaan. Ini pilihan
- * yang disengaja: melewatinya berarti geofence mati tanpa ada yang tahu, dan
- * keadaan itu bisa bertahan berbulan-bulan. Menolak dengan pesan yang menyebut
- * penyebabnya membuat admin memperbaikinya dalam hitungan menit.
- */
-function resolveGeofence(settings: GeofenceSettings | null): GeofenceConfig {
-  if (!settings?.allow_geofencing) return { kind: "disabled" };
-
-  const latitude = settings.office_latitude;
-  const longitude = settings.office_longitude;
-
-  // `Number.isFinite`, bukan cuma cek null: `double precision` Postgres bisa
-  // mengembalikan NaN, dan `NaN` lolos setiap perbandingan jarak sebagai false
-  // sehingga semua orang terhitung di dalam radius.
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-    return { kind: "misconfigured" };
-  }
-
-  const radiusMeters = settings.radius_meters ?? 100;
-  if (!Number.isFinite(radiusMeters) || radiusMeters < 0) {
-    return { kind: "misconfigured" };
-  }
-
-  return { kind: "active", latitude: latitude as number, longitude: longitude as number, radiusMeters };
-}
-
-const GEOFENCE_MISCONFIGURED_MESSAGE =
-  "Geofencing aktif tapi koordinat kantor belum diatur. Hubungi admin untuk melengkapi pengaturan absensi.";
-
-function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371e3; // Earth radius in meters
-  const phi1 = (lat1 * Math.PI) / 180;
-  const phi2 = (lat2 * Math.PI) / 180;
-  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
-  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
-  const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-            Math.cos(phi1) * Math.cos(phi2) *
-            Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
 }
 
 export type FormState = {
@@ -510,6 +442,13 @@ export async function reviewPermitAction(formData: FormData) {
 
   if (!permitId || !status) throw new Error("Data tidak lengkap.");
 
+  // `status` diperiksa terhadap daftar tertutup. Dulu nilainya masuk apa adanya
+  // ke kolom, jadi nilai selain approved/rejected akan tersimpan dan membuat izin
+  // itu tak pernah muncul lagi di daftar mana pun — tanpa satu pun error.
+  if (status !== "approved" && status !== "rejected") {
+    throw new Error("Status review izin tidak valid.");
+  }
+
   const db = await createUteroAcademyServiceRoleClient();
 
   // Ambil data permit
@@ -519,8 +458,22 @@ export async function reviewPermitAction(formData: FormData) {
   // Admin hanya boleh menyetujui izin intern yang dibimbingnya.
   await requireInternInScope(user.id, permit.intern_id as string | null);
 
-  // Update permit status and optionally endDate
   const newEndDate = endDate || permit.end_date;
+
+  // Rentang tanggal divalidasi **sebelum** permit di-update. Urutan lama menyimpan
+  // status dulu, lalu membangun absensi dari rentang yang tidak pernah diperiksa —
+  // jadi rentang cacat meninggalkan izin bertanda "approved" tanpa satu pun baris
+  // absensi, dan peserta tercatat alpa untuk hari yang izinnya sudah disetujui.
+  // Lihat `./permit-dates.ts` untuk empat cara rentang itu bisa cacat tanpa suara.
+  let tanggalIzin: string[] = [];
+  if (status === "approved") {
+    const rentang = rentangTanggalIzin(permit.start_date, newEndDate);
+    if (!rentang.ok) {
+      throw new Error(rentang.message);
+    }
+    tanggalIzin = rentang.tanggal;
+  }
+
   const { error: permitError } = await db.from("permits").update({
     status: status,
     end_date: newEndDate,
@@ -534,36 +487,31 @@ export async function reviewPermitAction(formData: FormData) {
     throw new Error("Gagal menyimpan review izin.");
   }
 
-  // Generate attendances if approved
   if (status === "approved") {
-    // `const`, walau isinya berubah tiap iterasi: `setDate()` di bawah
-    // memutasi objek Date-nya, bukan menugaskan ulang variabelnya.
-    const current = new Date(permit.start_date);
-    const end = new Date(newEndDate);
-    const inserts = [];
-    while (current <= end) {
-      const dateStr = current.toISOString().slice(0, 10);
-      inserts.push({
-        intern_id: permit.intern_id,
-        attendance_date: dateStr,
-        attendance_type: permit.permit_type,
-        permit_reason: permit.reason,
-        sick_certificate_path: permit.attachment_path,
-        status: "valid",
-        reviewed_by: user.id,
-        reviewed_at: new Date().toISOString()
-      });
-      current.setDate(current.getDate() + 1);
-    }
+    const reviewedAt = new Date().toISOString();
+    const inserts = tanggalIzin.map((dateStr) => ({
+      intern_id: permit.intern_id,
+      attendance_date: dateStr,
+      attendance_type: permit.permit_type,
+      permit_reason: permit.reason,
+      sick_certificate_path: permit.attachment_path,
+      status: "valid",
+      reviewed_by: user.id,
+      reviewed_at: reviewedAt
+    }));
 
-    if (inserts.length > 0) {
-      // Upsert to handle conflict if intern already had an attendance row that day (e.g. pending check-in)
-      const { error: insertError } = await db.from("attendances").upsert(inserts, {
-        onConflict: "intern_id, attendance_date"
-      });
-      if (insertError) {
-        console.error("Gagal buat absen dari permit:", insertError);
-      }
+    // `upsert` menangani bentrok kalau peserta sudah punya baris absensi hari itu
+    // (mis. check-in yang masih pending).
+    const { error: insertError } = await db.from("attendances").upsert(inserts, {
+      onConflict: "intern_id, attendance_date"
+    });
+
+    // Dilempar, tidak cuma di-log. Bentuk lama menelan error ini, jadi izin
+    // tersimpan "approved" sementara absensinya tidak pernah ada — dan admin
+    // melihat halaman yang berhasil dimuat ulang sebagai konfirmasi.
+    if (insertError) {
+      console.error("Gagal buat absen dari permit:", insertError);
+      throw new Error("Izin disetujui, namun gagal membuat catatan absensinya. Coba lagi.");
     }
   }
 

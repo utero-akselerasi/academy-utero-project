@@ -800,21 +800,56 @@ bukan bahwa logikanya benar), jadi 195 test-nya tetap hijau di atas ketiganya.
   - Verifikasi: `tsc --noEmit` **EXIT=0**, `vitest` **391 lolos**, `eslint --quiet`
     **EXIT=0**. Nol sentuhan produksi.
 
+- [x] **B8.5 Test untuk logika keputusan senyap** — **selesai**, 109 test baru
+      (total **500**). Keempat logika dipindahkan ke modul murni supaya bisa diuji, dan
+      tiap cacat lama ditulis dengan **asersi ganda**: bentuk lama dibuktikan salah, DAN
+      bentuk sekarang dibuktikan benar. Kembali ke bentuk lama membuat test **gagal**.
+  - `features/assessments/scoring.ts` + `tests/assessment-scoring.test.ts` (29 test) —
+    `hitungSkorKriteria` / `hitungSkorAspekTetap`. Akar cacatnya: `parseFloat("abc")` →
+    `NaN`, dan **`NaN` lolos setiap pemeriksaan rentang** (`NaN < 0` dan `NaN > 100`
+    keduanya `false`), lalu `JSON.stringify(NaN)` → `null`, jadi baris tersimpan
+    `finalized` berskor null **dan sertifikat terbit**. Ikut ditutup: `parseFloat("80abc")`
+    → `80` (salah ketik jadi nilai sah), `criteriaScores[idx] || "0"` (kolom kosong jadi
+    nol yang menekan rata-rata), dan nama kriteria duplikat yang membuat rata-rata
+    **200** karena pemeriksaan rentang berlaku per kriteria, bukan pada rata-ratanya.
+  - `features/lms/quiz-scoring.ts` + `tests/quiz-scoring.test.ts` (37 test) — rantai
+    **empat** cacat, bukan satu: (a) `QuizFormBuilder` menulis `answer` (indeks) tapi
+    penilai membaca `correct_answer`; (b) penilai membandingkan teks opsi dengan indeks
+    numerik pakai `===`, jadi **skor 0 untuk semua orang**; (c) nama field form tak
+    cocok; (d) `passing_score: passingScore ? parseFloat(…) : null` menyimpan `null`
+    untuk masukan non-numerik, jadi **kuisnya tidak mungkin lulus**. Bentuk sekarang
+    toleran saat **baca** (indeks diselesaikan lewat `options`, `answer` diterima sebagai
+    alias) dan kanonik saat **tulis** — jadi **nol backfill produksi**. Pembagi skor =
+    pertanyaan yang **terskor saja**, supaya kunci jawaban rusak tak menekan nilai
+    peserta yang tak bersalah; pertanyaan tanpa kunci sah **dicatat ke log, bukan
+    dilempar**, supaya peserta tak kehilangan submission karena kesalahan admin.
+  - `features/attendance/geofence.ts` + `tests/geofence.test.ts` — `resolveGeofence` dan
+    `getDistanceMeters` dipindah keluar dari `actions.ts` (dulu dua salinan, di `checkIn`
+    dan `checkOut`). Cacat: fallback `|| -7.9671` **memindahkan kantor ke Malang** saat
+    kolomnya null alih-alih melaporkan salah konfigurasi; `|| 100` **menelan radius 0**;
+    dan NaN di koordinat membuat **semua orang terhitung di dalam radius** karena
+    `NaN > radius` adalah `false`. Ditambahkan validasi rentang lintang/bujur yang dulu
+    tidak ada — baris produksi bisa menyimpan nilai dari sebelum `schemas.ts` ada, dan
+    haversine atas lintang 200° mengembalikan angka tanpa melempar apa pun.
+  - `features/attendance/permit-dates.ts` + `tests/permit-dates.test.ts` — **empat**
+    kegagalan senyap di loop tanggal izin, tiga di antaranya bermuara pada hal sama:
+    **nol baris absensi terbuat tanpa satu pun error**, jadi peserta tercatat **alpa**
+    untuk hari yang izinnya sudah disetujui. (a) `end_date` sebelum `start_date` = nol
+    iterasi; (b) `new Date(null)` adalah 1970-01-01, jadi `start_date` null membangun
+    **>20.000 baris** dalam satu upsert; (c) `Invalid Date` membuat perbandingan selalu
+    `false`; (d) `Date.UTC(2026, 1, 30)` **digulung** ke 2 Maret, jadi tanggal salah
+    ketik membuat absensi di hari yang tidak diminta. Sekarang memakai aritmetika
+    hari-epoch bilangan bulat, **tanpa `Date`**, jadi zona waktu tak pernah ikut bermain
+    dan kolom `date` tak bisa bergeser sehari.
+  - `reviewPermitAction` diurut ulang: validasi tanggal **sebelum** `UPDATE permits`.
+    Urutan lama meninggalkan izin bertanda "approved" dengan nol absensi. `insertError`
+    sekarang **dilempar**, dan `status` divalidasi terhadap enum.
+  - Verifikasi: `tsc --noEmit` **EXIT=0**, `vitest` **500 lolos**, `npm run lint`
+    **EXIT=0**. Nol sentuhan produksi, nol migrasi dijalankan.
+
 ### Belum dikerjakan di batch ini
 
 Ditemukan pada re-audit yang sama, dicatat supaya tidak hilang:
-
-- [ ] **B8.5 Test untuk logika keputusan senyap** — kesalahannya **tidak melempar**, cuma
-      mengembalikan nilai salah, jadi hanya test yang bisa menangkapnya:
-  - `resolveGeofence` + haversine `getDistanceMeters` (`features/attendance/actions.ts`),
-    keduanya tidak diekspor
-  - Hitung skor penilaian (`features/assessments/actions.ts`) — `parseFloat("abc")` → `NaN`,
-    dan `NaN` **lolos setiap pemeriksaan rentang**, lalu `finalScore: NaN` memicu
-    penerbitan sertifikat
-  - Penilaian kuis (`features/lms/actions.ts`) — `===` ketat, jadi `correct_answer`
-    numerik di JSONB memberi **skor 0 untuk semua orang**
-  - Loop tanggal izin (`features/attendance/actions.ts`) — `endDate < start_date`
-    menghasilkan nol iterasi, tanpa suara
 - [ ] **B8.6 Test untuk fungsi murni `lib/` yang nol test:** `detectFileType`
       (HTML/SVG lolos sebagai gambar = XSS tersimpan), `jakartaMinutesOfDay`
       (komentarnya sendiri mencatat bug pergeseran 12 jam `hourCycle`, tanpa test yang
@@ -827,7 +862,8 @@ Ditemukan pada re-audit yang sama, dicatat supaya tidak hilang:
   - `is_published === false` alih-alih `!== true` di `features/lms/actions.ts` (dua
     tempat, plus bentuk sama di `markLessonCompletedAction`) — `null` lolos sebagai
     terpublikasi
-  - Toggle publish/status tidak memvalidasi `status` terhadap enum
+  - Toggle publish/status tidak memvalidasi `status` terhadap enum — **sebagian
+    selesai** di B8.5: `reviewPermitAction` sudah memvalidasinya; sisanya belum
 
 ---
 
