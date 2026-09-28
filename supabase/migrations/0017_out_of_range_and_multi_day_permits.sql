@@ -1,4 +1,4 @@
-﻿-- Migration 0017: Add out_of_range support to attendances and multi-day permits
+-- Migration 0017: Add out_of_range support to attendances and multi-day permits
 
 -- 1. Tambah kolom pengecualian Geofencing ke tabel attendances
 ALTER TABLE utero_academy.attendances 

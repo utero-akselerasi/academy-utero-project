@@ -1,4 +1,4 @@
-﻿-- Migration 0006: Update registration schema, add attendance settings and fix RLS policies for admin role
+-- Migration 0006: Update registration schema, add attendance settings and fix RLS policies for admin role
 
 -- 1. Tambah kolom ke internship_applications
 ALTER TABLE utero_academy.internship_applications 

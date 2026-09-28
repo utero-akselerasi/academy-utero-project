@@ -1,4 +1,4 @@
-﻿-- Migration: 0023_learning_analytics.sql
+-- Migration: 0023_learning_analytics.sql
 -- Description: Tabel untuk tracking analytics pembelajaran peserta
 -- Created: 2026-07-25
 

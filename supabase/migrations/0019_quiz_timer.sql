@@ -1,4 +1,4 @@
-﻿-- Migration 0019: Add quiz timer and timing tracking
+-- Migration 0019: Add quiz timer and timing tracking
 -- Date: 2026-07-25
 
 -- 1. Tambah kolom time_limit_minutes di tabel quizzes

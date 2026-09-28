@@ -1,4 +1,4 @@
-﻿-- Migration 0018: Add rich content support and attachments for LMS lessons
+-- Migration 0018: Add rich content support and attachments for LMS lessons
 -- Date: 2026-07-25
 
 -- 1. Ubah lessons.content dari JSONB ke TEXT untuk HTML content

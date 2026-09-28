@@ -1,4 +1,4 @@
-﻿-- Migration: 0022_badges_and_achievements_system.sql
+-- Migration: 0022_badges_and_achievements_system.sql
 -- Description: Implementasi sistem badges dan achievements untuk gamification
 -- Created: 2026-07-25
 

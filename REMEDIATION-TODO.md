@@ -10,8 +10,9 @@ diterapkan.
 Untuk migrasi, `[~]` berarti **berkasnya ditulis dan ter-push, tapi belum dijalankan di DB mana pun.**
 Tidak satu pun migrasi di dokumen ini sudah diterapkan.
 
-Terakhir diperbarui: 2026-09-28 (SQL B0.3b ditulis & terverifikasi lokal — kotak centangnya tetap
-kosong karena produksi belum disentuh; B6.8 selesai: `npm audit` 0 kerentanan).
+Terakhir diperbarui: 2026-09-28 (ke-42 migrasi terbukti jalan di container sekali-pakai, `0034`
+lolos tanpa `raise`; **16 berkas ber-BOM UTF-8 ditemukan & diperbaiki** — bukti independen
+penyimpangan produksi; 351 test lolos).
 
 Referensi ID temuan mengikuti Master Deep Audit Report (C-x kritis, H-x tinggi, M-x sedang).
 
@@ -89,6 +90,114 @@ ke DB mana pun. Tidak satu pun memuat `DELETE`, `DROP TABLE`, `TRUNCATE`, atau
       "tidak ada data"
 
 Total: **62 dari 62 tabel** `utero_academy` punya postur eksplisit.
+
+#### Ke-42 berkas sekarang terbukti jalan — di container sekali-pakai, bukan produksi
+
+Kotak di atas tetap `[~]`, dan itu benar: yang belum terjadi adalah **menjalankannya
+di produksi**. Yang berubah adalah sesuatu yang lebih mendasar — sampai sekarang
+`0028`–`0036` **belum pernah diurai oleh PostgreSQL sungguhan**. Sembilan migrasi
+ditulis buta. Salah sintaks, referensi tabel yang belum ada, urutan yang keliru:
+semuanya tak terlihat. Dan `0034` adalah berkas asersi yang seluruh gunanya adalah
+**lolos setelah yang lain** — belum ada yang pernah melihatnya jalan.
+
+Pendekatannya sama dengan B0.3b: `docker run postgres:17.11-alpine` sekali-pakai,
+port 55433, dibuang setelahnya. Bukan produksi, jadi bukan pelanggaran batasan
+"jangan ubah data produksi". Yang diuji bukan perilaku RLS dengan sesi sungguhan —
+untuk itu butuh GoTrue — melainkan apakah SQL-nya **valid dan berurutan benar**.
+
+Satu prasyarat: postgres polos tidak punya schema `auth`/`storage` maupun role
+`anon`/`authenticated`/`service_role`, yang dirujuk 11 dari 42 migrasi. Permukaan
+minimalnya dibuat dari hasil grep, bukan tebakan — hanya `auth.uid`, `auth.users`,
+`storage.buckets`, `storage.objects`, `storage.foldername`, dan tiga role itu yang
+benar-benar disebut. Berkas scaffold-nya sengaja **tidak** di-commit: ia bukan
+deliverable, dan menyimpannya akan mengundang orang menjalankannya di tempat yang
+sudah punya schema sungguhan.
+
+Hasilnya: **`35 migrasi diterapkan`, `APPLY_EXIT=0`** (35, bukan 42, karena 7 sudah
+masuk di percobaan sebelum BOM ditemukan). `0034_verify_hardening.sql` selesai
+dalam 70 ms **tanpa satu pun `raise`** — sepuluh blok asersinya lolos atas schema
+yang baru dibangun ke-33 migrasi lain. Itu bukti otomatis pertama yang dimiliki
+batch ini.
+
+Yang **tidak** dibuktikan, dan ini pembatas pentingnya: container mulai dari kosong,
+sedangkan produksi sudah menyimpang dari berkas migrasi (lihat Q1–Q13). Migrasi
+yang lolos atas schema bersih **belum tentu** lolos atas schema yang sudah
+menyimpang — justru itulah yang membuat penjaga `pg_tables`/`pg_class` di `0029`
+dan `0030*` perlu, dan justru itu yang cuma bisa diverifikasi lewat inventaris.
+
+Empat mekanisme runner juga ikut terverifikasi, semuanya belum pernah dijalankan
+sebelum ini:
+
+- **`--apply` gagal-keras dan berhenti.** Saat `0005` gagal, ia mencetak nama
+  berkas, kode PG `42601`, posisi `1`, lalu `exit 1` **tanpa menyentuh `0006`**.
+  Inilah cacat yang membuat `apply-migration.js` harus diganti — pendahulunya
+  keluar dengan exit code 0 meski migrasi gagal.
+- **Deteksi drift checksum bekerja.** Satu baris komentar ditambahkan ke `0019`
+  yang sudah diterapkan; run berikutnya **membatalkan seluruh run** sebelum
+  menyentuh apa pun: `Checksum tidak cocok: 0019_quiz_timer.sql sudah diterapkan
+  ... tapi isinya sudah berubah sejak itu`. Ini mekanisme yang membuat penyimpangan
+  ke depan **terdeteksi**, bukan tersembunyi seperti sekarang.
+- **`--baseline 0027` menandai tepat 27 berkas tanpa menjalankan SQL apa pun**, dan
+  `--status` sesudahnya melaporkan `27 diterapkan, 15 tertunda` — persis
+  `0028`–`0036`. Itu jalur yang akan dipakai produksi, dan sekarang jalurnya sudah
+  pernah dilewati.
+- **Idempoten.** `--apply` kedua atas DB yang sudah lengkap: `exit 0`, nol migrasi
+  dijalankan.
+
+Satu hal yang tampak bug tapi bukan: **`--status` keluar dengan exit 1 kalau ada
+migrasi tertunda** (`scripts/migrate.mjs:338`), dan exit 0 kalau semuanya sudah
+diterapkan — keduanya sudah dikonfirmasi empiris. Itu kontrak yang disengaja supaya
+`--status` bisa dipakai sebagai gerbang CI. Jangan "diperbaiki".
+
+#### Temuan tak terduga: 16 berkas migrasi diawali BOM UTF-8 — **DIPERBAIKI**
+
+Ini temuan paling berharga dari seluruh latihan, dan tidak akan ditemukan lewat
+pembacaan sumber.
+
+`0005` gagal seketika dengan `42601 syntax error at or near "﻿"` pada **posisi 1**.
+Penyebabnya BOM UTF-8 (`EF BB BF`) di awal berkas. Runner mengirim tiap berkas
+sebagai satu `client.query(sql)`, dan PostgreSQL menolak BOM di awal statement.
+Pemindaian menemukannya di **16 dari 42 berkas**: `0005`, `0006`, dan seluruh
+`0013`–`0026`. Penyebab hulunya editor Windows yang default-nya menyimpan UTF-8
+dengan BOM.
+
+Yang penting bukan perbaikannya — itu cuma membuang tiga byte pertama, dan
+`git diff --numstat` mengonfirmasi tepat `1 1` per berkas, hanya baris pertama yang
+tersentuh. Yang penting **implikasinya**:
+
+> Ke-16 berkas itu **tidak pernah bisa** diterapkan lewat runner mana pun yang
+> mengirim berkas sebagai satu query. Tapi tabel yang mereka buat **ADA di
+> produksi**. Jadi migrasi itu diterapkan lewat jalur lain — `psql` CLI atau
+> Supabase Studio, yang keduanya memaafkan BOM di awal masukan.
+
+Itu **bukti independen** untuk hipotesis penyimpangan produksi di plan, yang
+sebelumnya hanya disimpulkan dari selisih hasil probe (`attendances` 959 baris
+terbaca vs `audit_logs` 0, padahal keduanya diperlakukan identik di migrasi).
+Sekarang ada mekanisme konkretnya: penerapan terjadi di luar runner, tanpa tabel
+pencatat, jadi tidak ada catatan urutan maupun mana yang terlewat. Ini memperkuat
+kenapa inventaris Q1–Q13 adalah gerbang keras, bukan formalitas.
+
+Perbaikannya dikunci supaya tidak terulang. `tests/migration-files.test.ts`
+memeriksa ke-42 berkas migrasi plus `seed/` dan `manual/`:
+
+- nol BOM di awal berkas, dengan pesan gagal yang menyebut kode PG-nya
+- nol `U+FEFF` di tengah berkas (muncul kalau dua berkas ber-BOM digabung)
+- setiap nama cocok dengan pola penemuan runner `/^(\d{4}[a-z]?)_.+\.sql$/` —
+  berkas yang tidak cocok **diabaikan diam-diam** oleh `migrate.mjs`, dan migrasi
+  yang tak pernah jalan tanpa mengeluh adalah kegagalan termahal di direktori ini
+- nol duplikat prefix versi, dan urutan leksikal = urutan numerik (asersi inilah
+  yang membuat sufiks huruf `0030a`/`0032b` aman dipakai)
+
+Ada satu asersi yang menjaga test itu sendiri: `SEMUA.length > 40`. Tanpa itu,
+salah direktori membuat seluruh `describe` lolos dengan nol test dan tampak hijau.
+
+**`npm test`: 349 lolos** (195 matriks otorisasi + 19 storage path + 135 berkas
+migrasi), `tsc` dan `eslint --quiet` keduanya `0`. `npm test` sudah jadi langkah CI
+di B6.7, jadi berkas ber-BOM berikutnya gagal sebelum sampai ke database mana pun.
+
+Jumlahnya tumbuh sendiri saat berkas SQL ditambahkan — `it.each` di atas daftar
+hasil `readdirSync`, jadi migrasi baru otomatis ikut diperiksa tanpa menyunting
+test-nya.
 
 ### B0.2 Sisa pekerjaan sumber — **SELESAI, `tsc` hijau**
 
@@ -200,6 +309,14 @@ dan aplikasinya tidak akan rusak saat migrasi itu diterapkan.
       sudah ter-deklarasi, dan ketiga skrip npm (`migrate`, `migrate:status`,
       `migrate:apply`) terpasang — `migrate` sengaja dry-run, jadi
       penerapan ke DB harus diminta eksplisit.
+
+      **Diperbarui: sekarang terverifikasi terhadap PostgreSQL sungguhan**, bukan
+      hanya dry-run. `--apply`, `--status`, `--baseline`, gagal-keras berhenti di
+      berkas yang gagal, deteksi drift checksum, dan idempotensi semuanya sudah
+      dijalankan di container sekali-pakai. Rinciannya di B0.1 ("Ke-42 berkas
+      sekarang terbukti jalan"). Yang paling bernilai: run itu **menemukan 16
+      berkas migrasi ber-BOM UTF-8** yang tak pernah bisa diterapkan lewat runner
+      mana pun — sekaligus menjelaskan bagaimana produksi bisa menyimpang.
 
       Dua hal di luar rencana yang ikut dibuat:
 

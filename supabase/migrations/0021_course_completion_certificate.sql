@@ -1,4 +1,4 @@
-﻿-- Migration 0021: Add course completion certificate
+-- Migration 0021: Add course completion certificate
 -- Date: 2026-07-25
 
 -- 1. Tambah kolom course_id di tabel certificates untuk reference course completion

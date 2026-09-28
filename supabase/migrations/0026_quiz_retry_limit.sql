@@ -1,4 +1,4 @@
-﻿-- Migration: 0026_quiz_retry_limit.sql
+-- Migration: 0026_quiz_retry_limit.sql
 -- Description: Menambahkan limit retry pada quiz
 -- Created: 2026-07-25
 

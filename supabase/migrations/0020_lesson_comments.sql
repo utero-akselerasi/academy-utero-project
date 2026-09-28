@@ -1,4 +1,4 @@
-﻿-- Migration 0020: Add discussion comments for lessons
+-- Migration 0020: Add discussion comments for lessons
 -- Date: 2026-07-25
 
 -- 1. Buat function untuk auto-update updated_at (jika belum ada)

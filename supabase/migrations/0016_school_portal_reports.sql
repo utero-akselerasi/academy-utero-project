@@ -1,4 +1,4 @@
-﻿create table if not exists utero_academy.school_reports (
+create table if not exists utero_academy.school_reports (
   id uuid primary key default gen_random_uuid(),
   school_id uuid not null references utero_academy.schools(id) on delete cascade,
   report_type text not null check (report_type in ('weekly', 'monthly', 'semester')),

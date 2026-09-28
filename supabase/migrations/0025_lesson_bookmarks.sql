@@ -1,4 +1,4 @@
-﻿-- Migration: 0025_lesson_bookmarks.sql
+-- Migration: 0025_lesson_bookmarks.sql
 -- Description: Fitur bookmark untuk menandai lesson penting
 -- Created: 2026-07-25
 

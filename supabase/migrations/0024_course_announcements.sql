@@ -1,4 +1,4 @@
-﻿-- Migration: 0024_course_announcements.sql
+-- Migration: 0024_course_announcements.sql
 -- Description: Sistem announcement untuk course (broadcast info ke peserta)
 -- Created: 2026-07-25
 
