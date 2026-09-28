@@ -414,7 +414,37 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
 
 ## Batch 7 — Aksesibilitas
 
-- [ ] B7.1 Remediasi temuan `.audit-accessibility.txt`
+- [x] B7.1 Remediasi 18 temuan `.audit-accessibility.txt` — **selesai** (6 commit)
+  - **Kelas cacat terbesar bukan ARIA yang kurang, tapi fitur yang tak bisa dipakai tanpa tetikus.**
+    Enam belas overlay tak punya jalan keluar keyboard (tak ada Escape, fokus tidak terkurung, dan
+    fokus tidak kembali ke pemicunya saat ditutup). Empat tombol unggah di `LandingPageEditor`
+    **tak terjangkau keyboard sama sekali**: input file-nya `className="hidden"`, dan `display:none`
+    mengeluarkan elemen dari urutan Tab sementara `<label>` sendiri tidak bisa difokus — satu-satunya
+    cara memakainya adalah mengklik. Ini bukan cacat pengumuman; ini fitur yang hilang.
+  - **`focus:outline-none` di enam tempat tanpa satu pun penggantinya** diperbaiki lewat satu aturan
+    `:focus-visible` global di `app/globals.css`, bukan dengan menambal keenamnya — yang berikutnya
+    menulis `focus:outline-none` tidak akan tahu harus menambalnya. Aturan itu **tidak** boleh masuk
+    `@layer`: Tailwind v4 memancarkan utilitasnya di dalam `@layer utilities`, dan CSS tanpa layer
+    selalu mengalahkan CSS ber-layer terlepas dari spesifisitas — itulah yang membuat aturan ini
+    menang atas `.focus\:outline-none:focus` yang spesifisitasnya lebih tinggi.
+  - **`aria-disabled`, bukan `disabled`, di dalam daftar berulang dan bilah alat.** Tombol ber-`disabled`
+    keluar dari urutan Tab, jadi jumlah kontrol per baris berubah-ubah (baris pertama kehilangan "ke
+    atas") dan di dalam roving tabindex panah melewatinya tanpa jejak. `aria-disabled` menyisakannya
+    bisa difokus dan diumumkan "dimmed"; penjaga `onClick` yang menahan aksinya. **Alasan ini tidak
+    berlaku umum** — di luar konteks itu, `disabled` biasa memang benar.
+  - **Nama terakses harus membedakan baris, bukan cuma menyebut aksi.** Sembilan tombol "Hapus"
+    ber-`title` identik tidak memberi tahu apa yang akan hilang; namanya kini menyebut isi field dan
+    arahnya. `placeholder` bukan nama terakses (hilang begitu diketik) dan `title` tidak sampai ke
+    pembaca layar maupun sentuh.
+  - Pola APG yang ditulis manual karena `components/ui/tabs.tsx` cuma shim tanpa ARIA: tablist
+    (roving tabindex + Panah/Home/End) dan combobox (fokus tetap di input, opsi ditunjuk lewat
+    `aria-activedescendant`, opsi wajib `div role="option"` bukan `<button>`).
+  - Tingkat heading diperbaiki dengan **membaca halaman induknya**, bukan menaikkan satu tingkat:
+    audit menyarankan `h4`→`h3`, padahal `app/dashboard/admin/landing/page.tsx:16` memegang `<h1>`
+    tanpa heading di antaranya, jadi yang benar `<h2>`. Sertifikat cetak tidak punya `<h1>` sama
+    sekali.
+  - Verifikasi tiap bagian: `tsc --noEmit` EXIT=0, `eslint` nol error, `npm run build` EXIT=0.
+    **Belum diuji dengan pembaca layar sungguhan** — tidak ada test framework (B6.7).
 
 ---
 
