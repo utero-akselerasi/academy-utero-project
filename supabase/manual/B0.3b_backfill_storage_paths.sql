@@ -150,6 +150,7 @@ create table if not exists utero_academy.storage_path_backfill_snapshot (
   nilai_lama text not null,
   dibuat_pada timestamptz not null default now()
 );
+alter table utero_academy.storage_path_backfill_snapshot enable row level security;
 
 comment on table utero_academy.storage_path_backfill_snapshot is
   'Salinan nilai kolom storage sebelum backfill B0.3b. Satu-satunya jalan pulih '

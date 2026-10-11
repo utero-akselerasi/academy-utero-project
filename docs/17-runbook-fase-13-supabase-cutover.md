@@ -1,6 +1,6 @@
 # Runbook fase 13: pemisahan develop dan production
 
-Status: 11 Oktober 2026. Cutover production masih **NO-GO**. Dokumen ini tidak memberi izin menjalankan migrasi pada server live.
+Status: 12 Oktober 2026. Cutover production masih **NO-GO**. Dokumen ini tidak memberi izin menjalankan migrasi pada server live.
 
 ## Mitigasi keamanan live (11 Oktober 2026)
 
@@ -62,6 +62,26 @@ Backup ini snapshot awal, bukan backup cutover setelah write freeze.
 Snapshot awal Storage kedua target sudah lengkap dan lolos verifikasi hash, tetapi belum konsisten dengan snapshot PostgreSQL karena write freeze belum dilakukan. Cutover dilarang sampai backup final PostgreSQL/Auth/Storage diambil dalam maintenance window dan hasil restore diverifikasi.
 
 ## Audit rekonsiliasi
+
+### Audit konflik clone terbaru (11 Oktober 2026)
+
+- Ekspor fresh pasca-RLS dari kedua server berhasil direstore ke clone `phase13_current_dev` dan `phase13_current_prod`. Migrasi `0038–0046` dan build lokal lulus; belum ada migrasi aplikasi live atau cutover.
+- Absensi berbeda ID: 161 hanya-develop dan 14 hanya-production, tetapi 13 dari masing-masing memakai pasangan `(intern_id, attendance_date)` yang sama dengan isi berbeda. Artinya hanya 148 pasangan tanggal-peserta baru di develop dan 1 di production; 13 konflik wajib diputuskan per baris sebelum union. Pada 1.018 pasangan yang sama, isi selain timestamp audit cocok setelah normalisasi zona waktu.
+- Laporan harian: 126 pasangan `(intern_id, report_date)` hanya-develop, 15 hanya-production; 891 pasangan bersama punya isi sama selain timestamp audit. Sebanyak 117 lampiran terkait laporan yang hanya ada di develop; verifikasi keberadaan objek Storage wajib sebelum migrasi data.
+- Auth: 1 email digunakan oleh UUID berbeda di kedua server dengan hash password berbeda. Pemilik akun harus menentukan identitas yang dipertahankan, pemetaan referensi, dan prosedur login/reset aman. Jangan salin user atau hash password langsung.
+- Laporan konflik berpseudonim tersimpan **di luar repo** pada `I:\academy-utero-backups\reconciliation-20261011\conflict-audit-redacted-20261011.json`; fingerprint bukan identitas yang bisa diputuskan tanpa akses ekspor terlindungi. Gunakan bersama operator dan pemilik data, jangan unggah ke repo.
+- Gate Storage belum lulus: `avatars` dipakai bersama SoundPub, 3.230 URL penuh di develop dan 2.886 di production. Uji `0034` masih gagal akibat batas ukuran/MIME bucket shared-host. Pisahkan bucket Academy atau setujui dampak lintas aplikasi, lalu uji akses aplikasi sebelum perubahan live.
+- Pada 11 Oktober gate rollout belum lulus: domain develop terpisah belum tersedia, `.env.develop`/`.env.production` belum siap, write freeze, backup final konsisten, pilot sekolah, dan keputusan pemilik konflik belum ada. Keputusan konflik dicatat pada 12 Oktober di bawah. **Production NO-GO; jangan jalankan `apply-union.sql` pada live.**
+
+### Keputusan rekonsiliasi dan latihan clone (12 Oktober 2026)
+
+- Pemilik sistem menyetujui production sebagai sumber utama untuk konflik. Kebijakan tidak menghapus data sumber: 13 versi absensi develop yang bertabrakan dan 1 akun Auth develop dengan email sama dikeluarkan dari merge; bukti ekspor tetap disimpan di lokasi backup terlindungi.
+- Generator `scripts/reconcile-phase13-clone.mjs` hanya menerima nama database berawalan `phase13_reconciled_`, menolak output SQL di dalam repository, memeriksa jumlah sumber, dan menghentikan transaksi bila clone berubah. SQL ber-PII tersimpan di luar repo pada `I:\academy-utero-backups\reconciliation-20261011\apply-prod-wins-clone-20261012.sql`.
+- Clone baru `phase13_reconciled_prod_20261012` dibuat dari `phase13_current_prod`. Rekonsiliasi menambah 148 absensi unik develop, 126 laporan harian unik, dan 117 lampiran. Tidak ada user Auth yang ditambah atau dihapus.
+- Verifikasi pasca-merge: 1.180 absensi dengan 1.180 pasangan `(intern_id, attendance_date)` unik; seluruh 13 konflik memakai baris production; 1.032 laporan dengan 1.032 pasangan unik; 1.307 lampiran dan nol relasi laporan yatim; jumlah Auth tetap 209.
+- Sebanyak 108 object path Storage unik milik 117 lampiran yang dimigrasikan merespons HTTP `206` dari Storage develop pada 12 Oktober 2026. Sembilan lampiran lain adalah URL eksternal. Ini membuktikan sumber dapat dibaca saat pemeriksaan, bukan bahwa objek sudah disalin ke Storage production.
+- Akun Auth develop yang dikeluarkan tidak memiliki referensi foreign key pada schema `utero_academy` di clone develop. UUID production tetap menjadi akun utama; reset password hanya dilakukan saat rollout dengan kanal pemilik akun yang sah.
+- Latihan ini menyelesaikan kebijakan konflik pada clone, tetapi belum menyelesaikan pemindahan objek Storage, isolasi bucket `avatars`, backup final saat write freeze, audit baseline `0001–0037`, domain develop, smoke interaktif, atau pilot sekolah. Production tetap **NO-GO**.
 
 Jalankan baca-saja:
 
