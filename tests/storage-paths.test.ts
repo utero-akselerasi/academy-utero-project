@@ -1,5 +1,15 @@
-import { describe, expect, it } from "vitest";
-import { isImagePath, isPdfPath, isPublicBucket, toObjectPath } from "@/lib/storage-urls";
+import { describe, expect, it, vi } from "vitest";
+import { isImagePath, isPdfPath, isPublicBucket, resolveStorageUrl, toObjectPath } from "@/lib/storage-urls";
+
+const storageMocks = vi.hoisted(() => ({ from: vi.fn(), createSignedUrl: vi.fn() }));
+vi.mock("@/lib/supabase/server", () => ({
+  createSupabaseServiceRoleClient: () => ({ storage: {
+    from: (bucket: string) => {
+      storageMocks.from(bucket);
+      return { createSignedUrl: storageMocks.createSignedUrl };
+    },
+  } }),
+}));
 
 /**
  * `toObjectPath` adalah aturan pemangkasan yang menentukan isi backfill B0.3b —
@@ -30,6 +40,21 @@ import { isImagePath, isPdfPath, isPublicBucket, toObjectPath } from "@/lib/stor
 
 const HTTPS_BASE = "https://supabase.carubra.com/storage/v1/object/public/avatars/";
 
+describe("resolveStorageUrl — copy-first", () => {
+  it("menandatangani URL legacy hanya di academy-private", async () => {
+    storageMocks.from.mockClear();
+    storageMocks.createSignedUrl.mockReset().mockResolvedValue({
+      data: { signedUrl: "https://supabase.carubra.com/storage/v1/object/sign/academy-private/uid/foto.jpg?token=new" },
+      error: null,
+    });
+    expect(await resolveStorageUrl("academy-private", HTTPS_BASE + "uid/foto.jpg")).toContain(
+      "/object/sign/academy-private/uid/foto.jpg",
+    );
+    expect(storageMocks.from).toHaveBeenCalledExactlyOnceWith("academy-private");
+    expect(storageMocks.createSignedUrl).toHaveBeenCalledWith("uid/foto.jpg", 3600);
+  });
+});
+
 describe("toObjectPath — bentuk nilai yang ada di produksi", () => {
   it("meneruskan object path apa adanya", () => {
     // Bentuk tujuan: apa yang `buildStoragePath()` hasilkan.
@@ -40,6 +65,20 @@ describe("toObjectPath — bentuk nilai yang ada di produksi", () => {
     expect(toObjectPath(HTTPS_BASE + "uid/attendance_in/foto.jpg", "avatars")).toBe(
       "uid/attendance_in/foto.jpg",
     );
+  });
+
+  it("menerima URL avatars lama untuk academy-private tanpa menerima bucket asing", () => {
+    expect(toObjectPath(HTTPS_BASE + "uid/attendance_in/foto.jpg", "academy-private")).toBe(
+      "uid/attendance_in/foto.jpg",
+    );
+    expect(toObjectPath(
+      "https://supabase.carubra.com/storage/v1/object/sign/avatars/uid/surat%20sakit.pdf?token=old",
+      "academy-private",
+    )).toBe("uid/surat sakit.pdf");
+    expect(toObjectPath("https://supabase.carubra.com/storage/v1/object/authenticated/academy-private/uid/foto.jpg", "academy-private")).toBe("uid/foto.jpg");
+    expect(toObjectPath("uid/foto.jpg", "academy-private")).toBe("uid/foto.jpg");
+    expect(toObjectPath(HTTPS_BASE + "uid/foto.jpg", "learning")).toBeNull();
+    expect(toObjectPath("https://supabase.carubra.com/storage/v1/object/public/learning/uid/foto.jpg", "academy-private")).toBeNull();
   });
 
   it("memangkas URL publik yang ditulis dengan base http://", () => {
@@ -159,8 +198,8 @@ describe("isPublicBucket — harus cocok dengan policy 0032a", () => {
     expect(isPublicBucket("avatars")).toBe(false);
   });
 
-  it("daily-report, task, certificate, learning privat", () => {
-    for (const bucket of ["daily-report", "task", "certificate", "learning"] as const) {
+  it("academy-private, daily-report, task, certificate, learning privat", () => {
+    for (const bucket of ["academy-private", "daily-report", "task", "certificate", "learning"] as const) {
       expect(isPublicBucket(bucket), `${bucket} harus privat`).toBe(false);
     }
   });
@@ -179,6 +218,7 @@ describe("isPdfPath / isImagePath — dinilai dari path, bukan dari URL", () => 
     // Bukti regresi lamanya, ditulis eksplisit supaya tidak bisa kembali.
     expect(signed.endsWith(".pdf")).toBe(false);
     expect(isPdfPath(signed, "avatars")).toBe(true);
+    expect(isPdfPath(signed, "academy-private")).toBe(true);
   });
 
   it("mengenali PDF pada object path polos dan tidak peduli huruf besar-kecil", () => {

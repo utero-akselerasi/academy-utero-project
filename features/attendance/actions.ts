@@ -61,13 +61,13 @@ async function uploadSelfieBase64(userId: string, base64Data: string, type: 'in'
   const supabase = createSupabaseServiceRoleClient();
   const filePath = buildStoragePath(`${userId}/attendance_${today}_${type}`, selfie.ext);
   const { error } = await supabase.storage
-    .from("avatars")
+    .from("academy-private")
     .upload(filePath, selfie.buffer, { contentType: selfie.contentType, upsert: false });
   if (error) {
     console.error("Gagal upload selfie base64:", error);
     return null;
   }
-  // Object path, BUKAN URL publik. Bucket `avatars` jadi privat (0032b), dan
+  // Object path, BUKAN URL publik. Bucket `academy-private` selalu privat dan
   // pembacaannya lewat `resolveStorageUrl()` yang menandatangani di server.
   return filePath;
 }
@@ -146,7 +146,7 @@ export async function checkInAction(_: FormState, formData: FormData): Promise<F
       const serviceClient = createSupabaseServiceRoleClient();
       const filePath = buildStoragePath(`${user.id}/proof`, proof.ext);
       const { error: uploadError } = await serviceClient.storage
-        .from("avatars")
+        .from("academy-private")
         .upload(filePath, proof.buffer, { contentType: proof.contentType, upsert: false });
 
       if (uploadError) {
@@ -315,7 +315,7 @@ export async function submitPermitAction(_: FormState, formData: FormData): Prom
     const filePath = buildStoragePath(`${user.id}/sick_cert`, certificate.ext);
 
     const { error: uploadError } = await serviceClient.storage
-      .from("avatars")
+      .from("academy-private")
       .upload(filePath, certificate.buffer, {
         contentType: certificate.contentType,
         upsert: false

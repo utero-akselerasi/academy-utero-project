@@ -181,7 +181,7 @@ export async function uploadCertificateTemplateAction(formData: FormData) {
   const filePath = buildStoragePath("settings", template.ext);
 
   const { error: uploadError } = await supabase.storage
-    .from("avatars")
+    .from("academy-private")
     .upload(filePath, template.buffer, {
       contentType: template.contentType,
       upsert: false
@@ -192,7 +192,7 @@ export async function uploadCertificateTemplateAction(formData: FormData) {
     throw new Error("Gagal mengunggah template sertifikat.");
   }
 
-  // Object path, bukan URL publik. Dibaca lewat `resolveStorageUrl("avatars", …)`
+  // Object path, bukan URL publik. Dibaca lewat `resolveStorageUrl("academy-private", …)`
   // di `features/assessments/queries.ts` dan di halaman cetak sertifikat.
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db.from("attendance_settings").upsert({

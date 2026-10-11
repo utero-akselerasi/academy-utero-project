@@ -207,7 +207,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
     };
   });
 
-  // Semua lampiran absensi ada di bucket privat `avatars`, jadi butuh signed URL
+  // Semua lampiran absensi ada di bucket privat `academy-private`, jadi butuh signed URL
   // yang dibuat di server.
   //
   // Hanya thumbnail daftar yang ditandatangani untuk SEMUA peserta; empat
@@ -216,7 +216,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
   // sebanyak 4 × jumlah baris absensi seluruh peserta — halaman ini adalah titik
   // render terberat di aplikasi.
   const latestSelfieUrls = await resolveStorageUrls(
-    "avatars",
+    "academy-private",
     mappedInterns.map((intern) => intern.latestSelfiePath),
   );
   const internsWithSelfie = mappedInterns.map((intern, index) => ({
@@ -237,10 +237,10 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
     const resolved = await Promise.all(
       logs.map(async (log) => ({
         id: log.id as string,
-        checkIn: await resolveStorageUrl("avatars", log.check_in_selfie_path),
-        checkOut: await resolveStorageUrl("avatars", log.check_out_selfie_path),
-        proof: await resolveStorageUrl("avatars", log.out_of_range_proof_path),
-        sickCertificate: await resolveStorageUrl("avatars", log.sick_certificate_path),
+        checkIn: await resolveStorageUrl("academy-private", log.check_in_selfie_path),
+        checkOut: await resolveStorageUrl("academy-private", log.check_out_selfie_path),
+        proof: await resolveStorageUrl("academy-private", log.out_of_range_proof_path),
+        sickCertificate: await resolveStorageUrl("academy-private", log.sick_certificate_path),
       })),
     );
     for (const entry of resolved) {
@@ -254,8 +254,8 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
   const permitAttachments: Record<string, { url: string | null; isPdf: boolean }> = {};
   for (const permit of (pendingPermits || []) as any[]) {
     permitAttachments[permit.id as string] = {
-      url: await resolveStorageUrl("avatars", permit.attachment_path),
-      isPdf: isPdfPath(permit.attachment_path, "avatars"),
+      url: await resolveStorageUrl("academy-private", permit.attachment_path),
+      isPdf: isPdfPath(permit.attachment_path, "academy-private"),
     };
   }
 
@@ -266,7 +266,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
   const proofIsPdf = new Map<string, boolean>();
   if (selectedIntern) {
     for (const log of (selectedIntern.logs ?? []) as any[]) {
-      proofIsPdf.set(log.id as string, isPdfPath(log.out_of_range_proof_path, "avatars"));
+      proofIsPdf.set(log.id as string, isPdfPath(log.out_of_range_proof_path, "academy-private"));
     }
   }
   const today = jakartaDateString();

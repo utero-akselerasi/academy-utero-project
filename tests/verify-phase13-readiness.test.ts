@@ -43,6 +43,7 @@ describe("phase13 readiness", () => {
     expect(result.ready).toBe(false);
     expect(result.missingVersions).toEqual(["0039", "0040"]);
     expect(result.missingBuckets).toContain("daily-report");
+    expect(result.missingBuckets).toContain("academy-private");
   });
 
   it("gagal jika endpoint tidak sehat", async () => {

@@ -51,7 +51,7 @@ export async function submitRegistrationAction(_: RegistrationState, formData: F
     schoolId = school.id;
     registeredSchoolName = school.name;
   }
-  const storage = createSupabaseServiceRoleClient().storage.from("avatars");
+  const storage = createSupabaseServiceRoleClient().storage.from("academy-private");
   const uploadedPaths: string[] = [];
   try {
     const cvPath = buildStoragePath(`${user.id}/applications/cv`, cv.ext);

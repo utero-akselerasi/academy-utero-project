@@ -46,6 +46,7 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 /** Bucket yang dipakai aplikasi. */
 export type StorageBucket =
   | "avatars"
+  | "academy-private"
   | "daily-report"
   | "task"
   | "certificate"
@@ -108,8 +109,9 @@ export function toObjectPath(value: string | null | undefined, bucket: StorageBu
   const trimmed = value.trim();
   if (!trimmed) return null;
 
+  const acceptedBuckets = bucket === "academy-private" ? "(?:academy-private|avatars)" : bucket;
   const marker = trimmed.match(
-    new RegExp(`/storage/v1/object/(?:public|sign|authenticated)/${bucket}/`),
+    new RegExp(`/storage/v1/object/(?:public|sign|authenticated)/${acceptedBuckets}/`),
   );
 
   if (marker) {

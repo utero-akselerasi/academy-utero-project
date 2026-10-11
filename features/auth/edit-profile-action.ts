@@ -4,7 +4,6 @@ import { requireUser } from "@/features/auth/guards";
 import { generalProfileSchema, internBiodataSchema } from "@/features/auth/profile-schema";
 import { userHasAnyRole } from "@/features/auth/roles";
 import { createSupabaseServiceRoleClient, createUteroAcademyClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
-import { toObjectPath } from "@/lib/storage-urls";
 import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
 
@@ -51,7 +50,7 @@ export async function updateProfileAction(_: ProfileFormState, formData: FormDat
       const avatar = await validateUpload(avatarFile, ["image"]);
       newAvatarPath = buildStoragePath(user.id, avatar.ext);
       const { error } = await createSupabaseServiceRoleClient().storage
-        .from("avatars").upload(newAvatarPath, avatar.buffer, { contentType: avatar.contentType, upsert: false });
+        .from("academy-private").upload(newAvatarPath, avatar.buffer, { contentType: avatar.contentType, upsert: false });
       if (error) throw error;
     } catch (error) {
       if (error instanceof UploadValidationError) return { ok: false, message: error.message };
@@ -91,7 +90,7 @@ export async function updateProfileAction(_: ProfileFormState, formData: FormDat
     updateError = error instanceof Error ? error : { message: String(error) };
   }
 
-  const storage = createSupabaseServiceRoleClient().storage.from("avatars");
+  const storage = createSupabaseServiceRoleClient().storage.from("academy-private");
   if (updateError) {
     if (newAvatarPath) {
       const { error: cleanupError } = await storage.remove([newAvatarPath]);
@@ -101,13 +100,6 @@ export async function updateProfileAction(_: ProfileFormState, formData: FormDat
     return { ok: false, message: internProfile
       ? "Gagal memperbarui biodata. Tidak ada perubahan yang disimpan."
       : "Gagal memperbarui profil. Periksa data sebelum mencoba lagi." };
-  }
-
-  const previousAvatarPath = toObjectPath(userProfile?.avatar_path, "avatars");
-  if (newAvatarPath && previousAvatarPath && previousAvatarPath !== newAvatarPath &&
-      new RegExp(`^${user.id}/[^/]+\\.(png|jpg|jpeg|webp|gif)$`, "i").test(previousAvatarPath)) {
-    const { error } = await storage.remove([previousAvatarPath]);
-    if (error) console.error("Gagal menghapus avatar lama:", error);
   }
 
   revalidatePath("/dashboard/profile");

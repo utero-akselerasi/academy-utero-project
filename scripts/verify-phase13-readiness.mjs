@@ -8,7 +8,7 @@ export const TARGETS = Object.freeze({
   develop: { endpoint: "https://supabase.carubra.com", databaseHost: "20.20.20.173" },
   production: { endpoint: "https://supabase.carubra.space", databaseHost: "20.20.20.3" },
 });
-export const REQUIRED_BUCKETS = Object.freeze(["avatars", "daily-report", "task", "certificate", "learning", "gallery", "article", "mentor", "school-logo"]);
+export const REQUIRED_BUCKETS = Object.freeze(["academy-private", "daily-report", "task", "certificate", "learning", "gallery", "article", "mentor", "school-logo"]);
 
 export function repositoryMigrationVersions(filenames) {
   const versions = filenames.flatMap((filename) => {

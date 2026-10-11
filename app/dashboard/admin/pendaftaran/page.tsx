@@ -22,13 +22,13 @@ export default async function AdminApplicationsPage() {
 
   const applications = data ?? [];
 
-  // CV dan portofolio ada di bucket privat `avatars`, jadi ditandatangani di
+  // CV dan portofolio ada di bucket privat `academy-private`, jadi ditandatangani di
   // server. Keduanya ditandatangani sekaligus per baris, bukan berurutan:
   // halaman ini memuat seluruh riwayat pendaftaran tanpa paginasi.
   const fileUrls = await Promise.all(
     applications.map(async (item) => ({
-      cv: await resolveStorageUrl("avatars", item.cv_path),
-      portfolio: await resolveStorageUrl("avatars", item.portfolio_path),
+      cv: await resolveStorageUrl("academy-private", item.cv_path),
+      portfolio: await resolveStorageUrl("academy-private", item.portfolio_path),
     })),
   );
 

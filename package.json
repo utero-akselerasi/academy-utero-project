@@ -19,6 +19,8 @@
     "migrate:apply": "node scripts/migrate.mjs --apply",
     "audit:supabase-reconciliation": "node scripts/audit-supabase-reconciliation.mjs",
     "backup:supabase-storage": "node scripts/backup-supabase-storage.mjs",
+    "plan:academy-storage-isolation": "node scripts/plan-academy-storage-isolation.mjs",
+    "copy:supabase-storage": "node scripts/copy-supabase-storage.mjs",
     "verify:phase13-readiness": "node scripts/verify-phase13-readiness.mjs"
   },
   "dependencies": {

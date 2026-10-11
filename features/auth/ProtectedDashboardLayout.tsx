@@ -92,17 +92,15 @@ export async function ProtectedDashboardLayout({ allowedRoles, homeHref, childre
 
   const userName = profile?.full_name || user.email || "Pengguna";
 
-  // Avatar ikut privat karena bucket `avatars` adalah keranjang campur: di
-  // dalamnya ada CV, portofolio, selfie absensi, dan surat sakit. Satu flag
-  // `public` tidak bisa memisahkan avatar dari keempatnya, jadi seluruh bucket
-  // dijadikan privat (0032b) dan avatar pun butuh tanda tangan.
+  // Avatar Academy berada di bucket `academy-private`. URL legacy `avatars`
+  // diparsing menjadi object path setelah objeknya disalin ke bucket baru.
   //
   // Ditandatangani DI SINI, bukan di komponen yang merendernya. `DashboardShell`
   // menampilkan avatar dua kali (header + menu) dan ia komponen klien, jadi tidak
   // bisa menandatangani sendiri. Layout ini satu-satunya titik yang sudah membaca
   // `avatar_path` dan membungkus setiap halaman dashboard untuk setiap peran —
   // menandatangani di tempat lain berarti mengulanginya di setiap halaman.
-  const avatarUrl = await resolveStorageUrl("avatars", profile?.avatar_path);
+  const avatarUrl = await resolveStorageUrl("academy-private", profile?.avatar_path);
 
   const userRolesList = await getUserRoleCodes(user.id);
 

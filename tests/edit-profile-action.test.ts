@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   rpc: vi.fn(), update: vi.fn(), remove: vi.fn(), upload: vi.fn(),
-  read: vi.fn(), domainUpdate: vi.fn(), getUser: vi.fn(), hasRole: vi.fn(), validate: vi.fn(),
+  read: vi.fn(), domainUpdate: vi.fn(), getUser: vi.fn(), hasRole: vi.fn(), validate: vi.fn(), storageFrom: vi.fn(),
 }));
 
 vi.mock("@/features/auth/guards", () => ({ requireUser: mocks.getUser }));
@@ -15,9 +15,10 @@ vi.mock("@/lib/supabase/server", () => ({
   createUteroAcademyClient: async () => ({ rpc: mocks.rpc, from: () => ({
     update: mocks.update,
   }) }),
-  createSupabaseServiceRoleClient: () => ({ storage: { from: () => ({
-    upload: mocks.upload, remove: mocks.remove,
-  }) } }),
+  createSupabaseServiceRoleClient: () => ({ storage: { from: (bucket: string) => {
+    mocks.storageFrom(bucket);
+    return { upload: mocks.upload, remove: mocks.remove };
+  } } }),
 }));
 vi.mock("@/lib/uploads", () => ({
   validateUpload: mocks.validate,
@@ -70,13 +71,24 @@ describe("updateProfileAction peserta", () => {
     expect(mocks.remove).not.toHaveBeenCalledWith(["test-user/old.png"]);
   });
 
-  it("menyimpan lewat RPC dan membersihkan avatar lama sesudah sukses", async () => {
+  it("menyimpan lewat RPC tanpa menghapus avatar lama selama copy-first", async () => {
     const result = await updateProfileAction({ ok: false, message: "" }, validForm(true));
     expect(result.ok).toBe(true);
     expect(mocks.rpc).toHaveBeenCalledWith("update_own_intern_biodata", expect.objectContaining({
       p_full_name: "Sari", p_school_name: "SMK Utero", p_avatar_path: "test-user/12345678-1234-4234-8234-123456789abc.png",
     }));
-    expect(mocks.remove).toHaveBeenCalledWith(["test-user/old.png"]);
+    expect(mocks.remove).not.toHaveBeenCalled();
+    expect(mocks.storageFrom).toHaveBeenCalledWith("academy-private");
+    expect(mocks.storageFrom).not.toHaveBeenCalledWith("avatars");
+  });
+
+  it("tidak menghapus objek legacy avatars setelah avatar baru berhasil disimpan", async () => {
+    mocks.read.mockReset();
+    mocks.read.mockResolvedValueOnce({ data: { avatar_path: "https://supabase.carubra.com/storage/v1/object/public/avatars/test-user/old.png" }, error: null })
+      .mockResolvedValueOnce({ data: { id: "intern-1" }, error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
+    expect((await updateProfileAction({ ok: false, message: "" }, validForm(true))).ok).toBe(true);
+    expect(mocks.remove).not.toHaveBeenCalled();
   });
 
   it("tidak mengaktifkan onboarding saat peserta menyimpan biodata", async () => {

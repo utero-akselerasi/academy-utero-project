@@ -56,7 +56,7 @@ export default async function PrintCertificatePage({ searchParams }: PageProps) 
   // `background-image: url(...)`, dan rasterisasi cetak baru terjadi setelah
   // pengguna menekan Print di dialog browser — bisa jauh setelah halaman dimuat.
   // TTL default 1 jam berisiko kedaluwarsa sebelum gambarnya benar-benar dipakai.
-  const templateUrl = await resolveStorageUrl("avatars", settings?.certificate_template_path, {
+  const templateUrl = await resolveStorageUrl("academy-private", settings?.certificate_template_path, {
     expiresIn: SIGNED_URL_TTL.print,
   });
 

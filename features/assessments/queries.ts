@@ -148,7 +148,7 @@ export async function getAttendanceSettings() {
 
   if (!data) return data;
 
-  // Template sertifikat ada di bucket privat `avatars` dengan prefix literal
+  // Template sertifikat ada di bucket privat `academy-private` dengan prefix literal
   // `settings/`, BUKAN `{userId}/`. Karena itu bucket privat tidak bisa memakai
   // predikat owner-scoped `(storage.foldername(name))[1] = auth.uid()::text`;
   // pembacaannya hanya lewat signed URL dari server (lihat 0032a).
@@ -158,6 +158,6 @@ export async function getAttendanceSettings() {
   // panjang — di sini TTL default sudah cukup karena hanya jadi tautan pratinjau.
   return {
     ...data,
-    certificate_template_path: await resolveStorageUrl("avatars", data.certificate_template_path),
+    certificate_template_path: await resolveStorageUrl("academy-private", data.certificate_template_path),
   };
 }

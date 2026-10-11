@@ -42,7 +42,7 @@ export default async function EditProfilePage() {
     .map((ur) => (Array.isArray(ur.roles) ? ur.roles[0] : ur.roles))
     .filter((roleObj) => roleObj && isActiveRoleCode(roleObj.code));
 
-  const avatarUrl = await resolveStorageUrl("avatars", userProfile?.avatar_path);
+  const avatarUrl = await resolveStorageUrl("academy-private", userProfile?.avatar_path);
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">

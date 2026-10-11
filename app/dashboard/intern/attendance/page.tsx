@@ -41,15 +41,15 @@ export default async function InternAttendancePage({ searchParams }: Props) {
   const todayData = await getTodayAttendance(internProfileId);
   const { data: history } = await getInternAttendances(internProfileId);
 
-  // Selfie dan surat dokter ada di bucket privat `avatars`, jadi harus
+  // Selfie dan surat dokter ada di bucket privat `academy-private`, jadi harus
   // ditandatangani di server. Ditandatangani sekali per baris secara paralel —
   // `resolveStorageUrl` mengembalikan null untuk nilai kosong maupun objek yatim,
   // jadi cabang `&&` di bawah tetap berfungsi seperti sebelumnya.
   const historyUrls = await Promise.all(
     history.map(async (record) => ({
-      checkIn: await resolveStorageUrl("avatars", record.check_in_selfie_path),
-      checkOut: await resolveStorageUrl("avatars", record.check_out_selfie_path),
-      sickCertificate: await resolveStorageUrl("avatars", record.sick_certificate_path),
+      checkIn: await resolveStorageUrl("academy-private", record.check_in_selfie_path),
+      checkOut: await resolveStorageUrl("academy-private", record.check_out_selfie_path),
+      sickCertificate: await resolveStorageUrl("academy-private", record.sick_certificate_path),
     })),
   );
 
