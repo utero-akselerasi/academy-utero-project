@@ -11,6 +11,7 @@ Status: 11 Oktober 2026. Cutover production masih **NO-GO**. Dokumen ini tidak m
 - Kedua dump mendapat uji migrasi `0038` sampai `0045` pada clone terpisah. Baseline `0001–0037` yang dipakai pada clone hanyalah alat pengujian migrasi baru, **bukan bukti** bahwa seluruh riwayat SQL lama sudah tercermin di server live. Jangan baseline server live tanpa pembuktian schema per versi.
 - `0041–0045` menutup celah direct bypass/status seleksi, menambah approval admin onboarding, keputusan atomik, pembatasan jendela tes, dan perbaikan pemilik RPC. Tidak satu pun migrasi ini diterapkan ke server live.
 - Setelah SSH pulih, jalankan `npm run backup:supabase-storage -- --target production --source /data/supabase/instances/supabase-01/config/volumes/storage --destination I:\academy-utero-backups --user maskhar --run-id 20261011-182300`, lalu `npm run backup:supabase-storage -- --verify true --target production --destination I:\academy-utero-backups --run-id 20261011-182300`.
+- Sebelum percobaan migrasi develop, dump baru `develop-pre-migration-615b39d7.dump` dibuat di `/home/maskhar/academy-phase13-backups/2026-10-11/` dengan SHA-256 `b623bcd70cafc0a97203ce9933036dd58e8058865b51a6492f1a914992081c05` (sekitar 5,2 MB). **Tidak ada migrasi live yang dijalankan.** Tracker `utero_academy.schema_migrations` tidak ada di develop; kesesuaian tiap versi `0001–0037` belum dibuktikan. Port publik `5432` memakai routing Supavisor, bukan jalur langsung PostgreSQL. Baseline/apply develop ditunda sampai audit versi lama dan jalur koneksi aman tersedia.
 
 ## Target tetap
 
