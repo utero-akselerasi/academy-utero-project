@@ -50,19 +50,29 @@ export async function saveSelectionAnswerAction(formData: FormData) {
     selectedOptionIds = [option.id];
   }
   let attachmentPath: string | null = null;
+  let previousAttachmentPath: string | null = null;
   if (question.question_type === "file_upload") {
     const file = formData.get("file");
     if (file instanceof File && file.size > 0) {
+      const { data: previousAnswer, error: previousError } = await db.from("selection_answers")
+        .select("attachment_path").eq("attempt_id", attempt.id).eq("question_id", questionId).maybeSingle();
+      if (previousError) throw new Error(previousError.message);
+      previousAttachmentPath = previousAnswer?.attachment_path ?? null;
       const validated = await validateUpload(file, ["document", "image"]);
       attachmentPath = `selection/${attempt.id}/${questionId}/${crypto.randomUUID()}.${validated.ext}`;
-      const { error: uploadError } = await createSupabaseServiceRoleClient().storage.from("avatars").upload(attachmentPath, validated.buffer, { contentType: validated.contentType, upsert: false });
+      const { error: uploadError } = await createSupabaseServiceRoleClient().storage.from("selection-answers").upload(attachmentPath, validated.buffer, { contentType: validated.contentType, upsert: false });
       if (uploadError) throw new Error("Gagal mengunggah jawaban.");
     }
   }
   const { error } = await db.from("selection_answers").upsert({ attempt_id: attempt.id, question_id: questionId, selected_option_ids: selectedOptionIds, answer_text: question.question_type === "file_upload" ? null : text || null, ...(attachmentPath ? { attachment_path: attachmentPath } : {}), answered_at: new Date().toISOString() }, { onConflict: "attempt_id,question_id" });
   if (error) {
-    if (attachmentPath) await createSupabaseServiceRoleClient().storage.from("avatars").remove([attachmentPath]);
+    if (attachmentPath) await createSupabaseServiceRoleClient().storage.from("selection-answers").remove([attachmentPath]);
     throw new Error(error.message);
+  }
+  if (attachmentPath && previousAttachmentPath?.startsWith(`selection/${attempt.id}/${questionId}/`)) {
+    const { error: cleanupError } = await createSupabaseServiceRoleClient().storage
+      .from("selection-answers").remove([previousAttachmentPath]);
+    if (cleanupError) console.error("Gagal membersihkan jawaban berkas lama:", cleanupError);
   }
   revalidatePath(`${path}/${assignmentId}`);
 }

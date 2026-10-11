@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # Base image dipin ke digest, bukan cuma tag.
 #
 # `node:20-alpine` salah di dua hal sekaligus. Pertama, tag bergerak: isi image
@@ -42,7 +43,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN npm run build
+ARG DEPLOY_TARGET
+RUN --mount=type=secret,id=supabase_build_env,required=true \
+    node scripts/verify-supabase-target.mjs build "$DEPLOY_TARGET" /run/secrets/supabase_build_env
 
 # ---------------------------------------------------------------------------
 # prod-deps: install ulang TANPA dependensi dev
@@ -84,6 +87,8 @@ COPY --chown=nextjs:nodejs next.config.ts ./
 # import ber-alias di sana, tanpa berkas ini container gagal start dengan error
 # resolusi modul yang tidak menunjuk ke Dockerfile sama sekali.
 COPY --chown=nextjs:nodejs tsconfig.json ./
+COPY --from=builder --chown=nextjs:nodejs /app/.supabase-build-target.json ./.supabase-build-target.json
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/verify-supabase-target.mjs ./scripts/verify-supabase-target.mjs
 
 USER nextjs
 
@@ -91,4 +96,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["npm", "start"]
+CMD ["node", "scripts/verify-supabase-target.mjs", "start", ".supabase-build-target.json"]

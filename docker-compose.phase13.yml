@@ -1,0 +1,13 @@
+services:
+  web:
+    build:
+      args:
+        DEPLOY_TARGET: ${DEPLOY_TARGET:?Set DEPLOY_TARGET to develop or production}
+      secrets:
+        - supabase_build_env
+    env_file:
+      - ${SUPABASE_RUNTIME_ENV_FILE:?Set SUPABASE_RUNTIME_ENV_FILE}
+
+secrets:
+  supabase_build_env:
+    file: ${SUPABASE_BUILD_ENV_FILE:?Set SUPABASE_BUILD_ENV_FILE}

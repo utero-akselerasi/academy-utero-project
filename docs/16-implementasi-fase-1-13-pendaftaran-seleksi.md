@@ -1,6 +1,6 @@
 # Implementasi fase 1–13 pendaftaran dan seleksi
 
-Status dokumen: 11 Oktober 2026. Kode aplikasi selesai dan tervalidasi lokal. Migrasi belum diterapkan ke Supabase lama maupun baru.
+Status dokumen: 11 Oktober 2026. Kode aplikasi selesai dan tervalidasi lokal. Migrasi belum diterapkan ke Supabase develop maupun production.
 
 ## Fase
 
@@ -24,7 +24,8 @@ Status dokumen: 11 Oktober 2026. Kode aplikasi selesai dan tervalidasi lokal. Mi
 - `npm run lint:ci`: lulus.
 - `npm test`: 730 test lulus.
 - `npm run build`: build produksi lulus.
-- `npm run migrate`: dry-run menemukan 45 migrasi sampai `0039`; tidak membuka koneksi database.
+- `npm run migrate`: dry-run menemukan migrasi sampai `0040`; tidak membuka koneksi database.
+- Snapshot production berhasil direstore ke clone PostgreSQL 17; `0038`, `0039`, dan `0040` lulus transaksi nyata.
 
 ## Batas deployment
 
@@ -33,6 +34,8 @@ Fase 13 belum boleh dinyatakan selesai di produksi. Audit `docs/15-audit-migrasi
 1. Bekukan penulisan atau siapkan sinkronisasi delta dua arah.
 2. Backup database, Auth, dan seluruh bucket Storage kedua server.
 3. Rekonsiliasi ID attendance, daily report, user Auth, dan objek Storage.
-4. Uji `0038` dan `0039` pada clone/staging PostgreSQL melalui transaksi nyata.
+4. Pertahankan hasil uji `0038`–`0040` pada clone dan ulangi terhadap backup final.
 5. Jalankan smoke test tiga jalur, tes seleksi, bypass, onboarding, dan aktivasi tanggal.
 6. Pilot satu sekolah, pantau error/outbox, lalu putuskan cutover dengan rollback plan tertulis.
+
+Runbook operasional: `docs/17-runbook-fase-13-supabase-cutover.md`.
