@@ -1,5 +1,6 @@
 import { ApplicationStatusForm } from "@/features/admin/ApplicationStatusForm";
 import { type InternshipApplication } from "@/features/admin/types";
+import { requireAdmin } from "@/features/auth/guards";
 import { resolveStorageUrl } from "@/lib/storage-urls";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
@@ -11,10 +12,11 @@ function formatDate(value: string) {
 }
 
 export default async function AdminApplicationsPage() {
+  await requireAdmin();
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("internship_applications")
-    .select("id, full_name, email, phone, school_name, major, motivation, status, cv_path, portfolio_path, created_at")
+    .select("id, full_name, email, phone, school_name, major, motivation, status, selection_status, proposed_start_date, proposed_end_date, approved_start_date, approved_end_date, applicant_user_id, cv_path, portfolio_path, created_at")
     .order("created_at", { ascending: false })
     .returns<InternshipApplication[]>();
 
@@ -61,6 +63,7 @@ export default async function AdminApplicationsPage() {
                 <div className="flex flex-wrap items-center gap-3">
                   <h2 className="text-xl font-bold text-slate-950">{item.full_name}</h2>
                   <span className="status-pill">{item.status}</span>
+                  <span className="status-pill">Seleksi: {item.selection_status ?? "not_assigned"}</span>
                 </div>
                 <dl className="mt-4 grid gap-3 text-sm text-slate-700 md:grid-cols-2">
                   <div>
@@ -79,6 +82,7 @@ export default async function AdminApplicationsPage() {
                     <dt className="font-bold text-slate-950">Jurusan</dt>
                     <dd>{item.major ?? "-"}</dd>
                   </div>
+                  <div><dt className="font-bold text-slate-950">Periode usulan</dt><dd>{item.proposed_start_date ?? "-"} s/d {item.proposed_end_date ?? "-"}</dd></div>
                   <div>
                     <dt className="font-bold text-slate-950">Berkas CV</dt>
                     <dd>

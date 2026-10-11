@@ -1,128 +1,32 @@
 "use client";
 
-import {
-  type RegistrationState,
-  submitRegistrationAction,
-} from "@/features/registration/actions";
-import { Send } from "lucide-react";
 import { useActionState } from "react";
+import { submitRegistrationAction, type RegistrationState } from "./actions";
 
-const initialState: RegistrationState = {
-  ok: false,
-  message: "",
-};
+type Props = { email: string; fullName: string; programs: Array<{ id: string; name: string }> };
+const initialState: RegistrationState = { ok: false, message: "" };
 
-export function RegistrationForm() {
-  const [state, formAction, pending] = useActionState(
-    submitRegistrationAction,
-    initialState,
-  );
-
-  return (
-    <form action={formAction} className="surface grid gap-5 p-6">
-      {state.message ? (
-        <p
-          className={
-            state.ok
-              ? "rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-800"
-              : "rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700"
-          }>
-          {state.message}
-        </p>
-      ) : null}
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="form-field">
-          <span className="form-label">Nama lengkap</span>
-          <input
-            className="form-input"
-            name="fullName"
-            placeholder="Nama peserta"
-            required
-          />
-        </label>
-
-        <label className="form-field">
-          <span className="form-label">Email</span>
-          <input
-            className="form-input"
-            name="email"
-            placeholder="nama@email.com"
-            type="email"
-            required
-          />
-        </label>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="form-field">
-          <span className="form-label">Nomor WhatsApp</span>
-          <input
-            className="form-input"
-            name="phone"
-            placeholder="08xxxxxxxxxx"
-            required
-          />
-        </label>
-
-        <label className="form-field">
-          <span className="form-label">Sekolah atau kampus</span>
-          <input
-            className="form-input"
-            name="schoolName"
-            placeholder="Nama sekolah"
-            required
-          />
-        </label>
-      </div>
-
-      <label className="form-field">
-        <span className="form-label">Jurusan</span>
-        <input
-          className="form-input"
-          name="major"
-          placeholder="Contoh: RPL, DKV, Manajemen"
-          required
-        />
-      </label>
-
-      <label className="form-field">
-        <span className="form-label">Motivasi mengikuti magang</span>
-        <textarea
-          className="form-input min-h-32 resize-y"
-          name="motivation"
-          placeholder="Ceritakan alasan dan tujuan mengikuti program magang."
-          required
-        />
-      </label>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="form-field">
-          <span className="form-label font-bold text-slate-700">Unggah CV (PDF/Gambar) *</span>
-          <input
-            type="file"
-            name="cv"
-            accept="application/pdf,image/*"
-            required
-            className="form-input text-xs"
-          />
-        </label>
-
-        <label className="form-field">
-          <span className="form-label font-bold text-slate-700">Unggah Portofolio (PDF/Gambar) (Opsional)</span>
-          <input
-            type="file"
-            name="portfolio"
-            accept="application/pdf,image/*"
-            className="form-input text-xs"
-          />
-        </label>
-      </div>
-
-      <button className="button-primary" disabled={pending} type="submit">
-        <Send size={18} />
-        {pending ? "Mengirim..." : "Kirim pendaftaran"}
-      </button>
-    </form>
-  );
+export function RegistrationForm({ email, fullName, programs }: Props) {
+  const [state, formAction, pending] = useActionState(submitRegistrationAction, initialState);
+  return <form action={formAction} className="surface grid gap-4 p-6" encType="multipart/form-data">
+    {state.message ? <p role="status" className={state.ok ? "text-teal-700" : "text-red-700"}>{state.message}</p> : null}
+    <div className="grid gap-4 md:grid-cols-2">
+      <label className="form-field"><span className="form-label">Nama lengkap</span><input className="form-input" name="fullName" defaultValue={fullName} required /></label>
+      <label className="form-field"><span className="form-label">Email akun</span><input className="form-input" value={email} readOnly disabled /></label>
+      <label className="form-field"><span className="form-label">Program</span><select className="form-input" name="programId" required><option value="">Pilih program</option>{programs.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label className="form-field"><span className="form-label">Nomor WhatsApp</span><input className="form-input" name="phone" required /></label>
+      <label className="form-field"><span className="form-label">Sekolah atau kampus</span><input className="form-input" name="schoolName" required /></label>
+      <label className="form-field"><span className="form-label">NIS/NIM</span><input className="form-input" name="studentNumber" /></label>
+      <label className="form-field"><span className="form-label">Jurusan</span><input className="form-input" name="major" required /></label>
+      <label className="form-field"><span className="form-label">Kode sekolah partner (opsional)</span><input className="form-input" name="referralCode" autoCapitalize="characters" /></label>
+      <label className="form-field"><span className="form-label">Usulan mulai magang</span><input className="form-input" name="proposedStartDate" type="date" required /></label>
+      <label className="form-field"><span className="form-label">Usulan selesai magang</span><input className="form-input" name="proposedEndDate" type="date" required /></label>
+    </div>
+    <label className="form-field"><span className="form-label">Motivasi</span><textarea className="form-input min-h-32" name="motivation" minLength={20} required /></label>
+    <div className="grid gap-4 md:grid-cols-2">
+      <label className="form-field"><span className="form-label">CV</span><input className="form-input" name="cv" type="file" accept="application/pdf,image/*" required /></label>
+      <label className="form-field"><span className="form-label">Portofolio (opsional)</span><input className="form-input" name="portfolio" type="file" accept="application/pdf,image/*" /></label>
+    </div>
+    <button className="button-primary" disabled={pending || programs.length === 0}>{pending ? "Mengirim..." : "Kirim pendaftaran"}</button>
+  </form>;
 }

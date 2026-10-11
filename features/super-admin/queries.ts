@@ -78,7 +78,7 @@ export async function getSuperAdminSchoolsData() {
   const [schoolsResult, contactsResult, internsResult] = await Promise.all([
     db
       .from("schools")
-      .select("id, name, type, city, province, address, logo_path, created_at")
+      .select("id, name, type, city, province, address, logo_path, created_at, partner_status, referral_code, referral_quota, referral_expires_at")
       .order("name", { ascending: true })
       .returns<School[]>(),
     db

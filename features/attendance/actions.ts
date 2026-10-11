@@ -4,7 +4,7 @@ import { ATTENDANCE_SETTINGS_ID } from "./constants";
 import { requireAdmin, requireUser } from "@/features/auth/guards";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createSupabaseServerClient, createUteroAcademyClient, createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
-import { getInternProfileId } from "@/features/daily-reports/queries";
+import { requireActiveInternProfile } from "@/features/intern/activation";
 import { UploadValidationError, buildStoragePath, validateBase64Image, validateUpload } from "@/lib/uploads";
 import { jakartaDateString } from "@/lib/time";
 import { revalidatePath } from "next/cache";
@@ -76,7 +76,7 @@ export async function checkInAction(_: FormState, formData: FormData): Promise<F
   // Aksi peserta: kepemilikan ditentukan lewat intern_profiles.user_id.
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
-  const internId = await getInternProfileId(user.id);
+  const internId = await requireActiveInternProfile(user.id);
   if (!internId) return { ok: false, message: "Profil peserta tidak ditemukan." };
   const latStr = formData.get("latitude");
   const lngStr = formData.get("longitude");
@@ -187,7 +187,7 @@ export async function checkOutAction(_: FormState, formData: FormData): Promise<
   // Aksi peserta: kepemilikan ditentukan lewat intern_profiles.user_id.
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
-  const internId = await getInternProfileId(user.id);
+  const internId = await requireActiveInternProfile(user.id);
   if (!internId) return { ok: false, message: "Profil peserta tidak ditemukan." };
   const latStr = formData.get("latitude");
   const lngStr = formData.get("longitude");
@@ -272,7 +272,7 @@ export async function submitPermitAction(_: FormState, formData: FormData): Prom
   // Aksi peserta: kepemilikan ditentukan lewat intern_profiles.user_id.
   const user = await requireUser();
 
-  const internId = await getInternProfileId(user.id);
+  const internId = await requireActiveInternProfile(user.id);
   if (!internId) return { ok: false, message: "Profil peserta tidak ditemukan." };
 
   const permitType = formData.get("permitType") as string;

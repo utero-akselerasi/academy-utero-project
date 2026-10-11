@@ -525,6 +525,38 @@ export async function updateSchoolAction(formData: FormData) {
   revalidatePath("/dashboard/super-admin/users");
 }
 
+export async function updateSchoolPartnershipAction(formData: FormData) {
+  const user = await requireSuperAdmin();
+  const parsed = z.object({
+    schoolId: z.string().uuid(),
+    partnerStatus: z.enum(["prospect", "verified", "active_partner", "suspended", "ended"]),
+    referralCode: z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{6,32}$/, "Kode unik 6–32 huruf, angka, atau tanda hubung.").or(z.literal("")),
+    referralQuota: z.union([z.literal(""), z.coerce.number().int().min(1).max(100000)]),
+    referralExpiresAt: z.union([z.literal(""), z.string().date()]),
+  }).safeParse({
+    schoolId: formData.get("schoolId"), partnerStatus: formData.get("partnerStatus"),
+    referralCode: formData.get("referralCode"), referralQuota: formData.get("referralQuota"),
+    referralExpiresAt: formData.get("referralExpiresAt"),
+  });
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Data kemitraan tidak valid.");
+  const db = await createUteroAcademyServiceRoleClient();
+  const { data: previous, error: readError } = await db.from("schools")
+    .select("partner_status, referral_code, referral_quota, referral_expires_at")
+    .eq("id", parsed.data.schoolId).single();
+  if (readError || !previous) throw new Error("Sekolah belum ditemukan.");
+  const { error } = await db.from("schools").update({
+    partner_status: parsed.data.partnerStatus,
+    referral_code: parsed.data.referralCode || null,
+    referral_quota: parsed.data.referralQuota === "" ? null : parsed.data.referralQuota,
+    referral_expires_at: parsed.data.referralExpiresAt ? `${parsed.data.referralExpiresAt}T23:59:59+07:00` : null,
+    verified_by: ["verified", "active_partner"].includes(parsed.data.partnerStatus) ? user.id : null,
+    verified_at: ["verified", "active_partner"].includes(parsed.data.partnerStatus) ? new Date().toISOString() : null,
+  }).eq("id", parsed.data.schoolId);
+  if (error) throw new Error(`Kemitraan belum berhasil disimpan: ${error.message}`);
+  await writeAuditLog(user.id, "update_school_partnership", "schools", parsed.data.schoolId, previous, parsed.data);
+  revalidatePath("/dashboard/super-admin/schools");
+}
+
 export async function deleteSchoolAction(formData: FormData) {
   const user = await requireSuperAdmin();
   const schoolId = formData.get("schoolId") as string;

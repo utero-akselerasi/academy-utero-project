@@ -7,7 +7,7 @@ import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } 
 import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getInternProfileId } from "@/features/daily-reports/queries";
+import { requireActiveInternProfile } from "@/features/intern/activation";
 import { internIsEnrolled } from "./queries";
 import { generateCourseCertificate } from "./certificate-helper";
 import { nilaiKuis, normalkanPertanyaan, uraikanNilaiKelulusan } from "./quiz-scoring";
@@ -286,7 +286,7 @@ export async function markLessonCompletedAction(formData: FormData) {
 
   if (!lessonId) throw new Error("Lesson ID tidak valid.");
 
-  const internProfileId = await getInternProfileId(user.id);
+  const internProfileId = await requireActiveInternProfile(user.id);
   if (!internProfileId) throw new Error("Profil peserta belum ditemukan.");
 
   const db = await createUteroAcademyServiceRoleClient();
@@ -386,7 +386,7 @@ export async function submitQuizAttemptAction(formData: FormData) {
 
   if (!quizId) throw new Error("Quiz ID tidak valid.");
 
-  const internProfileId = await getInternProfileId(user.id);
+  const internProfileId = await requireActiveInternProfile(user.id);
   if (!internProfileId) throw new Error("Profil peserta belum ditemukan.");
 
   const db = await createUteroAcademyServiceRoleClient();
@@ -527,7 +527,7 @@ export async function submitAssignmentAction(formData: FormData) {
 
   if (!assignmentId) throw new Error("Assignment ID tidak valid.");
 
-  const internProfileId = await getInternProfileId(user.id);
+  const internProfileId = await requireActiveInternProfile(user.id);
   if (!internProfileId) throw new Error("Profil peserta belum ditemukan.");
 
   const db = await createUteroAcademyServiceRoleClient();
@@ -780,7 +780,7 @@ export async function enrollCourseAction(formData: FormData) {
 
   if (!courseId) throw new Error("Course ID tidak valid.");
 
-  const internProfileId = await getInternProfileId(user.id);
+  const internProfileId = await requireActiveInternProfile(user.id);
   if (!internProfileId) throw new Error("Profil peserta belum ditemukan.");
 
   const db = await createUteroAcademyServiceRoleClient();

@@ -29,6 +29,10 @@ export type UserRole = {
 
 export type School = {
   id: string;
+  partner_status: "prospect" | "verified" | "active_partner" | "suspended" | "ended";
+  referral_code: string | null;
+  referral_quota: number | null;
+  referral_expires_at: string | null;
   name: string;
   type: string | null;
   city: string | null;

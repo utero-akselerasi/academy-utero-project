@@ -9,6 +9,8 @@ import { z } from "zod";
 const updateApplicationSchema = z.object({
   id: z.string().uuid(),
   status: z.enum(["reviewed", "accepted", "rejected", "cancelled"]),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
 });
 
 const assignMentorSchema = z.object({
@@ -27,6 +29,8 @@ export async function updateApplicationStatusAction(formData: FormData) {
   const parsed = updateApplicationSchema.safeParse({
     id: formData.get("id"),
     status: formData.get("status"),
+    startDate: formData.get("startDate") || undefined,
+    endDate: formData.get("endDate") || undefined,
   });
 
   if (!parsed.success) {
@@ -35,6 +39,14 @@ export async function updateApplicationStatusAction(formData: FormData) {
 
   const db = await createUteroAcademyClient();
   const status = parsed.data.status satisfies ApplicationStatus;
+  if (status === "accepted") {
+    const dates = z.object({ startDate: z.string().date(), endDate: z.string().date() }).refine((value) => value.endDate >= value.startDate).safeParse(parsed.data);
+    if (!dates.success) throw new Error("Tanggal magang resmi wajib valid.");
+    const { error } = await db.rpc("accept_application_as_intern", { p_application_id: parsed.data.id, p_start_date: dates.data.startDate, p_end_date: dates.data.endDate });
+    if (error) throw new Error(error.message);
+    revalidatePath("/dashboard/admin/pendaftaran");
+    return;
+  }
   const { error } = await db
     .from("internship_applications")
     .update({

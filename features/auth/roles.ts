@@ -17,15 +17,16 @@ import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
  * `mentor_id`, dan `/dashboard/mentor/*` tetap area kerja `admin`. Nama-nama itu
  * bukan peran — jangan ikut diubah.
  */
-export type RoleCode = "super_admin" | "admin" | "school" | "intern";
+export type RoleCode = "super_admin" | "admin" | "school" | "intern" | "applicant";
 
-const rolePriority: RoleCode[] = ["super_admin", "admin", "school", "intern"];
+const rolePriority: RoleCode[] = ["super_admin", "admin", "school", "intern", "applicant"];
 
 const dashboardByRole: Record<RoleCode, string> = {
   super_admin: "/dashboard/super-admin",
   admin: "/dashboard/admin",
   school: "/dashboard/school",
   intern: "/dashboard/intern",
+  applicant: "/dashboard/applicant",
 };
 
 /**

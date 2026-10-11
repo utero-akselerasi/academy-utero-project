@@ -60,6 +60,10 @@ export async function requireSchool(): Promise<AuthenticatedUser> {
   return requireRole(["school", "super_admin"]);
 }
 
+export async function requireApplicant(): Promise<AuthenticatedUser> {
+  return requireRole(["applicant", "super_admin"]);
+}
+
 export async function requireRouteUser(): Promise<AuthenticatedUser> {
   const user = await getAuthenticatedUser();
 

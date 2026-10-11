@@ -17,6 +17,7 @@ const roleLabelMap: Record<RoleCode, string> = {
   admin: "Administrator",
   school: "Hubungan Sekolah",
   intern: "Peserta Magang",
+  applicant: "Calon Peserta",
 };
 
 /**
@@ -69,6 +70,11 @@ const sidebarItemsMap: Record<RoleCode, { label: string; href: string; icon: Nav
   ],
   school: [
     { label: "Dashboard", href: "/dashboard/school", icon: "LayoutDashboard" },
+    { label: "Pendaftaran Siswa", href: "/dashboard/school/applications", icon: "FileSpreadsheet" },
+  ],
+  applicant: [
+    { label: "Status Pendaftaran", href: "/dashboard/applicant", icon: "LayoutDashboard" },
+    { label: "Tes Seleksi", href: "/dashboard/applicant/selection", icon: "FileSpreadsheet" },
   ],
 };
 

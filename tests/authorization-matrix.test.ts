@@ -75,6 +75,8 @@ function guardsUsedIn(source: string): Set<string> {
     "requireSuperAdmin",
     "requireIntern",
     "requireSchool",
+    "requireApplicant",
+    "requireActiveSchoolPartner",
     "requireRouteUser",
     "requireRouteRole",
     "requireRouteAdmin",
@@ -119,6 +121,8 @@ const GUARD_ROLES: Record<string, string[]> = {
   requireRouteAdmin: ["admin", "super_admin"],
   requireIntern: ["intern", "super_admin"],
   requireSchool: ["school", "super_admin"],
+  requireApplicant: ["applicant", "super_admin"],
+  requireActiveSchoolPartner: ["school"],
   requireUser: [ANY],
   requireRouteUser: [ANY],
 };
@@ -259,7 +263,7 @@ const EXPECTED_PAGE_ACCESS: { prefix: string; maxRoles: string[]; why: string }[
   },
   {
     prefix: "app/dashboard/profile",
-    maxRoles: [ANY, "super_admin", "admin", "school", "intern"],
+    maxRoles: [ANY, "super_admin", "admin", "school", "intern", "applicant"],
     why: "Profil sendiri; peran apa pun yang sudah login boleh.",
   },
 ];
@@ -350,8 +354,8 @@ describe("server action", () => {
   const UNGUARDED_ACTIONS: Record<string, string> = {
     "features/auth/actions.ts":
       "Login & logout. Login justru yang MEMBUAT sesi, jadi tak mungkin menuntut sesi.",
-    "features/registration/actions.ts":
-      "Formulir pendaftaran magang publik — pelamar belum punya akun. Satu-satunya grant tulis anon yang disengaja (lihat 0029).",
+    "features/registration/signup-action.ts":
+      "Signup publik membuat sesi awal pelamar; role applicant diprovisi trigger server setelah akun dibuat.",
     "features/lms/certificate-helper.ts":
       "Helper internal, dipanggil dari action lain yang sudah memagari pemanggilnya.",
   };

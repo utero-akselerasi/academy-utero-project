@@ -7,7 +7,8 @@ import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
-import { getInternProfileId, getMentorProfileId } from "./queries";
+import { getMentorProfileId } from "./queries";
+import { requireActiveInternProfile } from "@/features/intern/activation";
 import { dailyReportSchema, reviewReportSchema } from "./schemas";
 
 export type DailyReportFormState = {
@@ -18,7 +19,12 @@ export type DailyReportFormState = {
 export async function submitDailyReportAction(_: DailyReportFormState, formData: FormData): Promise<DailyReportFormState> {
   // Aksi peserta: kepemilikan ditentukan lewat intern_profiles.user_id.
   const user = await requireUser();
-  const internProfileId = await getInternProfileId(user.id);
+  let internProfileId: string;
+  try {
+    internProfileId = await requireActiveInternProfile(user.id);
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Fitur magang belum aktif." };
+  }
   if (!internProfileId) {
     return { ok: false, message: "Profil peserta belum ditemukan. Hubungi admin." };
   }

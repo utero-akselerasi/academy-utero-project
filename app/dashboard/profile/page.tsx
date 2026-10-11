@@ -4,6 +4,7 @@ import { requireUser } from "@/features/auth/guards";
 import { isActiveRoleCode } from "@/features/auth/roles";
 import { resolveStorageUrl } from "@/lib/storage-urls";
 import { ProfileFormWrapper } from "./ProfileFormWrapper";
+import { type InternProfileData, isInternBiodataComplete } from "@/features/auth/profile-schema";
 
 export default async function EditProfilePage() {
   // Halaman profil terbuka untuk semua peran yang login, jadi requireUser()
@@ -13,9 +14,11 @@ export default async function EditProfilePage() {
   const { data: userProfile } = await db.from("user_profiles").select("*").eq("id", user.id).maybeSingle();
   const internId = await getInternProfileId(user.id);
   const mentorId = await getMentorProfileId(user.id);
-  let internProfile = null;
+  let internProfile: InternProfileData | null = null;
   if (internId) {
-    const { data } = await db.from("intern_profiles").select("*").eq("id", internId).maybeSingle();
+    const { data } = await db.from("intern_profiles")
+      .select("id, full_name, phone, major, grade_or_semester, school_name, address, school_supervisor_name, school_supervisor_phone, emergency_contact_name, emergency_contact_phone, schools(name)")
+      .eq("id", internId).returns<InternProfileData>().maybeSingle();
     internProfile = data;
   }
   let mentorProfile = null;
@@ -47,6 +50,11 @@ export default async function EditProfilePage() {
         <p className="text-sm font-bold uppercase text-teal-700">Pengaturan</p>
         <h1 className="mt-2 text-3xl font-bold text-slate-950">Edit Profil Anda</h1>
         <p className="mt-2 text-slate-600">Lengkapi data pribadi, detail institusi, atau kualifikasi Anda.</p>
+        {internProfile && !isInternBiodataComplete(internProfile, userProfile?.full_name ?? null, user.email ?? null) && (
+          <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900" role="status">
+            Biodata belum lengkap. Isi semua kolom wajib sebelum melanjutkan ke dashboard peserta.
+          </p>
+        )}
       </div>
       <div className="grid gap-8 lg:grid-cols-[240px_1fr]">
         <div className="flex flex-col items-center text-center surface p-6 h-fit bg-white">
@@ -89,7 +97,7 @@ export default async function EditProfilePage() {
           </div>
         </div>
         <div>
-          <ProfileFormWrapper userProfile={userProfile} internProfile={internProfile} mentorProfile={mentorProfile} />
+          <ProfileFormWrapper userProfile={userProfile} internProfile={internProfile} mentorProfile={mentorProfile} email={user.email ?? ""} />
         </div>
       </div>
     </main>

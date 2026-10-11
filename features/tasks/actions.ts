@@ -3,7 +3,7 @@
 import { requireAdmin, requireUser } from "@/features/auth/guards";
 import { getUserRoleCodes } from "@/features/auth/roles";
 import { resolveStaffInternScope } from "@/features/auth/scope";
-import { getInternProfileId } from "@/features/daily-reports/queries";
+import { requireActiveInternProfile } from "@/features/intern/activation";
 import { createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
@@ -75,7 +75,7 @@ async function requireCardAccess(userId: string, cardId: string) {
     throw new Error("Kamu tidak membimbing peserta pemilik task ini.");
   }
 
-  const internProfileId = await getInternProfileId(userId);
+  const internProfileId = await requireActiveInternProfile(userId);
   if (internProfileId && card.intern_id === internProfileId) return card;
 
   throw new Error("Kamu tidak punya akses ke task ini.");

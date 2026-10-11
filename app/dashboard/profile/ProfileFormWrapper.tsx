@@ -4,10 +4,16 @@ import { updateProfileAction, type ProfileFormState } from "@/features/auth/edit
 import { changePasswordAction } from "@/features/auth/change-password-action";
 import { useActionState, useState } from "react";
 import { Save, Lock } from "lucide-react";
+import type { InternProfileData } from "@/features/auth/profile-schema";
 
 const initialState = { ok: false, message: "" };
 
-export function ProfileFormWrapper({ userProfile, internProfile, mentorProfile }: { userProfile: any; internProfile: any; mentorProfile: any }) {
+type UserProfile = { full_name: string; phone: string | null } | null;
+type MentorProfile = { headline: string | null; bio: string | null } | null;
+
+export function ProfileFormWrapper({ userProfile, internProfile, mentorProfile, email }: {
+  userProfile: UserProfile; internProfile: InternProfileData | null; mentorProfile: MentorProfile; email: string;
+}) {
   const [state, formAction, isPending] = useActionState(updateProfileAction, initialState);
 
   return (
@@ -18,11 +24,15 @@ export function ProfileFormWrapper({ userProfile, internProfile, mentorProfile }
           <div className="grid gap-4">
             <div className="form-field">
               <label className="form-label" htmlFor="fullName">Nama Lengkap *</label>
-              <input className="form-input" id="fullName" name="fullName" defaultValue={userProfile?.full_name || ""} required />
+              <input className="form-input" id="fullName" name="fullName" defaultValue={userProfile?.full_name || ""} maxLength={150} required />
+            </div>
+            <div className="form-field">
+              <label className="form-label" htmlFor="email">Email Akun</label>
+              <input className="form-input" id="email" type="email" value={email} readOnly />
             </div>
             <div className="form-field">
               <label className="form-label" htmlFor="phone">Nomor WhatsApp/Telepon</label>
-              <input className="form-input" id="phone" name="phone" defaultValue={userProfile?.phone || ""} />
+              <input className="form-input" id="phone" name="phone" type="tel" defaultValue={userProfile?.phone || ""} maxLength={25} required={Boolean(internProfile)} />
             </div>
             <div className="form-field">
               <label className="form-label" htmlFor="avatar">Foto Profil</label>
@@ -37,11 +47,36 @@ export function ProfileFormWrapper({ userProfile, internProfile, mentorProfile }
             <div className="grid gap-4">
               <div className="form-field">
                 <label className="form-label" htmlFor="major">Jurusan</label>
-                <input className="form-input" id="major" name="major" defaultValue={internProfile?.major || ""} placeholder="Contoh: Rekayasa Perangkat Lunak" />
+                <input className="form-input" id="major" name="major" defaultValue={internProfile.major || ""} maxLength={120} required placeholder="Contoh: Rekayasa Perangkat Lunak" />
               </div>
               <div className="form-field">
                 <label className="form-label" htmlFor="gradeOrSemester">Kelas / Semester / Tingkat</label>
-                <input className="form-input" id="gradeOrSemester" name="gradeOrSemester" defaultValue={internProfile?.grade_or_semester || ""} placeholder="Contoh: XII, Semester 5" />
+                <input className="form-input" id="gradeOrSemester" name="gradeOrSemester" defaultValue={internProfile.grade_or_semester || ""} maxLength={60} required placeholder="Contoh: XII, Semester 5" />
+              </div>
+              <div className="form-field">
+                <label className="form-label" htmlFor="schoolName">Sekolah / Kampus *</label>
+                <input className="form-input" id="schoolName" name="schoolName" defaultValue={internProfile.school_name || internProfile.schools?.name || ""} maxLength={150} required />
+                <p className="text-xs text-slate-500">Instansi terhubung: {internProfile.schools?.name || "Belum ditetapkan admin"}. Pengisian nama tidak mengubah instansi resmi.</p>
+              </div>
+              <div className="form-field">
+                <label className="form-label" htmlFor="address">Alamat Lengkap *</label>
+                <textarea className="form-input" id="address" name="address" defaultValue={internProfile.address || ""} maxLength={500} required rows={3} />
+              </div>
+              <div className="form-field">
+                <label className="form-label" htmlFor="schoolSupervisorName">Guru / Dosen Pembimbing Sekolah *</label>
+                <input className="form-input" id="schoolSupervisorName" name="schoolSupervisorName" defaultValue={internProfile.school_supervisor_name || ""} maxLength={150} required />
+              </div>
+              <div className="form-field">
+                <label className="form-label" htmlFor="schoolSupervisorPhone">Nomor Pembimbing Sekolah *</label>
+                <input className="form-input" id="schoolSupervisorPhone" name="schoolSupervisorPhone" type="tel" defaultValue={internProfile.school_supervisor_phone || ""} maxLength={25} required />
+              </div>
+              <div className="form-field">
+                <label className="form-label" htmlFor="emergencyContactName">Nama Kontak Darurat (opsional)</label>
+                <input className="form-input" id="emergencyContactName" name="emergencyContactName" defaultValue={internProfile.emergency_contact_name || ""} maxLength={150} />
+              </div>
+              <div className="form-field">
+                <label className="form-label" htmlFor="emergencyContactPhone">Nomor Kontak Darurat (opsional)</label>
+                <input className="form-input" id="emergencyContactPhone" name="emergencyContactPhone" type="tel" defaultValue={internProfile.emergency_contact_phone || ""} maxLength={25} />
               </div>
             </div>
           </div>

@@ -5,6 +5,7 @@ import {
   linkInternToSchoolAction,
   updateInternPeriodAction,
   updateSchoolAction,
+  updateSchoolPartnershipAction,
 } from "@/features/super-admin/actions";
 import { INTERNSHIP_STATUS_OPTIONS } from "@/features/super-admin/schemas";
 import { getSuperAdminSchoolsData } from "@/features/super-admin/queries";
@@ -108,6 +109,14 @@ export default async function SuperAdminSchoolsPage() {
                       <TextInput name="address" defaultValue={school.address} placeholder="Alamat" />
                       <TextInput name="logoPath" defaultValue={school.logo_path} placeholder="Logo path / URL" />
                       <button className="rounded-xl bg-teal-700 px-3 py-2 text-sm font-bold text-white hover:bg-teal-800" type="submit">Simpan Data Instansi</button>
+                    </form>
+                    <form action={updateSchoolPartnershipAction} className="mt-5 grid gap-2 border-t border-slate-200 pt-4">
+                      <input type="hidden" name="schoolId" value={school.id} />
+                      <label className="text-sm font-semibold">Status kemitraan<select className="form-input" name="partnerStatus" defaultValue={school.partner_status}>{["prospect", "verified", "active_partner", "suspended", "ended"].map((status) => <option value={status} key={status}>{status}</option>)}</select></label>
+                      <label className="text-sm font-semibold">Kode sekolah<TextInput name="referralCode" defaultValue={school.referral_code} placeholder="KODE-SEKOLAH" /></label>
+                      <label className="text-sm font-semibold">Kuota kode (opsional)<input className="form-input" name="referralQuota" type="number" min={1} defaultValue={school.referral_quota ?? ""} /></label>
+                      <label className="text-sm font-semibold">Kode berlaku sampai<input className="form-input" name="referralExpiresAt" type="date" defaultValue={school.referral_expires_at?.slice(0, 10) ?? ""} /></label>
+                      <button className="button-secondary" type="submit">Simpan Kemitraan</button>
                     </form>
                   </div>
 
