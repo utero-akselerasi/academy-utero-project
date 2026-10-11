@@ -16,9 +16,9 @@ export default async function AdminApplicationsPage() {
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("internship_applications")
-    .select("id, full_name, email, phone, school_name, major, motivation, status, selection_status, proposed_start_date, proposed_end_date, approved_start_date, approved_end_date, applicant_user_id, cv_path, portfolio_path, created_at")
+    .select("id, full_name, email, phone, school_name, major, motivation, status, selection_status, onboarding_status, proposed_start_date, proposed_end_date, approved_start_date, approved_end_date, applicant_user_id, converted_intern_id, cv_path, portfolio_path, created_at")
     .order("created_at", { ascending: false })
-    .returns<InternshipApplication[]>();
+    .returns<Array<InternshipApplication & { onboarding_status: string | null; converted_intern_id: string | null }>>();
 
   const applications = data ?? [];
 
@@ -64,6 +64,7 @@ export default async function AdminApplicationsPage() {
                   <h2 className="text-xl font-bold text-slate-950">{item.full_name}</h2>
                   <span className="status-pill">{item.status}</span>
                   <span className="status-pill">Seleksi: {item.selection_status ?? "not_assigned"}</span>
+                  <span className="status-pill">Onboarding: {item.onboarding_status ?? "not_started"}</span>
                 </div>
                 <dl className="mt-4 grid gap-3 text-sm text-slate-700 md:grid-cols-2">
                   <div>
@@ -118,7 +119,7 @@ export default async function AdminApplicationsPage() {
                 </div>
               </div>
 
-              <ApplicationStatusForm id={item.id} />
+              <ApplicationStatusForm id={item.id} status={item.status} onboardingStatus={item.onboarding_status} convertedInternId={item.converted_intern_id} />
             </div>
           </article>
         ))}

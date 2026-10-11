@@ -78,4 +78,13 @@ describe("updateProfileAction peserta", () => {
     }));
     expect(mocks.remove).toHaveBeenCalledWith(["test-user/old.png"]);
   });
+
+  it("tidak mengaktifkan onboarding saat peserta menyimpan biodata", async () => {
+    mocks.read.mockReset();
+    mocks.read.mockResolvedValueOnce({ data: { avatar_path: null }, error: null })
+      .mockResolvedValueOnce({ data: { id: "intern-1", status: "pending", start_date: "2020-01-01", end_date: "2099-01-01" }, error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
+    expect((await updateProfileAction({ ok: false, message: "" }, validForm())).ok).toBe(true);
+    expect(mocks.domainUpdate).not.toHaveBeenCalled();
+  });
 });

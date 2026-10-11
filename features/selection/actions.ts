@@ -182,21 +182,16 @@ export async function gradeSelectionAnswerAction(formData: FormData) {
 }
 
 export async function decideSelectionAction(formData: FormData) {
-  const user = await requireAdmin();
+  await requireAdmin();
   const input = parsed(decisionSchema.safeParse(formDataObject(formData)));
-  const db = await createUteroAcademyServiceRoleClient();
-  const { data: assignment } = await db.from("selection_assignments").select("id,application_id,package_id,status").eq("id", input.assignmentId).single();
-  if (!assignment || assignment.application_id !== input.applicationId) throw new Error("Penugasan tidak cocok dengan pelamar.");
-  const { data: attempt } = await db.from("selection_attempts").select("id,final_score,status").eq("assignment_id", assignment.id).order("attempt_number", { ascending: false }).limit(1).maybeSingle();
-  if (!attempt || attempt.status !== "graded" || attempt.final_score === null) throw new Error("Nilai akhir belum lengkap.");
-  const { data, error } = await db.from("selection_decisions").insert({ attempt_id: attempt.id, application_id: input.applicationId, result: input.decision, final_score: attempt.final_score, public_note: input.notes || null, decided_by: user.id }).select("id").single();
+  const db = await createUteroAcademyClient();
+  const { error } = await db.rpc("decide_selection_atomically", {
+    p_assignment_id: input.assignmentId,
+    p_application_id: input.applicationId,
+    p_result: input.decision,
+    p_public_note: input.notes || null,
+  });
   if (error) throw new Error(`Gagal menyimpan keputusan: ${error.message}`);
-  const updates = await Promise.all([
-    db.from("selection_assignments").update({ status: input.decision }).eq("id", input.assignmentId),
-    db.from("internship_applications").update({ selection_status: input.decision }).eq("id", input.applicationId),
-  ]);
-  for (const update of updates) if (update.error) throw new Error(update.error.message);
-  await writeAuditLog(user.id, "decide_selection", "selection_decisions", data.id, null, input);
   revalidatePath(mentorPath);
 }
 

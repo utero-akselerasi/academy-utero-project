@@ -17,7 +17,9 @@
     "migrate": "node scripts/migrate.mjs --dry-run",
     "migrate:status": "node scripts/migrate.mjs --status",
     "migrate:apply": "node scripts/migrate.mjs --apply",
-    "audit:supabase-reconciliation": "node scripts/audit-supabase-reconciliation.mjs"
+    "audit:supabase-reconciliation": "node scripts/audit-supabase-reconciliation.mjs",
+    "backup:supabase-storage": "node scripts/backup-supabase-storage.mjs",
+    "verify:phase13-readiness": "node scripts/verify-phase13-readiness.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",

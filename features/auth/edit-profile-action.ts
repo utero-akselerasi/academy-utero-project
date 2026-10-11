@@ -110,15 +110,6 @@ export async function updateProfileAction(_: ProfileFormState, formData: FormDat
     if (error) console.error("Gagal menghapus avatar lama:", error);
   }
 
-  if (internProfile && "major" in parsed.data && ["pending", "active"].includes(internProfile.status)) {
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-    const active = Boolean(internProfile.start_date && internProfile.start_date <= today && (!internProfile.end_date || internProfile.end_date >= today));
-    await Promise.all([
-      database.from("intern_profiles").update({ status: active ? "active" : "pending" }).eq("id", internProfile.id),
-      database.from("internship_applications").update({ onboarding_status: active ? "active" : "waiting_start" }).eq("applicant_user_id", user.id).not("converted_intern_id", "is", null),
-    ]);
-  }
-
   revalidatePath("/dashboard/profile");
   revalidatePath("/dashboard", "layout");
   return { ok: true, message: "Profil berhasil diperbarui!" };

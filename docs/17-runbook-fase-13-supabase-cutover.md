@@ -2,6 +2,16 @@
 
 Status: 11 Oktober 2026. Cutover production masih **NO-GO**. Dokumen ini tidak memberi izin menjalankan migrasi pada server live.
 
+## Kemajuan tahap 1 (11 Oktober 2026)
+
+- Backup PostgreSQL develop dan production telah diperiksa hash-nya dan berhasil direstore pada PostgreSQL lokal. Restore develop mengabaikan objek extension `pg_cron` khusus instance karena extension itu hanya boleh dipasang pada database `postgres`; data tabel aplikasi dan Auth tetap direstore.
+- Salinan Storage develop awal ada pada `/home/maskhar/academy-phase13-backups/2026-10-11/storage/develop/`. Berisi 4.312 berkas / sekitar 12 GB; hash isi per path dibandingkan dengan source dan **cocok saat pemeriksaan**. Backup ini belum konsisten lintas DB/Storage karena penulisan aplikasi masih aktif.
+- Snapshot Storage production awal diarahkan ke `I:\academy-utero-backups\production\20261011-182300` menggunakan `scripts/backup-supabase-storage.mjs`. Transfer awal mencapai 2.346 file, tetapi SSH tar mengembalikan kode 2 saat sumber live dibaca; segera sesudah itu SSH `20.20.20.3:22` timeout. Berkas berada di `.incoming` dan **belum terverifikasi**. Setelah SSH pulih, ulangi perintah dengan run-id sama; tool menghitung ulang hash dan hanya mengirim file hilang/berubah. Hasil baru dianggap backup valid ketika `manifest.json` tercipta dan `--verify true` lulus. Jangan hapus `.incoming` atau menganggap staging sebagai backup final.
+- Audit tabel memberi 161 attendance dan 126 daily report hanya di develop; 14 attendance dan 15 daily report hanya di production. Semua baris eksklusif ini memiliki `intern_profiles.id` induk pada kedua clone; itu **bukan** izin merge otomatis karena relasi lain dan histori penulisan masih harus diperiksa. Auth memiliki 1 user hanya di develop dan 2 hanya di production.
+- Kedua dump mendapat uji migrasi `0038` sampai `0045` pada clone terpisah. Baseline `0001–0037` yang dipakai pada clone hanyalah alat pengujian migrasi baru, **bukan bukti** bahwa seluruh riwayat SQL lama sudah tercermin di server live. Jangan baseline server live tanpa pembuktian schema per versi.
+- `0041–0045` menutup celah direct bypass/status seleksi, menambah approval admin onboarding, keputusan atomik, pembatasan jendela tes, dan perbaikan pemilik RPC. Tidak satu pun migrasi ini diterapkan ke server live.
+- Setelah SSH pulih, jalankan `npm run backup:supabase-storage -- --target production --source /data/supabase/instances/supabase-01/config/volumes/storage --destination I:\academy-utero-backups --user maskhar --run-id 20261011-182300`, lalu `npm run backup:supabase-storage -- --verify true --target production --destination I:\academy-utero-backups --run-id 20261011-182300`.
+
 ## Target tetap
 
 | Lingkungan | Supabase | IP |

@@ -34,9 +34,12 @@ export async function saveSelectionAnswerAction(formData: FormData) {
   await requireApplicant();
   const assignmentId = uuid.parse(formData.get("assignmentId"));
   const questionId = uuid.parse(formData.get("questionId"));
-  const { assignment, attempt } = await getApplicantAttempt(assignmentId);
-  if (attempt?.status !== "in_progress" || !attempt.expires_at || Date.now() >= Date.parse(attempt.expires_at)) throw new Error("Waktu pengerjaan habis.");
-  if (assignment.due_at && Date.now() >= Date.parse(assignment.due_at)) throw new Error("Batas penugasan telah lewat.");
+  const { assignment, test, attempt } = await getApplicantAttempt(assignmentId);
+  const now = Date.now();
+  if (test.available_from && now < Date.parse(test.available_from)) throw new Error("Tes belum dibuka.");
+  if (test.available_until && now >= Date.parse(test.available_until)) throw new Error("Tes sudah ditutup.");
+  if (attempt?.status !== "in_progress" || !attempt.expires_at || now >= Date.parse(attempt.expires_at)) throw new Error("Waktu pengerjaan habis.");
+  if (assignment.due_at && now >= Date.parse(assignment.due_at)) throw new Error("Batas penugasan telah lewat.");
   const db = await createUteroAcademyServiceRoleClient();
   const { data: question } = await db.from("selection_questions").select("id,question_type").eq("id", questionId).eq("package_id", assignment.package_id).single();
   if (!question) throw new Error("Soal tidak ditemukan pada paket ini.");
@@ -80,10 +83,13 @@ export async function saveSelectionAnswerAction(formData: FormData) {
 export async function submitSelectionAttemptAction(formData: FormData) {
   await requireApplicant();
   const assignmentId = uuid.parse(formData.get("assignmentId"));
-  const { assignment, attempt, questions } = await getApplicantAttempt(assignmentId);
+  const { assignment, test, attempt, questions } = await getApplicantAttempt(assignmentId);
   if (attempt?.status !== "in_progress") throw new Error("Percobaan tidak aktif.");
+  const now = Date.now();
+  if (test.available_from && now < Date.parse(test.available_from)) throw new Error("Tes belum dibuka.");
+  if (test.available_until && now >= Date.parse(test.available_until)) throw new Error("Tes sudah ditutup.");
   const db = await createUteroAcademyServiceRoleClient();
-  if (!attempt.expires_at || Date.now() >= Date.parse(attempt.expires_at) || assignment.due_at && Date.now() >= Date.parse(assignment.due_at)) {
+  if (!attempt.expires_at || now >= Date.parse(attempt.expires_at) || assignment.due_at && now >= Date.parse(assignment.due_at)) {
     const { error: expiryError } = await db.from("selection_attempts").update({ status: "expired" }).eq("id", attempt.id).eq("status", "in_progress");
     if (expiryError) throw new Error(expiryError.message);
     revalidatePath(path);
@@ -91,7 +97,6 @@ export async function submitSelectionAttemptAction(formData: FormData) {
   }
   const { data: answers, error: answersError } = await db.from("selection_answers").select("id,question_id,selected_option_ids,answer_text,attachment_path").eq("attempt_id", attempt.id);
   if (answersError) throw new Error(answersError.message);
-  const now = Date.now();
   if (questions.some((question) => question.is_required && !(answers ?? []).some((answer) => answer.question_id === question.id && (answer.selected_option_ids.length || answer.answer_text || answer.attachment_path)))) throw new Error("Jawab semua soal wajib sebelum mengirim.");
   const optionIds = (answers ?? []).flatMap((answer) => answer.selected_option_ids);
   const options = optionIds.length ? await db.from("selection_question_options").select("id,question_id,is_correct").in("id", optionIds) : { data: [], error: null };

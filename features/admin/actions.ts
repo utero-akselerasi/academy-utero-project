@@ -18,6 +18,10 @@ const assignMentorSchema = z.object({
   mentorId: z.string().uuid("Mentor tidak valid."),
 });
 
+const approveOnboardingSchema = z.object({
+  id: z.string().uuid("Pendaftaran tidak valid."),
+});
+
 // Guard terpusat: guard lama memakai canAccessAdminDashboard() yang hanya
 // mengizinkan role "admin" sehingga super_admin ikut ditolak, dan mengarahkan
 // user dengan role salah ke /login bukan ke halaman 403.
@@ -60,6 +64,19 @@ export async function updateApplicationStatusAction(formData: FormData) {
     throw new Error("Status belum berhasil diubah.");
   }
 
+  revalidatePath("/dashboard/admin/pendaftaran");
+}
+
+export async function approveApplicationOnboardingAction(formData: FormData) {
+  await requireStaff();
+  const parsed = approveOnboardingSchema.safeParse({ id: formData.get("id") });
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Pendaftaran tidak valid.");
+
+  const db = await createUteroAcademyClient();
+  const { error } = await db.rpc("approve_application_onboarding", {
+    p_application_id: parsed.data.id,
+  });
+  if (error) throw new Error(error.message);
   revalidatePath("/dashboard/admin/pendaftaran");
 }
 

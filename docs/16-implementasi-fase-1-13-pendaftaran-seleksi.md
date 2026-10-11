@@ -25,7 +25,7 @@ Status dokumen: 11 Oktober 2026. Kode aplikasi selesai dan tervalidasi lokal. Mi
 - `npm test`: 730 test lulus.
 - `npm run build`: build produksi lulus.
 - `npm run migrate`: dry-run menemukan migrasi sampai `0040`; tidak membuka koneksi database.
-- Snapshot production berhasil direstore ke clone PostgreSQL 17; `0038`, `0039`, dan `0040` lulus transaksi nyata.
+- Snapshot develop dan production berhasil direstore ke clone PostgreSQL 17; `0038`–`0045` lulus transaksi nyata pada keduanya.
 
 ## Batas deployment
 

@@ -1,8 +1,11 @@
-import { updateApplicationStatusAction } from "@/features/admin/actions";
-import { Check, FileCheck, X } from "lucide-react";
+import { approveApplicationOnboardingAction, updateApplicationStatusAction } from "@/features/admin/actions";
+import { Check, FileCheck, ShieldCheck, X } from "lucide-react";
 
 type Props = {
   id: string;
+  status: string;
+  onboardingStatus: string | null;
+  convertedInternId: string | null;
 };
 
 const actions = [
@@ -23,10 +26,13 @@ const actions = [
   },
 ] as const;
 
-export function ApplicationStatusForm({ id }: Props) {
+export function ApplicationStatusForm({ id, status, onboardingStatus, convertedInternId }: Props) {
+  const applicationClosed = ["accepted", "converted", "rejected", "cancelled"].includes(status);
+  const canApproveOnboarding = status === "accepted" && Boolean(convertedInternId) &&
+    ["accepted_pending_onboarding", "biodata_review", "onboarding_complete"].includes(onboardingStatus ?? "");
   return (
-    <div className="flex flex-wrap gap-2">
-      {actions.map((item) => {
+    <div className="flex max-w-md flex-wrap gap-2">
+      {!applicationClosed ? actions.map((item) => {
         const Icon = item.icon;
 
         return (
@@ -40,7 +46,16 @@ export function ApplicationStatusForm({ id }: Props) {
             </button>
           </form>
         );
-      })}
+      }) : null}
+      {canApproveOnboarding ? (
+        <form action={approveApplicationOnboardingAction}>
+          <input name="id" type="hidden" value={id} />
+          <button className="button-primary text-sm" type="submit">
+            <ShieldCheck size={16} />
+            Setujui onboarding
+          </button>
+        </form>
+      ) : null}
     </div>
   );
 }
