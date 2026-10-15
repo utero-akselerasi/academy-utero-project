@@ -1,5 +1,7 @@
 import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import { usesLocalBackend } from "@/lib/backend/mode";
 import { applySecurityHeaders, buildContentSecurityPolicy } from "@/lib/security-headers";
 
 /**
@@ -22,10 +24,12 @@ export async function proxy(request: NextRequest) {
   // Nonce dititipkan lewat header request: Next.js membacanya dari sana untuk
   // dipasang ke script bootstrap-nya sendiri, jadi script-src tidak perlu
   // 'unsafe-inline'.
-  const response = await updateSession(request, {
-    "x-nonce": nonce,
-    "content-security-policy": csp,
-  });
+  const forwarded = { "x-nonce": nonce, "content-security-policy": csp };
+  const requestHeaders = new Headers(request.headers);
+  for (const [name, value] of Object.entries(forwarded)) requestHeaders.set(name, value);
+  const response = usesLocalBackend()
+    ? NextResponse.next({ request: { headers: requestHeaders } })
+    : await updateSession(request, forwarded);
 
   applySecurityHeaders(response.headers, csp, isDev);
 

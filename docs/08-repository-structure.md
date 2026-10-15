@@ -1,6 +1,19 @@
 # Struktur Repository
 
-Struktur berikut direkomendasikan untuk fase implementasi.
+Struktur berikut adalah rencana awal. Struktur aktual sekarang memisahkan aplikasi Next.js, backend Fastify, operasi deployment, dan arsip dokumentasi.
+
+## Struktur aktual
+
+- `app/`, `components/`, `features/`, `lib/`: aplikasi Next.js dan adapter ke backend.
+- `backend/src/`: API Fastify, Auth, RBAC, storage internal, dan domain.
+- `backend/migrations/`: skema PostgreSQL backend mandiri.
+- `backend/scripts/`: migrasi identitas, bootstrap, backup, restore, dan verifikasi backend.
+- `scripts/`: validasi environment, evidence UAT, smoke, dan gate deployment lintas service.
+- `supabase/migrations/` dan `supabase/seed/`: sumber skema historis serta definisi role/permission yang direplay ke target baru.
+- `docs/README.md`: indeks dokumentasi aktif; `docs/archive/` hanya snapshot dan laporan historis.
+- `tests/` dan `backend/tests/`: test aplikasi/deployment dan test backend.
+
+Scope migrasi aktif hanya email, nama, dan profil Academy. Lihat `docs/35-selfhosted-identity-only.md`.
 
 ```text
 .

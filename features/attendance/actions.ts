@@ -11,6 +11,8 @@ import { revalidatePath } from "next/cache";
 import { attendanceSettingsSchema, checkInSchema, checkOutSchema, reviewAttendanceSchema } from "./schemas";
 import { GEOFENCE_MISCONFIGURED_MESSAGE, getDistanceMeters, resolveGeofence } from "./geofence";
 import { rentangTanggalIzin } from "./permit-dates";
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { localCheckIn, localCheckOut, localPermit, localReview, localReviewPermit, localSettings } from "./local";
 
 /**
  * Aksi review/pengaturan absensi hanya untuk staff.
@@ -73,6 +75,7 @@ async function uploadSelfieBase64(userId: string, base64Data: string, type: 'in'
 }
 
 export async function checkInAction(_: FormState, formData: FormData): Promise<FormState> {
+  if (usesLocalBackend()) { await requireUser(); return localCheckIn(formData); }
   // Aksi peserta: kepemilikan ditentukan lewat intern_profiles.user_id.
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
@@ -184,6 +187,7 @@ export async function checkInAction(_: FormState, formData: FormData): Promise<F
 }
 
 export async function checkOutAction(_: FormState, formData: FormData): Promise<FormState> {
+  if (usesLocalBackend()) { await requireUser(); return localCheckOut(formData); }
   // Aksi peserta: kepemilikan ditentukan lewat intern_profiles.user_id.
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
@@ -239,6 +243,7 @@ export async function checkOutAction(_: FormState, formData: FormData): Promise<
 }
 
 export async function reviewAttendanceAction(formData: FormData) {
+  if (usesLocalBackend()) { await requireStaff(); return localReview(formData); }
   const user = await requireStaff();
   const parsed = reviewAttendanceSchema.safeParse({ attendanceId: formData.get("attendanceId"), status: formData.get("status"), note: formData.get("note") });
   if (!parsed.success) throw new Error("Data review absensi tidak valid.");
@@ -269,6 +274,7 @@ export async function reviewAttendanceAction(formData: FormData) {
 }
 
 export async function submitPermitAction(_: FormState, formData: FormData): Promise<FormState> {
+  if (usesLocalBackend()) { await requireUser(); return localPermit(formData); }
   // Aksi peserta: kepemilikan ditentukan lewat intern_profiles.user_id.
   const user = await requireUser();
 
@@ -354,6 +360,7 @@ export async function submitPermitAction(_: FormState, formData: FormData): Prom
 
 
 export async function saveAttendanceSettingsAction(formData: FormData) {
+  if (usesLocalBackend()) { await requireStaff(); return localSettings(formData); }
   // Pengaturan global absensi (jam kerja + geofencing) hanya boleh diubah staff.
   await requireStaff();
 
@@ -434,6 +441,7 @@ export async function saveAttendanceSettingsAction(formData: FormData) {
 
 
 export async function reviewPermitAction(formData: FormData) {
+  if (usesLocalBackend()) { await requireStaff(); return localReviewPermit(formData); }
   const user = await requireStaff();
 
   const permitId = formData.get("permitId") as string;

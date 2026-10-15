@@ -2,6 +2,7 @@
 
 import { requireUser } from "@/features/auth/guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { backendRequest, setBackendSession, usesLocalBackend } from "@/lib/backend/server";
 
 export type ChangePasswordFormState = {
   ok: boolean;
@@ -11,7 +12,6 @@ export type ChangePasswordFormState = {
 export async function changePasswordAction(_: ChangePasswordFormState, formData: FormData): Promise<ChangePasswordFormState> {
   // Aksi self-service: hanya mengubah password milik sesi yang aktif.
   const user = await requireUser();
-  const supabase = await createSupabaseServerClient();
 
   const email = user.email;
   const currentPassword = formData.get("currentPassword") as string;
@@ -23,8 +23,9 @@ export async function changePasswordAction(_: ChangePasswordFormState, formData:
     return { ok: false, message: "Semua field wajib diisi." };
   }
 
-  if (newPassword.length < 8) {
-    return { ok: false, message: "Password baru minimal 8 karakter." };
+  const minimumLength = usesLocalBackend() ? 12 : 8;
+  if (newPassword.length < minimumLength) {
+    return { ok: false, message: `Password baru minimal ${minimumLength} karakter.` };
   }
 
   if (newPassword !== confirmPassword) {
@@ -39,7 +40,26 @@ export async function changePasswordAction(_: ChangePasswordFormState, formData:
     return { ok: false, message: "Email akun tidak ditemukan." };
   }
 
+  if (usesLocalBackend()) {
+    try {
+      const response = await backendRequest("/v1/auth/change-password", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      if (response.status === 401) return { ok: false, message: "Password lama Anda tidak sesuai." };
+      if (response.status === 400) return { ok: false, message: "Password baru belum memenuhi ketentuan." };
+      if (!response.ok) return { ok: false, message: "Gagal mengubah password. Coba lagi." };
+      await setBackendSession(response);
+      return { ok: true, message: "Password berhasil diubah." };
+    } catch (error) {
+      console.error("Gagal ubah password melalui backend lokal:", error);
+      return { ok: false, message: "Gagal mengubah password. Coba lagi." };
+    }
+  }
+
   // Verifikasi password lama dengan login ulang
+  const supabase = await createSupabaseServerClient();
   const { error: signInError } = await supabase.auth.signInWithPassword({
     email,
     password: currentPassword,

@@ -15,9 +15,16 @@ describe("isolasi Storage Academy", () => {
     expect(migration).not.toMatch(/'avatars'/i);
   });
 
-  it("menolak pembuatan saat policy Storage global masih terbuka", () => {
-    expect(migration).toContain("policyname = 'Public Access'");
-    expect(migration).toContain("trim(qual) = 'true'");
-    expect(migration).toContain("raise exception 'Policy Storage global masih terbuka");
+  it("memeriksa scope nyata setiap policy publik tanpa bergantung nama", () => {
+    expect(migration).toContain("roles::text[] && array['anon', 'authenticated', 'public']");
+    expect(migration).toContain("coalesce(with_check, qual)");
+    expect(migration).toContain("using_expression is null");
+    expect(migration).toContain("check_expression is null");
+    expect(migration).toContain("lower(expression) like '%academy-private%'");
+    expect(migration).toContain("expression !~*");
+    expect(migration).toContain("(?s)^(\\(bucket_id =");
+    expect(migration).not.toContain("^\\(*[[:space:]]*bucket_id");
+    expect(migration).not.toContain("policyname = 'Public Access'");
+    expect(migration).toContain("scope-nya tidak dapat dibuktikan aman");
   });
 });

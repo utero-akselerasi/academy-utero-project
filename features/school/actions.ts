@@ -8,6 +8,8 @@ import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { schoolBackend } from "./local";
 
 /** Batas rentang laporan: satu request tidak boleh memindai periode tak terbatas. */
 const MAX_REPORT_RANGE_DAYS = 366;
@@ -61,6 +63,16 @@ export async function generateSchoolReportAction(
   }
 
   const { from, to } = parsed.data;
+
+  if (usesLocalBackend()) {
+    try {
+      await schoolBackend("/reports", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ from, to }) });
+      revalidatePath("/dashboard/school/reports");
+    } catch (error) {
+      return { ok: false, message: error instanceof Error ? error.message : "Laporan belum berhasil disimpan." };
+    }
+    redirect(`/dashboard/school/reports/generate/download?from=${from}&to=${to}`);
+  }
 
   // Otorisasi data: hanya sekolah yang terkait user ini.
   const { data: schoolProfile } = await getSchoolProfile(user.id);

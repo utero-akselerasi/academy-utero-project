@@ -1,6 +1,8 @@
 import { resolveStorageUrl } from "@/lib/storage-urls";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { type DailyReport, type DailyReportAttachment, type DailyReportWithDetails, type DailyReportReview, type DailyReportWithIntern } from "./types";
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { localProfiles, localReports, localReviews } from "./local";
 
 /**
  * Menandatangani `file_path` setiap lampiran, di tempat.
@@ -43,6 +45,7 @@ async function signAttachments(attachments: DailyReportAttachment[] | null | und
  * membuat profil sendiri.
  */
 export async function getInternProfileId(userId: string): Promise<string | null> {
+  if (usesLocalBackend()) return (await localProfiles()).internProfileId;
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("intern_profiles")
@@ -59,6 +62,7 @@ export async function getInternProfileId(userId: string): Promise<string | null>
 }
 
 export async function getMentorProfileId(userId: string): Promise<string | null> {
+  if (usesLocalBackend()) return (await localProfiles()).mentorProfileId;
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("mentor_profiles")
@@ -75,6 +79,7 @@ export async function getMentorProfileId(userId: string): Promise<string | null>
 }
 
 export async function getInternDailyReports(internProfileId: string) {
+  if (usesLocalBackend()) return { data: await localReports(internProfileId) as DailyReportWithDetails[], error: null };
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("daily_reports")
@@ -107,6 +112,10 @@ export async function getInternDailyReports(internProfileId: string) {
  * resolveStaffInternScope. Bacaan dan tulisan sekarang memakai scope yang sama.
  */
 export async function getMentorDailyReports(allowedInternIds: string[] | null) {
+  if (usesLocalBackend()) {
+    const reports = await localReports();
+    return { data: allowedInternIds === null ? reports : reports.filter((report) => allowedInternIds.includes(report.intern_id)), error: null };
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   let internIds: string[];
@@ -175,6 +184,7 @@ export async function getMentorDailyReports(allowedInternIds: string[] | null) {
 }
 
 export async function getReportReviews(reportId: string) {
+  if (usesLocalBackend()) return { data: await localReviews(reportId), error: null };
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("daily_report_reviews")

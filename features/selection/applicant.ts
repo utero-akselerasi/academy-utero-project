@@ -1,8 +1,34 @@
 import { requireApplicant } from "@/features/auth/guards";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 import { createUteroAcademyClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
-export async function getApplicantSelection() {
+type ApplicantSelectionData = {
+  applications: Array<{ id: string; full_name: string; selection_status: string | null; selection_track_id: string | null }>;
+  assignments: Array<{ id: string; application_id: string; package_id: string; status: string; due_at: string | null; max_attempts: number }>;
+  packages: Array<{ id: string; title: string; description: string | null; track_id: string; duration_minutes: number; available_from: string | null; available_until: string | null; is_published: boolean }>;
+  attempts: Array<{ id: string; assignment_id: string; status: string; expires_at: string | null; attempt_number: number }>;
+  materials: Array<{ id: string; track_id: string; title: string; content: unknown; order_index: number }>;
+  results: Array<{ applicationId: string; rows: Array<{ decision_id: string; application_id: string; result: string; final_score: number | null; public_note: string | null }> }>;
+  currentTime: number;
+};
+
+type ApplicantAttemptData = {
+  assignment: { id: string; application_id: string; package_id: string; status: string; due_at: string | null; max_attempts: number };
+  test: { id: string; title: string; description: string | null; duration_minutes: number; is_published: boolean; available_from: string | null; available_until: string | null };
+  attempt: { id: string; status: string; expires_at: string | null; attempt_number: number } | null;
+  questions: Array<{ id: string; question_type: string; prompt: { text?: string }; points: number; order_index: number; is_required: boolean }>;
+  options: Array<{ id: string; question_id: string; label: string; content: unknown; order_index: number }>;
+  answers: Array<{ question_id: string; selected_option_ids: string[]; answer_text: string | null; attachment_path: string | null }>;
+  active: boolean;
+};
+
+export async function getApplicantSelection(): Promise<ApplicantSelectionData> {
   const user = await requireApplicant();
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/registration/selection");
+    if (!response.ok) throw new Error("Gagal memuat seleksi dari backend lokal.");
+    return response.json() as Promise<ApplicantSelectionData>;
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data: applications, error } = await db.from("internship_applications").select("id,full_name,selection_status,selection_track_id").eq("applicant_user_id", user.id);
   if (error) throw new Error(error.message);
@@ -28,8 +54,14 @@ export async function getApplicantSelection() {
   return { applications: applications ?? [], assignments: assignments ?? [], packages: packages.data ?? [], attempts: attempts.data ?? [], materials: materials.data ?? [], results, currentTime: Date.now() };
 }
 
-export async function getApplicantAttempt(assignmentId: string) {
+export async function getApplicantAttempt(assignmentId: string): Promise<ApplicantAttemptData> {
   const user = await requireApplicant();
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/registration/selection/${encodeURIComponent(assignmentId)}`);
+    if (response.status === 404) throw new Error("Tes tidak ditemukan.");
+    if (!response.ok) throw new Error("Gagal memuat tes dari backend lokal.");
+    return response.json() as Promise<ApplicantAttemptData>;
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data: assignment } = await db.from("selection_assignments").select("id,application_id,package_id,status,due_at,max_attempts").eq("id", assignmentId).single();
   if (!assignment) throw new Error("Tes tidak ditemukan.");

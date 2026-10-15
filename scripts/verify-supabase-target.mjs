@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
-const targets = { develop: "supabase.carubra.com", production: "supabase.carubra.space" };
+const targets = { develop: "supabase.carubra.com", production: "supabase.carubra.space", staging: "127.0.0.1" };
 const required = ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "NEXT_PUBLIC_APP_URL"];
 
 export function parseBuildEnv(content) {
@@ -23,7 +23,7 @@ export function parseBuildEnv(content) {
 }
 
 export function verifyTarget(target, values, { build = true } = {}) {
-  if (!Object.hasOwn(targets, target)) throw new Error("DEPLOY_TARGET wajib develop atau production");
+  if (!Object.hasOwn(targets, target)) throw new Error("DEPLOY_TARGET wajib develop, production, atau staging");
   for (const key of required) {
     if (!values[key] || !values[key].trim()) throw new Error(`${key} wajib diisi`);
   }
@@ -38,10 +38,14 @@ export function verifyTarget(target, values, { build = true } = {}) {
   } catch {
     throw new Error("URL build tidak valid");
   }
-  if (url.protocol !== "https:" || url.hostname !== targets[target] || url.port || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
+  if (target === "staging" ? url.href !== "http://127.0.0.1:18100/" : url.protocol !== "https:" || url.hostname !== targets[target] || url.port || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
     throw new Error(`URL Supabase tidak cocok dengan target ${target}`);
   }
-  if (appUrl.protocol !== "https:" || !appUrl.hostname || appUrl.username || appUrl.password || appUrl.hash) {
+  const remoteApp = appUrl.protocol === "https:" && !!appUrl.hostname && !appUrl.port &&
+    !appUrl.username && !appUrl.password && appUrl.pathname === "/" && !appUrl.search && !appUrl.hash;
+  const loopbackApp = appUrl.protocol === "http:" && appUrl.hostname === "127.0.0.1" && urlPortIsNonprivileged(appUrl) &&
+    !appUrl.username && !appUrl.password && appUrl.pathname === "/" && !appUrl.search && !appUrl.hash;
+  if (target === "staging" ? !loopbackApp : target === "develop" ? !(remoteApp || loopbackApp) : !remoteApp) {
     throw new Error("NEXT_PUBLIC_APP_URL wajib URL HTTPS tanpa kredensial");
   }
   return {
@@ -50,6 +54,11 @@ export function verifyTarget(target, values, { build = true } = {}) {
     appUrl: appUrl.origin,
     anonKeyDigest: createHash("sha256").update(values.NEXT_PUBLIC_SUPABASE_ANON_KEY).digest("hex"),
   };
+}
+
+function urlPortIsNonprivileged(url) {
+  const port = Number(url.port);
+  return Number.isInteger(port) && port >= 1024 && port <= 65535;
 }
 
 function main() {

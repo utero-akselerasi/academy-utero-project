@@ -4,6 +4,15 @@ import { requireAdmin, requireUser } from "@/features/auth/guards";
 import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
+import { usesLocalBackend } from "@/lib/backend/server";
+import { localCmsRequest, uploadLocalCmsFile } from "./local-api";
+
+async function uploadCmsAsset(file: File, bucket: "gallery" | "article", prefix: string) {
+  const asset = await validateUpload(file, ["image"]);
+  const filePath = buildStoragePath(prefix, asset.ext);
+  await uploadLocalCmsFile(bucket, filePath, file);
+  return filePath;
+}
 
 // Guard terpusat: cek role lewat semua baris user_roles (guard lama pakai
 // maybeSingle() sehingga user multi-role gagal, dan super_admin ikut ditolak).
@@ -19,6 +28,12 @@ export async function createFaqAction(formData: FormData) {
   const answer = formData.get("answer") as string;
 
   if (!siteId || !question || !answer) throw new Error("Semua field FAQ wajib diisi.");
+  if (usesLocalBackend()) {
+    await localCmsRequest("/v1/cms/faqs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ siteId, question, answer }) });
+    revalidatePath("/dashboard/admin/cms");
+    revalidatePath("/faq");
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -52,6 +67,12 @@ export async function deleteFaqAction(formData: FormData) {
   await requireAdminUser();
   const faqId = formData.get("faqId") as string;
   if (!faqId) throw new Error("FAQ ID tidak valid.");
+  if (usesLocalBackend()) {
+    await localCmsRequest(`/v1/cms/faqs/${encodeURIComponent(faqId)}`, { method: "DELETE" });
+    revalidatePath("/dashboard/admin/cms");
+    revalidatePath("/faq");
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db.from("faqs").delete().eq("id", faqId);
@@ -74,6 +95,13 @@ export async function createTestimonialAction(formData: FormData) {
   const file = formData.get("photo") as File;
 
   if (!siteId || !name || !quote) throw new Error("Nama dan quote testimoni wajib diisi.");
+  if (usesLocalBackend()) {
+    const photoPath = file?.size ? await uploadCmsAsset(file, "gallery", "testimonial") : null;
+    await localCmsRequest("/v1/cms/testimonials", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ siteId, name, role, quote, photoPath }) });
+    revalidatePath("/dashboard/admin/cms");
+    revalidatePath("/");
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
   let photoPath: string | null = null;
@@ -142,6 +170,12 @@ export async function deleteTestimonialAction(formData: FormData) {
   await requireAdminUser();
   const testId = formData.get("testId") as string;
   if (!testId) throw new Error("Testimonial ID tidak valid.");
+  if (usesLocalBackend()) {
+    await localCmsRequest(`/v1/cms/testimonials/${encodeURIComponent(testId)}`, { method: "DELETE" });
+    revalidatePath("/dashboard/admin/cms");
+    revalidatePath("/");
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db.from("testimonials").delete().eq("id", testId);
@@ -164,6 +198,13 @@ export async function createGalleryAction(formData: FormData) {
 
   if (!siteId || !title || !file || file.size === 0) {
     throw new Error("Judul dan file gambar wajib diunggah.");
+  }
+  if (usesLocalBackend()) {
+    const imagePath = await uploadCmsAsset(file, "gallery", "gallery");
+    await localCmsRequest("/v1/cms/galleries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ siteId, title, description, imagePath }) });
+    revalidatePath("/dashboard/admin/cms");
+    revalidatePath("/");
+    return;
   }
 
   // Validasi isi berkas tetap berlaku meski bucket "gallery" publik.
@@ -225,6 +266,12 @@ export async function deleteGalleryAction(formData: FormData) {
   await requireAdminUser();
   const galleryId = formData.get("galleryId") as string;
   if (!galleryId) throw new Error("Gallery ID tidak valid.");
+  if (usesLocalBackend()) {
+    await localCmsRequest(`/v1/cms/galleries/${encodeURIComponent(galleryId)}`, { method: "DELETE" });
+    revalidatePath("/dashboard/admin/cms");
+    revalidatePath("/");
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db.from("galleries").delete().eq("id", galleryId);
@@ -247,6 +294,13 @@ export async function createArticleAction(formData: FormData) {
   const file = formData.get("cover") as File;
 
   if (!siteId || !title || !contentText) throw new Error("Judul dan konten artikel wajib diisi.");
+  if (usesLocalBackend()) {
+    const coverPath = file?.size ? await uploadCmsAsset(file, "article", "article") : null;
+    await localCmsRequest("/v1/cms/articles", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ siteId, title, excerpt, content: contentText, coverPath }) });
+    revalidatePath("/dashboard/admin/cms");
+    revalidatePath("/blog");
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
   let coverPath: string | null = null;
@@ -307,6 +361,12 @@ export async function deleteArticleAction(formData: FormData) {
   await requireAdminUser();
   const artId = formData.get("artId") as string;
   if (!artId) throw new Error("Article ID tidak valid.");
+  if (usesLocalBackend()) {
+    await localCmsRequest(`/v1/cms/articles/${encodeURIComponent(artId)}`, { method: "DELETE" });
+    revalidatePath("/dashboard/admin/cms");
+    revalidatePath("/blog");
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db.from("articles").delete().eq("id", artId);
@@ -323,6 +383,12 @@ export async function publishTestimonialAction(formData: FormData) {
   await requireAdminUser();
   const testId = formData.get("testId") as string;
   if (!testId) throw new Error("Testimonial ID tidak valid.");
+  if (usesLocalBackend()) {
+    await localCmsRequest(`/v1/cms/testimonials/${encodeURIComponent(testId)}/publish`, { method: "PATCH" });
+    revalidatePath("/dashboard/admin/cms");
+    revalidatePath("/");
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db.from("testimonials").update({ status: "published" }).eq("id", testId);
@@ -339,6 +405,14 @@ export async function submitInternTestimonialAction(formData: FormData) {
   // Aksi ini memang untuk user login biasa; kepemilikan divalidasi lewat
   // intern_profiles.user_id, bukan lewat role.
   const user = await requireUser();
+  if (usesLocalBackend()) {
+    const file = formData.get("photo") as File;
+    if (file?.size) throw new Error("Unggah foto testimoni peserta belum tersedia pada backend lokal.");
+    await localCmsRequest("/v1/cms/testimonials/intern", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ siteId: formData.get("siteId"), quote: formData.get("quote") }) });
+    revalidatePath("/dashboard/intern/certificate");
+    revalidatePath("/dashboard/admin/cms");
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
   const { data: internProfile } = await db
@@ -446,6 +520,12 @@ export async function updateLandingPageSettingsAction(formData: FormData) {
   } catch (e) {
     throw new Error("Format data Partnerships tidak valid.");
   }
+  if (usesLocalBackend()) {
+    await localCmsRequest("/v1/cms/landing", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ heroTitle, heroDescription, heroImagePath, skills, expertisers, partnerships, aboutText, contactEmail, contactPhone, contactAddress, termsContent }) });
+    revalidatePath("/");
+    revalidatePath("/dashboard/admin/cms");
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db
@@ -497,6 +577,10 @@ export async function uploadCmsFileAction(formData: FormData): Promise<{ path: s
   const file = formData.get("file") as File;
   if (!file || file.size === 0) {
     throw new Error("File tidak ditemukan.");
+  }
+  if (usesLocalBackend()) {
+    const path = await uploadCmsAsset(file, "gallery", "expert");
+    return { path, url: `/api/storage/gallery/${path.split("/").map(encodeURIComponent).join("/")}` };
   }
 
   // Ekstensi & MIME dari isi berkas; bucket "gallery" publik.

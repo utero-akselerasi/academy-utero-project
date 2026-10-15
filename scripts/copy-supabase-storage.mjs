@@ -93,6 +93,11 @@ async function request(target, url, options = {}) {
     headers: { apikey: target.key, Authorization: `Bearer ${target.key}`, ...options.headers },
     signal: AbortSignal.timeout(60000),
   });
+  if (response.status === 400 && (!options.method || options.method === "GET") &&
+      url.pathname.startsWith("/storage/v1/object/")) {
+    const body = await response.clone().json().catch(() => null);
+    if (body?.statusCode === "404" && body?.code === "NoSuchKey") throw redactError(404);
+  }
   if (!response.ok) throw redactError(response.status);
   return response;
 }

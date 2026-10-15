@@ -2,8 +2,14 @@
 import { listAllAuthUsers } from "@/lib/auth-admin";
 import { isActiveRoleCode } from "@/features/auth/roles";
 import { type Role, type School, type SchoolInternOption, type UserProfile, type UserRole } from "./types";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 
 export async function getSuperAdminUserManagementData() {
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/super-admin/users");
+    if (!response.ok) throw new Error("Gagal membaca user backend lokal.");
+    return { ...(await response.json()) as { profiles: UserProfile[]; roles: Role[]; userRoles: UserRole[]; schools: Array<{ id: string; name: string }> }, error: null };
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const authClient = createSupabaseServiceRoleClient();
 
@@ -73,6 +79,11 @@ export async function getSuperAdminUserManagementData() {
 }
 
 export async function getSuperAdminSchoolsData() {
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/super-admin/schools");
+    if (!response.ok) throw new Error("Gagal membaca sekolah backend lokal.");
+    return { ...(await response.json()) as { schools: School[]; contacts: any[]; interns: SchoolInternOption[]; unassignedInterns: SchoolInternOption[] }, error: null };
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   const [schoolsResult, contactsResult, internsResult] = await Promise.all([
@@ -112,6 +123,12 @@ export async function getSuperAdminSchoolsData() {
 
 
 export async function detectOrphanData() {
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/super-admin/diagnostics");
+    if (!response.ok) throw new Error("Gagal membaca diagnostik backend lokal.");
+    const data = await response.json() as { orphanContacts: Array<{ id: string; user_id: string | null; school_id: string; name: string }>; orphanInterns: Array<{ id: string; school_id: string | null; full_name: string }>; schoolContactsWithoutSchool: Array<{ id: string; user_id: string | null; school_id: string; name: string }> };
+    return { orphanContacts: data.orphanContacts, orphanInterns: data.orphanInterns, schoolContactsWithoutSchool: data.schoolContactsWithoutSchool, total: data.orphanContacts.length + data.orphanInterns.length + data.schoolContactsWithoutSchool.length, error: null };
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const authClient = createSupabaseServiceRoleClient();
 
@@ -194,6 +211,12 @@ export type MissingDomainProfile = {
  * Hanya membaca.
  */
 export async function detectMissingDomainProfiles() {
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/super-admin/diagnostics");
+    if (!response.ok) throw new Error("Gagal membaca profil domain backend lokal.");
+    const { missing } = await response.json() as { missing: MissingDomainProfile[] };
+    return { missing, total: missing.length, error: null };
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   const [userRolesResult, profilesResult, internsResult, mentorsResult] = await Promise.all([

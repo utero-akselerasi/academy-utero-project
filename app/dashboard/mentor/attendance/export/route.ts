@@ -6,6 +6,8 @@ import { buildCsv, csvResponseHeaders, type CsvCell } from "@/lib/csv";
 import { jakartaMinutesOfDay, parseWallClockMinutes } from "@/lib/time";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { localAttendanceExportData } from "@/features/attendance/local";
 
 const MAX_RANGE_DAYS = 92;
 
@@ -128,22 +130,42 @@ export async function GET(request: Request) {
     return new NextResponse("Bulan export tidak valid.", { status: 400 });
   }
 
-  const scope = await resolveStaffInternScope(user.id);
-
-  if (scope.kind === "setup_required") {
-    return new NextResponse(
-      "Profil pembimbing belum disiapkan. Hubungi super admin untuk mengaktifkan akses export.",
-      { status: 403 },
-    );
+  let settings: { check_in_time?: string | null; late_tolerance_minutes?: number | null; monthly_target_hours?: number | null } | null = null;
+  let interns: InternProfile[] = [];
+  let attendances: AttendanceLog[] = [];
+  let scopeKind: "global" | "scoped" = "scoped";
+  if (usesLocalBackend()) {
+    let result;
+    try {
+      result = await localAttendanceExportData(period.startDate, period.endDate, mode);
+    } catch (error) {
+      return new NextResponse(error instanceof Error ? error.message : "Gagal memuat export.", { status: 503 });
+    }
+    settings = result.settings;
+    interns = result.interns;
+    attendances = result.attendances;
+  } else {
+    const scope = await resolveStaffInternScope(user.id);
+    if (scope.kind === "setup_required") {
+      return new NextResponse("Profil pembimbing belum disiapkan. Hubungi super admin untuk mengaktifkan akses export.", { status: 403 });
+    }
+    scopeKind = scope.kind;
+    const db = await createUteroAcademyServiceRoleClient();
+    settings = (await db.from("attendance_settings").select("check_in_time, late_tolerance_minutes, monthly_target_hours")
+      .eq("id", ATTENDANCE_SETTINGS_ID).maybeSingle()).data;
+    if (scope.kind === "global" || scope.internIds.length > 0) {
+      let internQuery = db.from("intern_profiles").select("id, full_name, email, major, phone").eq("status", "active");
+      if (scope.kind === "scoped") internQuery = internQuery.in("id", scope.internIds);
+      interns = (await internQuery.order("full_name", { ascending: true }).returns<InternProfile[]>()).data || [];
+    }
+    const internIds = interns.map((intern) => intern.id);
+    if (internIds.length) {
+      attendances = (await db.from("attendances")
+        .select("intern_id, attendance_date, check_in_at, check_out_at, status, attendance_type")
+        .in("intern_id", internIds).gte("attendance_date", period.startDate).lte("attendance_date", period.endDate)
+        .returns<AttendanceLog[]>()).data || [];
+    }
   }
-
-  const db = await createUteroAcademyServiceRoleClient();
-
-  const { data: settings } = await db
-    .from("attendance_settings")
-    .select("check_in_time, late_tolerance_minutes, monthly_target_hours")
-    .eq("id", ATTENDANCE_SETTINGS_ID)
-    .maybeSingle();
 
   const lateTolerance = settings?.late_tolerance_minutes ?? 15;
   const monthlyTargetHours = settings?.monthly_target_hours ?? 120;
@@ -154,39 +176,6 @@ export async function GET(request: Request) {
   // telat terhadap NaN bernilai false — artinya **tidak ada peserta yang pernah
   // terhitung telat**, tanpa satu pun error muncul.
   const checkInMinutes = parseWallClockMinutes(settings?.check_in_time) ?? 8 * 60;
-
-  let interns: InternProfile[] = [];
-
-  if (scope.kind === "global" || scope.internIds.length > 0) {
-    let internQuery = db
-      .from("intern_profiles")
-      .select("id, full_name, email, major, phone")
-      .eq("status", "active");
-
-    if (scope.kind === "scoped") {
-      internQuery = internQuery.in("id", scope.internIds);
-    }
-
-    const { data: internsData } = await internQuery
-      .order("full_name", { ascending: true })
-      .returns<InternProfile[]>();
-
-    interns = internsData || [];
-  }
-
-  const internIds = interns.map((intern) => intern.id);
-
-  const { data: attendancesData } = internIds.length > 0
-    ? await db
-      .from("attendances")
-      .select("intern_id, attendance_date, check_in_at, check_out_at, status, attendance_type")
-      .in("intern_id", internIds)
-      .gte("attendance_date", period.startDate)
-      .lte("attendance_date", period.endDate)
-      .returns<AttendanceLog[]>()
-    : { data: [] as AttendanceLog[] };
-
-  const attendances = attendancesData || [];
 
   const rows: CsvCell[][] = [[
     "Nama",
@@ -248,13 +237,15 @@ export async function GET(request: Request) {
   const csv = buildCsv(rows);
 
   // Catat siapa mengekspor PII siapa — tanpa menyimpan isi CSV.
-  await writeAuditLog(user.id, "attendance.export", "attendances", null, null, null, {
-    mode,
-    period_start: period.startDate,
-    period_end: period.endDate,
-    scope: scope.kind,
-    intern_count: interns.length,
-  });
+  if (!usesLocalBackend()) {
+    await writeAuditLog(user.id, "attendance.export", "attendances", null, null, null, {
+      mode,
+      period_start: period.startDate,
+      period_end: period.endDate,
+      scope: scopeKind,
+      intern_count: interns.length,
+    });
+  }
 
   return new NextResponse(csv, {
     headers: csvResponseHeaders(`rekap-absensi-${filenamePeriod}.csv`),

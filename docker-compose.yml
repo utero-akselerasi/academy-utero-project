@@ -1,8 +1,13 @@
+name: website-academy-utero
 services:
   web:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        DEPLOY_TARGET: production
+      secrets:
+        - supabase_build_env
     container_name: utero_academy_web
     restart: always
     # TIDAK ADA `ports:` di sini, dan itu disengaja.
@@ -22,10 +27,12 @@ services:
       - NODE_ENV=production
       - TZ=Asia/Jakarta
     env_file:
-      - .env
+      - ${PRODUCTION_ENV_FILE:-.env.production}
     networks:
       - utero_network
       - carubra-network
+      - utero-id-network
+      - uteroindonesia-network
     # Liveness, bukan kesehatan dependensi: endpoint ini sengaja tidak menyentuh
     # database. Lihat catatan di app/api/health/route.ts.
     #
@@ -49,7 +56,7 @@ services:
     container_name: utero_academy_nginx
     restart: always
     ports:
-      - "80:80"
+      - "9982:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -61,9 +68,19 @@ services:
     networks:
       - utero_network
       - carubra-network
+      - utero-id-network
+      - uteroindonesia-network
 
 networks:
   utero_network:
     driver: bridge
   carubra-network:
     external: true
+  utero-id-network:
+    external: true
+  uteroindonesia-network:
+    external: true
+
+secrets:
+  supabase_build_env:
+    file: ${PRODUCTION_BUILD_ENV_FILE:-.env.production.build}

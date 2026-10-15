@@ -6,13 +6,14 @@ import {
   createUserManualAction, 
   updateUserAdminAction,
   resetUserPasswordAction,
+  activateImportedUserAction,
   deleteUserAction
 } from "@/features/super-admin/actions";
 import { type Role, type UserProfile, type UserRole } from "@/features/super-admin/types";
 import { 
   Plus, X, UserPlus, Trash2, Edit2, Settings, Save, 
   MoreVertical, Key, Shield, User, Search, Calendar, 
-  Check, ChevronDown, Clock, GraduationCap
+  Check, ChevronDown, Clock, GraduationCap, Mail
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -219,7 +220,14 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                       <td className="p-4">
                         <div className="font-bold text-slate-900 leading-snug">{profile.full_name}</div>
                       </td>
-                      <td className="p-4 text-slate-600 font-medium">{profile.email || "-"}</td>
+                      <td className="p-4 text-slate-600 font-medium">
+                        <div>{profile.email || "-"}</div>
+                        {profile.activation_pending && (
+                          <span className="mt-1 inline-flex rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-extrabold uppercase text-amber-800">
+                            menunggu aktivasi
+                          </span>
+                        )}
+                      </td>
                       <td className="p-4">
                         <div className="flex flex-wrap gap-1">
                           {assignedRoles.length === 0 ? (
@@ -315,7 +323,34 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                                 <span>Ubah Role</span>
                               </button>}
 
-                              <button
+                              {isSuperAdmin && profile.activation_pending && (
+                                <button
+                                  onClick={async () => {
+                                    if (assignedRoles.length === 0) {
+                                      alert("Tetapkan role pengguna sebelum mengirim undangan.");
+                                      setActiveDropdownUserId(null);
+                                      return;
+                                    }
+                                    if (!confirm(`Kirim email aktivasi ke ${profile.email || "pengguna ini"}?`)) return;
+                                    const formData = new FormData();
+                                    formData.set("userId", profile.id);
+                                    try {
+                                      await activateImportedUserAction(formData);
+                                      alert("Email aktivasi berhasil dikirim.");
+                                    } catch (err) {
+                                      alert(err instanceof Error ? err.message : "Gagal mengirim undangan aktivasi.");
+                                    } finally {
+                                      setActiveDropdownUserId(null);
+                                    }
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-xs text-amber-800 hover:bg-amber-50 hover:text-amber-950 flex items-center gap-2"
+                                >
+                                  <Mail size={13} />
+                                  <span>Kirim Aktivasi</span>
+                                </button>
+                              )}
+
+                              {!profile.activation_pending && <button
                                 onClick={() => {
                                   setResetPasswordUser(profile);
                                   setActiveDropdownUserId(null);
@@ -324,7 +359,7 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                               >
                                 <Key size={13} />
                                 <span>Ubah Password</span>
-                              </button>
+                              </button>}
 
                               {isSuperAdmin && isIntern && (
                                 <Link

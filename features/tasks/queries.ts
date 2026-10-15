@@ -1,4 +1,5 @@
 import { resolveStorageUrls } from "@/lib/storage-urls";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { type TaskAttachment, type TaskBoard, type TaskBoardWithLists, type TaskCardWithDetails } from "./types";
 
@@ -23,6 +24,12 @@ async function signCardAttachments(attachments: TaskAttachment[] | null | undefi
 }
 
 export async function getMentorBoards(userId: string) {
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/tasks/boards");
+    if (!response.ok) return { data: [], error: new Error(`HTTP ${response.status}`) };
+    const body = await response.json() as { boards: Array<TaskBoard & { owner_name: string }> };
+    return { data: body.boards, error: null };
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data: boards, error } = await db
     .from("task_boards")
@@ -53,7 +60,30 @@ export async function getMentorBoards(userId: string) {
   return { data: mapped, error: null };
 }
 
+export async function getTaskMonitoring() {
+  if (!usesLocalBackend()) return null;
+  const response = await backendRequest("/v1/tasks/monitor");
+  if (!response.ok) throw new Error(`Gagal membaca monitoring tugas (${response.status}).`);
+  return ((await response.json()) as { cards: any[] }).cards;
+}
+
 export async function getBoardWithLists(boardId: string) {
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/tasks/boards/${encodeURIComponent(boardId)}`);
+    if (!response.ok) return { data: null, error: new Error(`HTTP ${response.status}`) };
+    const body = await response.json() as { board: TaskBoardWithLists; userProfiles?: Array<{ id: string; full_name: string }> };
+    const signed: TaskBoardWithLists = {
+      ...body.board,
+      task_lists: await Promise.all((body.board.task_lists ?? []).map(async (list) => ({
+        ...list,
+        task_cards: await Promise.all((list.task_cards ?? []).map(async (card) => ({
+          ...card,
+          task_attachments: await signCardAttachments(card.task_attachments),
+        }))),
+      }))),
+    };
+    return { data: signed, error: null, userProfiles: body.userProfiles ?? [] };
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("task_boards")
@@ -86,10 +116,24 @@ export async function getBoardWithLists(boardId: string) {
     ),
   };
 
-  return { data: signed, error };
+  const creatorIds = [...new Set(data.task_lists.flatMap((list) => list.task_cards.map((card) => card.created_by)).filter(Boolean))];
+  const { data: userProfiles } = creatorIds.length
+    ? await db.from("user_profiles").select("id, full_name").in("id", creatorIds as string[])
+    : { data: [] };
+  return { data: signed, error, userProfiles: userProfiles ?? [] };
 }
 
 export async function getInternCards(internProfileId: string) {
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/tasks/cards?internId=${encodeURIComponent(internProfileId)}`);
+    if (!response.ok) return { data: [], error: new Error(`HTTP ${response.status}`) };
+    const body = await response.json() as { cards: TaskCardWithDetails[] };
+    const signed = await Promise.all(body.cards.map(async (card) => ({
+      ...card,
+      task_attachments: await signCardAttachments(card.task_attachments),
+    })));
+    return { data: signed, error: null };
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("task_cards")

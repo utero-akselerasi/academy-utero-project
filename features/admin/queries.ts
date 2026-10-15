@@ -1,4 +1,10 @@
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { usesLocalBackend } from "@/lib/backend/server";
+import { getLocalPlacements } from "./local";
+
+async function localPlacements() {
+  return getLocalPlacements() as Promise<{ interns: any[]; mentors: any[]; assignments: any[] }>;
+}
 
 /**
  * Daftar peserta aktif, HANYA BACA.
@@ -14,6 +20,7 @@ import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
  * user.
  */
 export async function getActiveInterns() {
+  if (usesLocalBackend()) return (await localPlacements()).interns;
   const db = await createUteroAcademyServiceRoleClient();
 
   // Fetch user_roles who have role code = intern
@@ -59,6 +66,7 @@ export async function getActiveInterns() {
  * menulis diam-diam.
  */
 export async function getMentors() {
+  if (usesLocalBackend()) return (await localPlacements()).mentors;
   const db = await createUteroAcademyServiceRoleClient();
 
   // Fetch user_roles who have role code = admin
@@ -131,6 +139,7 @@ export type MentorAssignmentDetail = {
 };
 
 export async function getMentorAssignments() {
+  if (usesLocalBackend()) return (await localPlacements()).assignments;
   const db = await createUteroAcademyServiceRoleClient();
   
   // We query mentor assignments

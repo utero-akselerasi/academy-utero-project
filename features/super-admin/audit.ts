@@ -1,5 +1,7 @@
 ﻿import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
+
 export async function writeAuditLog(
   actorId: string,
   action: string,
@@ -29,6 +31,12 @@ export async function writeAuditLog(
 }
 
 export async function getAuditLogs() {
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/super-admin/audit-logs");
+    if (!response.ok) return { data: [], error: new Error("Gagal membaca audit log backend lokal.") };
+    const result = await response.json() as { logs: any[] };
+    return { data: result.logs, error: null };
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("audit_logs")

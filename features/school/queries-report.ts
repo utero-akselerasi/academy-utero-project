@@ -1,5 +1,8 @@
 ﻿import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { schoolBackend } from "./local";
+
 export type SchoolReportMetrics = {
   school_id: string;
   school_name: string;
@@ -30,6 +33,10 @@ export async function getSchoolReportMetrics(
   periodStart: string,
   periodEnd: string
 ): Promise<{ data: SchoolReportMetrics | null; error: any }> {
+  if (usesLocalBackend()) {
+    try { const body = await schoolBackend<{ metrics: SchoolReportMetrics }>(`/report-metrics?from=${encodeURIComponent(periodStart)}&to=${encodeURIComponent(periodEnd)}`); return { data: body.metrics, error: null }; }
+    catch (error) { return { data: null, error }; }
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   const { data: school, error: schoolError } = await db

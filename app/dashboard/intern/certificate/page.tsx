@@ -5,6 +5,8 @@ import { requireIntern } from "@/features/auth/guards";
 import Link from "next/link";
 import { Award, Printer, ShieldAlert, Award as CertIcon, ClipboardCheck } from "lucide-react";
 import { AlumniTestimonialForm } from "@/features/cms/AlumniTestimonialForm";
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { localCertificateContext } from "@/features/assessments/local-api";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date(value));
@@ -26,24 +28,26 @@ export default async function InternCertificatePage() {
   }
 
   // Fetch intern profile, default site and existing testimonial
-  const db = await createUteroAcademyServiceRoleClient();
-  const { data: internProfile } = await db
+  const localMode = usesLocalBackend();
+  const localContext = localMode ? await localCertificateContext(internProfileId) : null;
+  const db = localMode ? null : await createUteroAcademyServiceRoleClient();
+  const internProfile = localMode ? localContext!.internProfile : (await db!
     .from("intern_profiles")
     .select("status, full_name, major, school_id")
     .eq("id", internProfileId)
-    .maybeSingle();
+    .maybeSingle()).data;
 
-  const { data: defaultSite } = await db
+  const defaultSite = localMode ? null : (await db!
     .from("cms_sites")
     .select("id")
     .eq("slug", "utero-academy")
-    .maybeSingle();
+    .maybeSingle()).data;
 
-  const { data: existingTestimonial } = await db
+  const existingTestimonial = localMode ? null : (await db!
     .from("testimonials")
     .select("id, quote, status")
     .eq("intern_id", internProfileId)
-    .maybeSingle();
+    .maybeSingle()).data;
 
   const { data: cert, error } = await getInternCertificate(internProfileId);
 

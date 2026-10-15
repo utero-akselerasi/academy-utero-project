@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar, User } from "lucide-react";
 import Link from "next/link";
 import { sanitizeRichText } from "@/lib/sanitize";
+import { usesLocalBackend } from "@/lib/backend/server";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -19,7 +20,10 @@ export default async function BlogDetailPage({ params }: Props) {
   let article: any;
   let authorName = "Admin Utero";
 
-  if (artikelApiConfigured()) {
+  if (usesLocalBackend()) {
+    article = await getArtikelArticle(slug);
+    authorName = article?.author_name || authorName;
+  } else if (artikelApiConfigured()) {
     article = await getArtikelArticle(slug);
   } else {
     const db = await createUteroAcademyServiceRoleClient();

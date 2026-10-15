@@ -1,9 +1,12 @@
 import { requireAdmin, requireSuperAdmin } from "@/features/auth/guards";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import type { SelectionWorkspace, SelectionAssignmentReview } from "./types";
+import { usesLocalBackend } from "@/lib/backend/server";
+import { selectionRequest } from "./local-api";
 
 export async function getSelectionWorkspace(): Promise<SelectionWorkspace> {
   await requireAdmin();
+  if (usesLocalBackend()) return selectionRequest("/workspace") as Promise<SelectionWorkspace>;
   const db = await createUteroAcademyServiceRoleClient();
   const [tracks, materials, tests, questions, applications, assignments] = await Promise.all([
     db.from("selection_tracks").select("id,name,code,description,is_active").order("name"),
@@ -55,8 +58,15 @@ export async function getSelectionWorkspace(): Promise<SelectionWorkspace> {
   };
 }
 
-export async function getSelectionBypassOverview() {
+type SelectionBypassOverview = {
+  applications: Array<{ id: string; full_name: string; email: string; selection_status: string | null }>;
+  tests: Array<{ id: string; title: string; version: number }>;
+  bypasses: Array<{ id: string; application_id: string; reason: string; bypassed_at: string; bypassed_by: string }>;
+};
+
+export async function getSelectionBypassOverview(): Promise<SelectionBypassOverview> {
   await requireSuperAdmin();
+  if (usesLocalBackend()) return selectionRequest("/bypass") as Promise<SelectionBypassOverview>;
   const db = await createUteroAcademyServiceRoleClient();
   const [applications, tests, bypasses] = await Promise.all([
     db.from("internship_applications").select("id,full_name,email,selection_status").order("created_at", { ascending: false }).limit(200),

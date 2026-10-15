@@ -1,8 +1,11 @@
 import { createUteroAcademyClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { jakartaDateString } from "@/lib/time";
 import { type Attendance, type AttendanceWithIntern } from "./types";
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { localAttendanceList, localTodayAttendance } from "./local";
 
 export async function getInternAttendances(internProfileId: string) {
+  if (usesLocalBackend()) return { data: await localAttendanceList(internProfileId) as Attendance[], error: null };
   const db = await createUteroAcademyClient();
   const { data, error } = await db
     .from("attendances")
@@ -15,6 +18,7 @@ export async function getInternAttendances(internProfileId: string) {
 }
 
 export async function getTodayAttendance(internProfileId: string) {
+  if (usesLocalBackend()) return localTodayAttendance();
   const db = await createUteroAcademyClient();
   const today = jakartaDateString();
   const { data } = await db
@@ -28,6 +32,7 @@ export async function getTodayAttendance(internProfileId: string) {
 }
 
 export async function getMentorAttendances(mentorProfileId: string) {
+  if (usesLocalBackend()) return { data: await localAttendanceList(), error: null };
   const db = await createUteroAcademyClient();
 
   const { data: assignments } = await db
@@ -52,6 +57,7 @@ export async function getMentorAttendances(mentorProfileId: string) {
 }
 
 export async function getAllAttendances() {
+  if (usesLocalBackend()) return { data: await localAttendanceList(), error: null };
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("attendances")

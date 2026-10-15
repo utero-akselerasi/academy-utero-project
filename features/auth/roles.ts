@@ -1,4 +1,5 @@
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 
 /**
  * Peran login yang berlaku. `admin` adalah administrator SEKALIGUS pembimbing —
@@ -58,6 +59,13 @@ function normalizeRoleCode(roles: RoleRelation) {
 }
 
 export async function getUserRoleCodes(userId: string): Promise<RoleCode[]> {
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/users/${encodeURIComponent(userId)}/roles`);
+    if (response.status === 401) return [];
+    if (!response.ok) throw new Error("Gagal membaca role backend lokal.");
+    const body = await response.json() as { roles: string[] };
+    return body.roles.filter(isActiveRoleCode);
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("user_roles")
@@ -88,6 +96,10 @@ export async function userIsAdminOrSuperAdmin(userId: string) {
 
 export async function getPrimaryDashboardPath(userId: string) {
   const roleCodes = await getUserRoleCodes(userId);
+  return getPrimaryDashboardPathForRoles(roleCodes);
+}
+
+export function getPrimaryDashboardPathForRoles(roleCodes: RoleCode[]) {
   const primaryRole = rolePriority.find((roleCode) => roleCodes.includes(roleCode));
 
   return primaryRole ? dashboardByRole[primaryRole] : null;

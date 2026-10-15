@@ -1,4 +1,5 @@
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 
 /**
  * Satu-satunya tempat yang mengubah nilai kolom storage di database menjadi URL
@@ -158,6 +159,24 @@ export async function resolveStorageUrl(
 ): Promise<string | null> {
   const objectPath = toObjectPath(value, bucket);
   if (!objectPath) return null;
+
+  if (usesLocalBackend()) {
+    const encodedPath = objectPath.split("/").map(encodeURIComponent).join("/");
+    const localPath = `/api/storage/${encodeURIComponent(bucket)}/${encodedPath}`;
+    if (isPublicBucket(bucket)) return localPath;
+    const response = await backendRequest("/v1/storage/sign", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ bucket, path: objectPath, expiresIn: options.expiresIn ?? SIGNED_URL_TTL.default }),
+    });
+    if (!response.ok) {
+      console.error(`Gagal menandatangani ${bucket}/${objectPath}: HTTP ${response.status}`);
+      return null;
+    }
+    const body = await response.json() as { token?: string };
+    if (!body.token) return null;
+    return `${localPath}?token=${encodeURIComponent(body.token)}`;
+  }
 
   const supabase = createSupabaseServiceRoleClient();
 

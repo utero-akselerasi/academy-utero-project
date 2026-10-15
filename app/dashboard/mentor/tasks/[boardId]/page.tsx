@@ -11,7 +11,6 @@ import { getActiveInterns } from "@/features/admin/queries";
 import { deleteCardAction, assignCardToInternAction, deleteListAction, updateCardPriorityAction } from "@/features/tasks/actions";
 import { requireAdmin } from "@/features/auth/guards";
 import { resolveStaffInternScope } from "@/features/auth/scope";
-import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { ImagePreview } from "@/features/daily-reports/ImagePreview";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -72,15 +71,8 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
     );
   }
 
-  const { data: boardData, error } = await getBoardWithLists(boardId);
+  const { data: boardData, error, userProfiles = [] } = await getBoardWithLists(boardId);
   const allInterns = await getActiveInterns();
-
-  const db = await createUteroAcademyServiceRoleClient();
-  const { data: userProfiles } = await db.from("user_profiles").select("id, full_name");
-  const profilesMap = new Map();
-  if (userProfiles) {
-    userProfiles.forEach(p => profilesMap.set(p.id, p));
-  }
 
   if (!boardData || error) {
     notFound();
@@ -168,7 +160,7 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
           board={board} 
           interns={interns} 
           boardId={boardId} 
-          userProfiles={userProfiles || []} 
+          userProfiles={userProfiles}
         />
       )}
 

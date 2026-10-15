@@ -10,6 +10,8 @@ import { revalidatePath } from "next/cache";
 import { getMentorProfileId } from "./queries";
 import { requireActiveInternProfile } from "@/features/intern/activation";
 import { dailyReportSchema, reviewReportSchema } from "./schemas";
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { localSubmit, localReview } from "./local";
 
 export type DailyReportFormState = {
   ok: boolean;
@@ -17,6 +19,7 @@ export type DailyReportFormState = {
 };
 
 export async function submitDailyReportAction(_: DailyReportFormState, formData: FormData): Promise<DailyReportFormState> {
+  if (usesLocalBackend()) { await requireUser(); return localSubmit(formData); }
   // Aksi peserta: kepemilikan ditentukan lewat intern_profiles.user_id.
   const user = await requireUser();
   let internProfileId: string;
@@ -296,6 +299,7 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
 }
 
 export async function reviewDailyReportAction(formData: FormData) {
+  if (usesLocalBackend()) { await requireAdmin(); return localReview(formData); }
   // Review laporan adalah pekerjaan staff. Guard lama hanya mengandalkan
   // keberadaan mentor_profiles, yang bukan bukti otorisasi.
   const user = await requireAdmin();

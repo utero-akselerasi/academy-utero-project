@@ -1,5 +1,6 @@
 import { getMentorProfileId } from "@/features/daily-reports/queries";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 import { jakartaDateString } from "@/lib/time";
 import { getUserRoleCodes } from "./roles";
 
@@ -23,6 +24,12 @@ export async function resolveStaffInternScope(userId: string): Promise<InternSco
 
   if (roles.includes("super_admin")) {
     return { kind: "global" };
+  }
+
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/profile/staff-scope");
+    if (!response.ok) return { kind: "scoped", internIds: [] };
+    return response.json() as Promise<InternScope>;
   }
 
   const mentorProfileId = await getMentorProfileId(userId);

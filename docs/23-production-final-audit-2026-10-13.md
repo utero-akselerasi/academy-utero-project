@@ -1,0 +1,77 @@
+# Audit final kesiapan production — 13 Oktober 2026
+
+Keputusan saat audit: **NO-GO production**. Kode lokal lulus build, typecheck, lint, dan 1.034 tes, tetapi staging E2E, rollback restore, baseline production reviewed, kredensial production, dan final backup/cutover evidence belum tersedia. Tidak ada staging atau production yang diubah.
+
+## Perbaikan fail-closed
+
+- Smoke app staging menolak port develop `3000` selain port Supabase `18100` dan `15532`.
+- URL app staging menolak embedded username/password.
+- Smoke CLI gagal bila SoundPub berstatus `untested`; sukses hanya bila register, login, dan avatar SoundPub semuanya `passed`.
+- Regression test mencakup port develop, URL credential, hasil parsial, dan hasil lengkap.
+- Route internal staging `/api/internal/deployment-probe` hanya aktif saat `DEPLOY_TARGET=staging`. Token acak minimal 32 karakter (`PHASE13_STAGING_PROBE_TOKEN`) dibanding konstan-waktu; endpoint menguji Auth Admin melalui service key server, tidak mencetak key atau daftar pengguna. `verify:phase13-staging-app-binding` sekarang meminta endpoint tersebut selain marker browser. Probe ini belum membuktikan koneksi DB atau Storage; readiness script tetap wajib.
+- `validate:phase13-rollback-compose` menerima resolved JSON dari `docker compose config --format json` dan evidence non-secret berisi `project`, `root`, `gatewayOrigin`, dan `appOrigin`. Validator memeriksa nama container, host port loopback, mount, network, named volume, callback, dan mengeluarkan digest tanpa env/secret. Hasil file ini bukan pengganti `docker inspect` live, perbandingan secret, atau restore drill.
+- Production preflight sekarang memeriksa berkas sumber baseline reguler dan kanonis, ukuran dibatasi, SHA-256 aktual sama dengan reviewer evidence, dan waktu review tidak di masa depan **sebelum** HTTP/DB/SSH. Final cutover gate menolak checklist di luar backup root serta perintah rollback yang menghapus volume.
+- Production preflight sebelumnya menuntut RLS aktif pada semua tabel dan karena itu mustahil lulus saat tracker internal schema_migrations sengaja tanpa RLS. Gate kini mengizinkan tepat pengecualian tersebut hanya bila anon dan authenticated tidak mempunyai privilege SELECT/INSERT/UPDATE/DELETE; tabel lain tanpa RLS tetap menutup gate, dan digest baseline tetap harus cocok.
+- `smoke:phase13-rls-jwt-staging` menyiapkan probe Data API HTTP GET saja dengan lima JWT pengguna berbeda untuk peserta, mentor-area/admin, sekolah, admin, dan super-admin, plus anon tanpa bearer token. Harness memeriksa role melalui RPC `current_user_has_role` serta negative cross-tenant peserta/sekolah; token tidak masuk report. Harness belum dijalankan karena tunnel dan JWT staging tidak tersedia.
+- Validasi JWT staging kini menolak header alg=none, signature kosong/pendek, token kedaluwarsa, role bukan authenticated, dan lima token dengan sub sama meski string token berbeda. Ini hanya pemeriksaan bentuk/claims lokal; validitas kriptografis tetap dibuktikan oleh gateway staging saat smoke dijalankan.
+
+## Bukti validasi lokal
+
+- `npm run typecheck`: lulus.
+- `npm run lint:ci`: lulus.
+- `npm run build`: lulus.
+- `npm test -- --run`: 60 file, 1.034 tes lulus.
+- Kandidat `0051_harden_academy_public_execute.sql` tetap lulus suite dan uji clone terdokumentasi; sembilan fungsi tidak lagi memiliki `PUBLIC EXECUTE` pada clone 0051.
+
+## Runner migrasi
+
+Clone disposable dari DB lokal `phase13` membuktikan runner mencatat checksum valid untuk `0046`–`0049`. Runner lalu menghentikan `0050` karena `announcement_reads` pada lineage tersebut mempunyai RLS nonaktif. Setelah RLS tabel tersebut diaktifkan **hanya pada clone sintetis**, guard 0050 berhenti lagi pada `articles` tanpa RLS. Transaksi 0050 rollback dan 0051 tidak dijalankan. Jangan mengulang perbaikan tabel satu demi satu sebagai substitusi parity target; guard tidak dilonggarkan.
+
+Lineage kandidat production berbeda: `phase13_current_prod`, probe 0048, kandidat 0050, dan clone 0051 semuanya memiliki RLS aktif serta tiga policy pada `announcement_reads`. Namun tracker kandidat hanya berisi suffix 0038–0048. Menandai 0001–0037 sebagai applied tanpa baseline reviewed dilarang. Akibatnya, penerapan 0049–0052 melalui runner pada clone target yang disetujui masih belum terbukti; staging gate sekarang menuntut latest `0052` dengan checksum cocok.
+
+Dua semantic drift sudah diputuskan dalam kandidat `0052_reassert_gamification_function_semantics.sql`: reassert body canonical 0036, tanpa membuka EXECUTE app role. Pada clone 0051, migrasi lulus tiga kali; fixture `award_points` memberi level/progress yang benar, cabang badge `course` tidak error, dan rollback menyisakan nol data. Karena tracker clone target approved belum ada, 0052 tetap **clone-only PASS**.
+
+## Policy dan bucket bersama
+
+Audit SQL read-only `audit:phase13-rls-matrix` pada clone disposable `phase13_public_exec_0051_disposable_20261013`: 78 tabel Academy, 77 RLS aktif; satu pengecualian `schema_migrations` tanpa privilege anon/authenticated; nol fungsi Academy dengan PUBLIC EXECUTE. Anon ditolak pada schema, peserta dan sekolah hanya membaca baris intern sendiri/sekolah, baca lintas tenant ditolak; admin/super-admin membaca scope staff. Mentor-area memakai role login `admin`. Bukti non-PII `I:\DevData\TEMP\phase13-rls-matrix-0051-20261013-v3.json`, SHA-256 file `f2cfb153e6573e3cbf7b0dfcce12b58f5b95db18bbc18921d0aa6a44b5c7d4fc`. Ini simulasi PostgreSQL `SET LOCAL ROLE` dan `request.jwt.claims` dalam `BEGIN READ ONLY`; **bukan** JWT signed/Data API dan tidak menguji semua policy atau operasi tulis.
+
+- Empat policy Academy tambahan berada pada `user_profiles` dan `user_roles`. Definisi memakai campuran role code `admin` dan `admin_academy`. Policy `admin dapat mengelola user_roles` memakai command `ALL`, tetapi role `authenticated` saat ini hanya memiliki object privilege `SELECT` pada tabel tersebut; policy mutasi saat ini inert, tetapi menjadi risiko bila grant berubah.
+- Delapan policy Storage tambahan terbatas pada bucket SoundPub atau takedown. Helper `soundpub.is_admin(uuid)` dan `soundpub.has_role(uuid, app_role)` adalah `SECURITY DEFINER` dengan `search_path=soundpub` dan hak EXECUTE efektif bagi anon/authenticated. Kedua role tidak mempunyai schema USAGE pada clone, tetapi panggilan dari policy Storage masih perlu diuji. `is_admin` menerima UUID arbitrer dan meneruskannya ke `has_role`; audit body/owner helper dan uji JWT lintas tenant tetap wajib sebelum mengubah grant shared workload.
+- Policy SoundPub authenticated read private buckets memakai kondisi bucket release-covers, track-audio, dan track-video tanpa pembatas owner: setiap JWT authenticated yang dapat mengakses Storage API berpotensi membaca metadata/objek dari tiga bucket tersebut. Perlu uji HTTP negatif lintas tenant dan keputusan pemilik SoundPub apakah akses lintas pengguna memang disengaja. Jangan ubah policy shared ini dari migrasi Academy.
+- Validator Compose replacement kini menolak host networking/namespace, privileged mode, device/capability tambahan, volumes_from, external links, Compose secret/config yang belum diaudit, DNS/host override, image mutable/build lokal, project name salah, serta referensi source/production di seluruh resolved document termasuk command, label, dan healthcheck. Semua image harus pinned ke sha256 digest. Ini menutup bypass yang sebelumnya berada di luar pemeriksaan environment; belum membuktikan Docker runtime terisolasi.
+- Kandidat Compose replacement nyata kini tersedia privat pada host di tree /home/maskhar/supabase-replacements/supabase-02-rollback-drill, berisi 11 service dan image pinned. Validasi melalui SSH stdin lulus dengan canonical digest 70d53a4b506e6c97d4708ff992ccc1870ff40d37d71ff473997a8d6d92f73870; Docker Compose parse lulus; tidak ada container replacement yang dijalankan. Gate rollback naik dari belum ada Compose menjadi Compose static PASS, runtime/restore/app probe tetap NO-GO sampai persetujuan operator.
+- Setelah persetujuan start terpisah, 11 container replacement dijalankan dan seluruh health healthy. Docker inspect membuktikan port loopback, network dan mount terpisah; manifest identity SHA-256 6cc619b22aa0e8ffbcf8dbcdc4ec15fb84040e9e7bff104e92a884ac418555bb. Source DB/Auth/Storage tetap running; belum ada restore atau traffic switch. Gate Compose/runtime PASS, gate restore dan app probe tetap NO-GO.
+- Enam belas bucket tambahan adalah bucket workload bersama: `3d-models`, `artikel-media`, `audio-clips`, `blog-covers`, `chatten-media`, `contracts`, `iccn-gallery`, `label-logos`, `lelanganproperti`, `payout-proofs`, `release-covers`, `release-invoices`, `takedown-documents`, `template`, `track-audio`, dan `track-video`. Jangan hapus atau privatkan massal dari migrasi Academy.
+- Snapshot audit non-secret: `I:\DevData\TEMP\phase13-candidate-policy-bucket-audit-20261013.txt`, SHA-256 `98c61c82e0f2b732f7bf77a240bbde1d941f0c8193a8b281144c1f2c67b4471e`.
+
+## Gate tersisa
+
+1. Jalankan app staging terpisah dan buktikan browser serta server runtime memakai `supabase-02`.
+2. Buat backup current-state staging yang dapat direstore, review tracker, lengkapi bucket, lalu jalankan E2E write+cleanup sampai nol-sisa.
+3. Jalankan JWT matrix anon, peserta, mentor, sekolah, admin, dan super-admin; sertakan negative cross-tenant cases dan audit `soundpub.is_admin`.
+4. Jalankan Compose replacement nyata, restore DB/Auth/Storage/config, dan probe aplikasi replacement.
+5. Sediakan baseline production clone `REVIEWED` non-synthetic, kredensial production melalui kanal aman, serta preflight HTTP/DB read-only/SSH/disk.
+6. Saat freeze window: ambil backup final di `/data`, restore ke replacement, rekonsiliasi delta, smoke production, pilot sekolah, lalu jalankan final gate. Output validator `EVIDENCE_FILES_VALID_NOT_GO` tetap memerlukan persetujuan operator dan reviewer.
+
+Pemeriksaan prasyarat awal 13 Oktober: tunnel loopback 18100 dan 15532 hidup; app staging 3101 tidak hidup. Variabel kredensial staging/production, lima JWT persona, dan baseline reviewed tidak tersedia di environment sesi. Compose replacement kemudian tersedia dan platform restore lulus (lihat addendum); tunnel hidup tetap bukan bukti binding supabase-02 atau readiness. Status production tetap **NO-GO**.
+
+## Panduan staging aman
+
+Jalankan tunnel gateway `127.0.0.1:18100` ke `supabase-02:8100` dan tunnel DB `127.0.0.1:15532` ke DB `supabase-02`. Di salinan source yang terpisah dari app develop, buat `.env.production.local` privat dari `.env.staging.example` agar `next build`/`next start` memuatnya. Isi anon key, kedua referensi service-role key, DB URL, lima access token **short-lived dan berbeda**, serta empat UUID fixture **hanya dari supabase-02**; isi juga token probe acak 32+ karakter. Jangan commit env atau menampilkan key/token ke log. Bangun salinan staging dengan `npm ci` dan `npm run build` setelah env staging terpasang; variabel `NEXT_PUBLIC_*` terikat saat build. Jalankan `npm run start -- -p 3101 -H 127.0.0.1` pada salinan tersebut. Jalankan `npm run verify:phase13-staging-app-binding`, `npm run verify:phase13-readiness -- staging`, lalu `npm run smoke:phase13-rls-jwt-staging` dengan env sama diekspor ke proses. Stop bila salah satu gagal. Route probe dan JWT smoke tidak menggantikan backup current-state, tracker, Storage byte verification, atau cleanup E2E.
+
+## Addendum rollback drill terverifikasi
+
+- Secret replacement sudah dipisahkan dari source, container lama di-reset, dan 11/11 service replacement sehat setelah restore.
+- Restore DB/Auth/Storage ke replacement lulus. Hasil snapshot: `auth.users=0`, `storage.objects=2218`, schema `utero_academy` tidak ada; dump memang memiliki nol entry Academy.
+- Storage lulus verifikasi penuh 2.218 file dan probe unduh object melalui API. Auth health, REST, dan Storage API memberi respons sukses.
+- Manifest runtime baru SHA-256 `7c7f75eae5ad2e3d00e3274b65d3d5782a30851cfa729de224b885f0a25466b7`; identity tetap `6cc619b22aa0e8ffbcf8dbcdc4ec15fb84040e9e7bff104e92a884ac418555bb` dan validator network-none PASS.
+- Gate rollback kini **platform restore PASS**, tetapi **app replacement NO-GO** karena snapshot bukan current-state Academy dan app port `3100` belum dijalankan.
+- Gate production tetap **NO-GO**. Bukti yang masih wajib: staging current-state + JWT/E2E cleanup, app replacement smoke, baseline production clone `REVIEWED`, kredensial production aman, preflight read-only, backup final, operator/reviewer, dan cutover window.
+
+**Update penataan host:** Sesuai instruksi operator, seluruh 11 container staging `supabase-02-*` dihentikan tanpa penghapusan data; 11 container rollback drill sudah dihentikan lebih dulu. Hanya stack utama `supabase-*` dan tunnel `network-supabase` masih berjalan. DB/Auth/Storage/gateway stack utama tetap `healthy`. Gate staging tidak dapat dilanjutkan pada host ini; butuh staging di host terpisah. Status production tetap **NO-GO**.
+
+**Audit kandidat host `20.20.20.173`:** Host sudah menjalankan satu stack Supabase lengkap, Buzzerhood API/web/PostgreSQL, dan Portainer. Resource terukur: 2 CPU, RAM 3,3 GiB dengan sekitar 1,2 GiB available, swap terpakai 1,4 GiB, disk root 24 GiB bebas. Supabase existing bukan staging Academy bersih: schema `utero_academy` sudah memiliki 63 tabel, Auth memiliki 208 user, Storage memiliki 4.228 object, hanya 8 dari 9 bucket Academy wajib tersedia, dan DB juga memuat tracker `buzzerhood.schema_migrations`. Membuat stack Supabase kedua atau memakai stack shared tersebut sebagai staging isolated dinilai tidak aman tanpa pemisahan workload dan penambahan resource. Tidak ada container, schema, akun, bucket, atau data yang diubah pada audit ini.
+
+**Klarifikasi topologi shared:** Operator menetapkan `20.20.20.173` sebagai environment develop/dev-staging Academy dan `20.20.20.3` sebagai production Academy. Kedua host menjalankan instance Supabase bersama project lain; Auth, Storage, role database, dan sebagian policy/function bersifat global/shared. Karena itu total `auth.users` dan total `storage.objects` tidak boleh dipakai sebagai count Academy. Gate hanya memakai `utero_academy.*`, bucket Academy allowlist, object pada bucket tersebut, serta fixture dengan prefix/ID Academy. Audit read-only terbaru menemukan kedua environment memiliki katalog Academy identik untuk column, function, index, policy, dan bucket; grant efektif berbeda dan wajib direkonsiliasi. Masing-masing belum memiliki `utero_academy.schema_migrations` dan belum memiliki bucket `academy-private`, sehingga migrasi live tetap **NO-GO** sampai baseline clone dan backup shared-instance lulus.
+
+Audit live scoped menemukan dev memiliki 29 profile Academy dan 1.233 object pada bucket kandidat Academy; production memiliki 29 profile Academy dan 1.129 object pada bucket kandidat. Angka object tersebut belum membuktikan kepemilikan Academy karena bucket juga dapat dipakai project lain. Upaya membuat clone penuh baru di DB cluster dev dibatalkan dan target dibersihkan setelah restore logis terhenti pada dependency extension `pg_cron` lalu ACL `pg_graphql`; source tetap `healthy` dan count tidak berubah. Clone disposable lokal `phase13_current_dev` dan `phase13_current_prod` masih tersedia, memiliki katalog historis identik, tetapi keduanya tanpa tracker dan tidak dianggap bukti live. Report audit lokal: `I:\DevData\TEMP\phase13-shared-topology-baseline-audit-20261013.json`, SHA-256 `6eb45bec848c6b16e987d93b8d4c12b8cb41794fe39b4120a3e9df256ffeb836`.

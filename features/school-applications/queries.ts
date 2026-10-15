@@ -1,5 +1,7 @@
 import { requireRole } from "@/features/auth/guards";
 import { createUteroAcademyClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { schoolBackend, mapLocalApplication } from "@/features/school/local";
 import { applicationFilterSchema } from "./schemas";
 import type { ApplicationFilters, PublicSelectionResult, SchoolApplication, SchoolPartnerContext } from "./types";
 
@@ -66,6 +68,12 @@ export async function requireActiveSchoolPartner(): Promise<{
   userId: string;
   school: SchoolPartnerContext;
 }> {
+  if (usesLocalBackend()) {
+    const user = await requireRole(["school"]);
+    const body = await schoolBackend<{ school: { id: string; name: string; partner_status: string } }>("/context");
+    if (!body.school.partner_status || !ACTIVE_PARTNER_STATUSES.has(body.school.partner_status)) throw new Error("Pendaftaran hanya tersedia untuk sekolah/kampus partner terverifikasi dan aktif.");
+    return { userId: user.id, school: { id: body.school.id, name: body.school.name, partnershipStatus: body.school.partner_status } };
+  }
   const user = await requireRole(["school"]);
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
@@ -93,6 +101,12 @@ export async function requireActiveSchoolPartner(): Promise<{
 }
 
 export async function getOwnSchoolApplications(filters: ApplicationFilters = {}) {
+  if (usesLocalBackend()) {
+    const parsed = applicationFilterSchema.parse(filters);
+    const query = new URLSearchParams({ status: parsed.status, selectionStatus: parsed.selectionStatus, query: parsed.query });
+    const body = await schoolBackend<{ school: any; applications: any[] }>(`/applications?${query}`);
+    return { school: { id: body.school.id, name: body.school.name, partnershipStatus: body.school.partner_status }, applications: body.applications.map(mapLocalApplication) };
+  }
   const { school } = await requireActiveSchoolPartner();
   const parsed = applicationFilterSchema.parse(filters);
   const db = await createUteroAcademyServiceRoleClient();
@@ -115,6 +129,10 @@ export async function getOwnSchoolApplications(filters: ApplicationFilters = {})
 }
 
 export async function getOwnSchoolApplication(applicationId: string) {
+  if (usesLocalBackend()) {
+    try { const body = await schoolBackend<{ school: any; application: any }>(`/applications/${applicationId}`); return { school: { id: body.school.id, name: body.school.name, partnershipStatus: body.school.partner_status }, application: mapLocalApplication(body.application) }; }
+    catch { return { school: null as any, application: null }; }
+  }
   const { school } = await requireActiveSchoolPartner();
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
@@ -129,6 +147,10 @@ export async function getOwnSchoolApplication(applicationId: string) {
 }
 
 export async function getOwnSchoolSelectionResults(applicationId: string): Promise<PublicSelectionResult[]> {
+  if (usesLocalBackend()) {
+    try { const body = await schoolBackend<{ selectionResults: any[] }>(`/applications/${applicationId}`); return body.selectionResults.map((row) => ({ decisionId: row.decision_id, result: row.result, finalScore: row.final_score, publicNote: row.public_note, decidedAt: row.decided_at })); }
+    catch { return []; }
+  }
   const { school } = await requireActiveSchoolPartner();
   const db = await createUteroAcademyServiceRoleClient();
   const { data: application, error: applicationError } = await db

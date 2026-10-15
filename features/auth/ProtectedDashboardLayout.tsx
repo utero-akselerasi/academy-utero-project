@@ -2,6 +2,7 @@ import { logoutAction } from "@/features/auth/actions";
 import { requireRole } from "@/features/auth/guards";
 import { type RoleCode, getUserRoleCodes, resolveActiveRole } from "@/features/auth/roles";
 import { resolveStorageUrl } from "@/lib/storage-urls";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 import { createUteroAcademyClient } from "@/lib/supabase/server";
 import { DashboardShell, type NavIconName } from "./DashboardShell";
 
@@ -81,14 +82,21 @@ const sidebarItemsMap: Record<RoleCode, { label: string; href: string; icon: Nav
 export async function ProtectedDashboardLayout({ allowedRoles, homeHref, children }: Props) {
   const user = await requireRole(allowedRoles);
 
-  const db = await createUteroAcademyClient();
-
-  // Get user profile details
-  const { data: profile } = await db
-    .from("user_profiles")
-    .select("full_name, avatar_path")
-    .eq("id", user.id)
-    .maybeSingle();
+  let profile: { full_name?: string | null; avatar_path?: string | null } | null = null;
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/profile");
+    if (response.ok) {
+      profile = ((await response.json()) as { profile?: typeof profile }).profile ?? null;
+    }
+  } else {
+    const db = await createUteroAcademyClient();
+    const result = await db
+      .from("user_profiles")
+      .select("full_name, avatar_path")
+      .eq("id", user.id)
+      .maybeSingle();
+    profile = result.data;
+  }
 
   const userName = profile?.full_name || user.email || "Pengguna";
 

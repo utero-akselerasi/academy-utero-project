@@ -1,4 +1,6 @@
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { backendRequest } from "@/lib/backend/server";
+import { usesLocalBackend } from "@/lib/backend/mode";
 import { requireSuperAdmin } from "@/features/auth/guards";
 import { getInternCards } from "@/features/tasks/queries";
 import { getInternDailyReports } from "@/features/daily-reports/queries";
@@ -7,9 +9,8 @@ import { AttendanceStatusBadge } from "@/features/attendance/AttendanceStatusBad
 import { ReportStatusBadge } from "@/features/daily-reports/ReportStatusBadge";
 import Link from "next/link";
 import { 
-  User, Calendar, Briefcase, GraduationCap, MapPin, 
-  ArrowLeft, CheckSquare, Clock, FileText, CheckCircle, 
-  XCircle, AlertTriangle
+  Briefcase, GraduationCap, ArrowLeft, CheckSquare, Clock,
+  FileText, AlertTriangle
 } from "lucide-react";
 
 type Props = {
@@ -42,38 +43,59 @@ function NotFoundUser() {
   );
 }
 
+type UserProfile = {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  avatar_path: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+type InternProfile = {
+  id: string;
+  user_id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  major: string | null;
+  status: string;
+  created_at: string;
+  schools: { name: string | null } | Array<{ name: string | null }> | null;
+};
+
 export default async function InternProfileDetailPage({ params }: Props) {
   await requireSuperAdmin();
 
   const { id: userId } = await params;
   if (!isUuid(userId)) return <NotFoundUser />;
 
-  const db = await createUteroAcademyServiceRoleClient();
-
-  // 1. Fetch user profile after authorization and input validation.
-  const { data: userProfile, error: userProfileError } = await db
-    .from("user_profiles")
-    .select("id, full_name, phone, avatar_path, is_active, created_at, updated_at")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (userProfileError) {
-    console.error("Gagal membaca profil user:", userProfileError);
-    return <NotFoundUser />;
+  let userProfile: UserProfile | null = null;
+  let internProfile: InternProfile | null = null;
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/super-admin/users/${encodeURIComponent(userId)}/intern`);
+    if (response.status === 404) return <NotFoundUser />;
+    if (!response.ok) throw new Error(`Gagal membaca profil peserta (${response.status}).`);
+    const body = await response.json() as { userProfile: UserProfile; internProfile: InternProfile | null };
+    userProfile = body.userProfile;
+    internProfile = body.internProfile;
+  } else {
+    const db = await createUteroAcademyServiceRoleClient();
+    const [{ data: profile, error: userProfileError }, { data: intern, error: internProfileError }] = await Promise.all([
+      db.from("user_profiles").select("id, full_name, phone, avatar_path, is_active, created_at, updated_at").eq("id", userId).maybeSingle<UserProfile>(),
+      db.from("intern_profiles").select("id, user_id, full_name, email, phone, major, status, created_at, schools(name)").eq("user_id", userId).maybeSingle<InternProfile>(),
+    ]);
+    if (userProfileError) {
+      console.error("Gagal membaca profil user:", userProfileError);
+      return <NotFoundUser />;
+    }
+    if (internProfileError) console.error("Gagal membaca profil peserta:", internProfileError);
+    userProfile = profile;
+    internProfile = intern;
   }
 
   if (!userProfile) return <NotFoundUser />;
-
-  // 2. Fetch intern profile with school
-  const { data: internProfile, error: internProfileError } = await db
-    .from("intern_profiles")
-    .select("id, user_id, full_name, email, phone, major, status, created_at, schools(name)")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (internProfileError) {
-    console.error("Gagal membaca profil peserta:", internProfileError);
-  }
 
   if (!internProfile) {
     return (
@@ -242,7 +264,7 @@ export default async function InternProfileDetailPage({ params }: Props) {
                           </p>
                         ) : (
                           <p className="text-amber-800 font-semibold mt-0.5 italic">
-                            Keterangan: {record.attendance_type === "sick" ? "Sakit" : "Izin"} - "{record.permit_reason}"
+                            Keterangan: {record.attendance_type === "sick" ? "Sakit" : "Izin"} - &quot;{record.permit_reason}&quot;
                           </p>
                         )}
                       </div>

@@ -9,6 +9,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { Award, GraduationCap } from "lucide-react";
 import { AutoPrint } from "@/features/shared/AutoPrint";
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { localCertificateContext } from "@/features/assessments/local-api";
 
 type PageProps = {
   searchParams: Promise<{ internId?: string }>;
@@ -18,7 +20,8 @@ export default async function PrintCertificatePage({ searchParams }: PageProps) 
   const { internId } = await searchParams;
 
   const user = await requireUser();
-  const supabase = await createSupabaseServerClient();
+  const localMode = usesLocalBackend();
+  const supabase = localMode ? null : await createSupabaseServerClient();
 
   // ?internId= sebelumnya diterima apa adanya, jadi peserta mana pun bisa
   // mencetak sertifikat peserta lain (nama, email, nomor sertifikat) hanya
@@ -38,25 +41,26 @@ export default async function PrintCertificatePage({ searchParams }: PageProps) 
   }
 
   // Ambil nama user profil dari target intern
-  const { data: targetProfile } = await supabase
+  const localContext = localMode ? await localCertificateContext(targetInternProfileId) : null;
+  const targetProfile = localMode ? localContext!.internProfile : (await supabase!
     .schema("utero_academy")
     .from("intern_profiles")
     .select("full_name, email")
     .eq("id", targetInternProfileId)
-    .maybeSingle();
+    .maybeSingle()).data;
 
   const { data: cert, error } = await getInternCertificate(targetInternProfileId);
-  const { data: settings } = await supabase
+  const settings = localMode ? localContext!.settings : (await supabase!
     .schema("utero_academy")
     .from("attendance_settings")
     .select("certificate_template_path")
     .eq("id", ATTENDANCE_SETTINGS_ID)
-    .maybeSingle();
+    .maybeSingle()).data;
   // TTL panjang (`print`, 6 jam) khusus jalur ini. Nilainya disuntikkan ke CSS
   // `background-image: url(...)`, dan rasterisasi cetak baru terjadi setelah
   // pengguna menekan Print di dialog browser — bisa jauh setelah halaman dimuat.
   // TTL default 1 jam berisiko kedaluwarsa sebelum gambarnya benar-benar dipakai.
-  const templateUrl = await resolveStorageUrl("academy-private", settings?.certificate_template_path, {
+  const templateUrl = localMode ? (localContext?.templateUrl ?? null) : await resolveStorageUrl("academy-private", settings?.certificate_template_path, {
     expiresIn: SIGNED_URL_TTL.print,
   });
 

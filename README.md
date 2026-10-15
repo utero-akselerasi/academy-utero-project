@@ -28,8 +28,9 @@ Platform sudah mencakup fitur-fitur utama berikut:
 - LMS: materi, kuis, tugas, dan penilaian
 
 **Infrastruktur**
-- Docker & Nginx reverse proxy untuk deployment
-- Supabase Storage untuk file management
+- Docker, Nginx, Fastify, dan PostgreSQL mandiri
+- Storage internal pada `./data/storage` melalui bind volume Docker
+- Backup PostgreSQL dan storage dengan checksum SHA-256
 - Email & WhatsApp notification
 - Audit log untuk tracking aktivitas penting
 
@@ -49,10 +50,10 @@ Platform sudah mencakup fitur-fitur utama berikut:
 ## Stack Awal
 
 - Frontend: Next.js, React, TypeScript, Tailwind CSS
-- Backend: Supabase Self-Hosted
+- Backend: Fastify self-hosted
 - Database: PostgreSQL
-- Auth: Supabase Auth dengan RBAC
-- Storage: Supabase Storage
+- Auth: session mandiri dengan RBAC PostgreSQL
+- Storage: filesystem internal dengan metadata PostgreSQL
 - PDF: service generator untuk sertifikat, nilai, laporan, dan surat magang
 - Notification: Email, WhatsApp, dan push notification pada fase lanjutan
 
@@ -70,6 +71,9 @@ Platform sudah mencakup fitur-fitur utama berikut:
 - [Standar Coding](docs/10-coding-standard.md)
 - [Progres & Fitur](docs/11-progress-dan-roadmap-fitur.md)
 - [Setup Supabase](supabase/README.md)
+- [Backup dan Restore Self-Hosted](docs/31-selfhosted-backup-restore.md)
+- [Cutover Supabase ke Self-Hosted](docs/32-selfhosted-cutover.md)
+- [Operasi dan Monitoring Self-Hosted](docs/33-selfhosted-operations.md)
 
 **Rancangan School Portal:**
 - [Product Design](docs/design/school-portal-design.md)

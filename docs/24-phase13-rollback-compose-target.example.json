@@ -1,0 +1,6 @@
+{
+  "project": "supabase-02-rollback-drill",
+  "root": "/home/maskhar/supabase-replacements/supabase-02-rollback-drill",
+  "gatewayOrigin": "http://127.0.0.1:8200",
+  "appOrigin": "http://127.0.0.1:3100"
+}

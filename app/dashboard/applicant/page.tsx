@@ -1,18 +1,26 @@
 import { requireApplicant } from "@/features/auth/guards";
 import { RegistrationForm } from "@/features/registration/RegistrationForm";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { getLocalApplicantDashboard } from "@/features/registration/local-data";
+import { usesLocalBackend } from "@/lib/backend/server";
 
 const labels: Record<string, string> = { draft: "Draf", submitted: "Menunggu review", document_review: "Review dokumen", revision_requested: "Perlu revisi", selection: "Tahap seleksi", reviewed: "Sudah direview", accepted: "Diterima", rejected: "Tidak lolos", waitlisted: "Daftar tunggu", converted: "Menjadi peserta magang", cancelled: "Dibatalkan" };
 
 export default async function ApplicantDashboardPage() {
   const user = await requireApplicant();
-  const db = await createUteroAcademyServiceRoleClient();
-  const [{ data: profile }, { data: programs }, { data: applications }, { data: notifications }] = await Promise.all([
-    db.from("user_profiles").select("full_name").eq("id", user.id).maybeSingle(),
-    db.from("programs").select("id,name").eq("status", "published").order("name"),
-    db.from("internship_applications").select("id,full_name,status,selection_status,onboarding_status,school_name,major,proposed_start_date,proposed_end_date,approved_start_date,approved_end_date,created_at").eq("applicant_user_id", user.id).order("created_at", { ascending: false }),
-    db.from("application_notifications").select("id,subject,payload,status,created_at").eq("recipient_user_id", user.id).order("created_at", { ascending: false }).limit(10),
-  ]);
+  let profile; let programs; let applications; let notifications;
+  if (usesLocalBackend()) {
+    ({ profile, programs, applications, notifications } = await getLocalApplicantDashboard());
+  } else {
+    const db = await createUteroAcademyServiceRoleClient();
+    const results = await Promise.all([
+      db.from("user_profiles").select("full_name").eq("id", user.id).maybeSingle(),
+      db.from("programs").select("id,name").eq("status", "published").order("name"),
+      db.from("internship_applications").select("id,full_name,status,selection_status,onboarding_status,school_name,major,proposed_start_date,proposed_end_date,approved_start_date,approved_end_date,created_at").eq("applicant_user_id", user.id).order("created_at", { ascending: false }),
+      db.from("application_notifications").select("id,subject,payload,status,created_at").eq("recipient_user_id", user.id).order("created_at", { ascending: false }).limit(10),
+    ]);
+    profile = results[0].data; programs = results[1].data ?? []; applications = results[2].data ?? []; notifications = results[3].data ?? [];
+  }
   const active = (applications ?? []).find((item) => !["rejected", "cancelled", "converted"].includes(item.status));
   return <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
     <header><p className="text-sm font-bold uppercase text-teal-700">Portal Pelamar</p><h1 className="text-3xl font-bold">Pendaftaran Magang</h1><p className="text-slate-600">Satu akun untuk pendaftaran, seleksi, daftar ulang, dan pemantauan status.</p></header>

@@ -5,14 +5,69 @@ import { generalProfileSchema, internBiodataSchema } from "@/features/auth/profi
 import { userHasAnyRole } from "@/features/auth/roles";
 import { createSupabaseServiceRoleClient, createUteroAcademyClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 import { revalidatePath } from "next/cache";
 
 export type ProfileFormState = { ok: boolean; message: string };
 
 const value = (formData: FormData, name: string) => String(formData.get(name) ?? "");
 
+async function updateLocalProfile(userId: string, formData: FormData): Promise<ProfileFormState> {
+  const current = await backendRequest("/v1/profile");
+  if (!current.ok) return { ok: false, message: "Profil tidak tersedia. Hubungi admin." };
+  const data = await current.json() as { internProfile?: { id: string } | null };
+  const parsed = data.internProfile
+    ? internBiodataSchema.safeParse({
+        fullName: value(formData, "fullName"), phone: value(formData, "phone"),
+        major: value(formData, "major"), gradeOrSemester: value(formData, "gradeOrSemester"),
+        schoolName: value(formData, "schoolName"), address: value(formData, "address"),
+        schoolSupervisorName: value(formData, "schoolSupervisorName"),
+        schoolSupervisorPhone: value(formData, "schoolSupervisorPhone"),
+        emergencyContactName: value(formData, "emergencyContactName"),
+        emergencyContactPhone: value(formData, "emergencyContactPhone"),
+      })
+    : generalProfileSchema.safeParse({
+        fullName: value(formData, "fullName"), phone: value(formData, "phone"),
+        headline: value(formData, "headline"), bio: value(formData, "bio"),
+      });
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Biodata tidak valid." };
+
+  const avatarFile = formData.get("avatar");
+  let avatarPath: string | null = null;
+  try {
+    if (avatarFile instanceof File && avatarFile.size > 0) {
+      const avatar = await validateUpload(avatarFile, ["image"]);
+      avatarPath = buildStoragePath(userId, avatar.ext);
+      const upload = new FormData();
+      upload.set("file", new Blob([Uint8Array.from(avatar.buffer)], { type: avatar.contentType }), avatarFile.name);
+      const uploaded = await backendRequest("/v1/storage/academy-private", {
+        method: "POST", headers: { "x-object-path": avatarPath }, body: upload,
+      });
+      if (!uploaded.ok) throw new Error(`Upload avatar gagal: ${uploaded.status}`);
+    }
+    const updated = await backendRequest("/v1/profile", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...parsed.data, avatarPath }),
+    });
+    if (!updated.ok) throw new Error(`Update profil gagal: ${updated.status}`);
+  } catch (error) {
+    if (avatarPath) {
+      const encoded = avatarPath.split("/").map(encodeURIComponent).join("/");
+      await backendRequest(`/v1/storage/academy-private/${encoded}`, { method: "DELETE" }).catch(() => undefined);
+    }
+    if (error instanceof UploadValidationError) return { ok: false, message: error.message };
+    console.error("Gagal update profil backend lokal:", error);
+    return { ok: false, message: "Gagal memperbarui profil. Tidak ada perubahan yang disimpan." };
+  }
+  revalidatePath("/dashboard/profile");
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, message: "Profil berhasil diperbarui!" };
+}
+
 export async function updateProfileAction(_: ProfileFormState, formData: FormData): Promise<ProfileFormState> {
   const user = await requireUser();
+  if (usesLocalBackend()) return updateLocalProfile(user.id, formData);
   const database = await createUteroAcademyServiceRoleClient();
   const sessionDatabase = await createUteroAcademyClient();
   const [{ data: userProfile, error: profileReadError }, { data: internProfile, error: internReadError }, { data: mentorProfile, error: mentorReadError }] = await Promise.all([

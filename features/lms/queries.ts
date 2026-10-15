@@ -1,5 +1,6 @@
 ﻿import { isImagePath, resolveStorageUrl, resolveStorageUrls } from "@/lib/storage-urls";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 
 /**
  * Menandatangani kunci `path` di JSONB `lessons.attachments`.
@@ -51,6 +52,24 @@ export async function internIsEnrolled(internProfileId: string, courseId: string
 }
 
 export async function getInternEnrollments(internProfileId: string) {
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/lms/enrollments?internId=${encodeURIComponent(internProfileId)}`);
+    if (!response.ok) return { data: [], error: new Error(`HTTP ${response.status}`) };
+    const body = await response.json() as {
+      enrollments: Array<{
+        course_id: string;
+        enrolled_at: string;
+        completed_at: string | null;
+        courses: { id: string; title: string; description: string | null; slug: string };
+      }>;
+    };
+    return {
+      data: body.enrollments.map(({ course_id, enrolled_at, completed_at, courses }) => ({
+        course_id, enrolled_at, completed_at, course: courses,
+      })),
+      error: null,
+    };
+  }
   const db = await createUteroAcademyServiceRoleClient();
   
   const { data: enrollments, error } = await db
@@ -76,6 +95,22 @@ export async function getInternEnrollments(internProfileId: string) {
 }
 
 export async function getCourseDetails(courseId: string, internProfileId: string) {
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/lms/courses/${courseId}/detail`);
+    if (!response.ok) return { data: null, error: new Error(`HTTP ${response.status}`) };
+    const body = await response.json() as any;
+    const progress = new Map(body.progress.map((row: any) => [row.lesson_id, row.completed_at]));
+    const attempts = new Map(body.attempts.map((row: any) => [row.quiz_id, row.score]));
+    const submissions = new Map(body.submissions.map((row: any) => [row.assignment_id, row]));
+    return { data: {
+      course: body.course,
+      lessons: await Promise.all(body.lessons.map(async (lesson: any) => ({
+        ...lesson, attachments: await signLessonAttachments(lesson.attachments), is_completed: progress.has(lesson.id),
+      }))) as Array<{ id: string; title: string; is_completed: boolean; order_index: number; attachments: unknown[] }>,
+      quizzes: body.quizzes.map((quiz: any) => ({ ...quiz, best_score: attempts.get(quiz.id) ?? null })) as Array<{ id: string; title: string; best_score: unknown; passing_score: number }>,
+      assignments: body.assignments.map((assignment: any) => ({ ...assignment, submission: submissions.get(assignment.id) ?? null })) as Array<{ id: string; title: string; due_at: string | null; submission: { score: number | null; reviewed_at: string | null } | null }>,
+    }, error: null };
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   if (!(await internIsEnrolled(internProfileId, courseId))) {
@@ -136,6 +171,12 @@ export async function getCourseDetails(courseId: string, internProfileId: string
 }
 
 export async function getLesson(lessonId: string, internProfileId: string) {
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/lms/lessons/${lessonId}`);
+    if (!response.ok) return { data: null, error: new Error(`HTTP ${response.status}`) };
+    const lesson = ((await response.json()) as { lesson: any }).lesson;
+    return { data: { ...lesson, attachments: await signLessonAttachments(lesson.attachments) }, error: null };
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   const { data: lesson, error } = await db
@@ -172,6 +213,15 @@ export async function getLesson(lessonId: string, internProfileId: string) {
 }
 
 export async function getQuiz(quizId: string, internProfileId: string) {
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/lms/quizzes/${quizId}`);
+    if (!response.ok) return { data: null, error: new Error(`HTTP ${response.status}`) };
+    return { data: ((await response.json()) as { quiz: {
+      id: string; course_id: string; title: string; questions: unknown;
+      passing_score: number | null; is_published: boolean;
+      attempts: Array<{ id: string; score: number; answers: unknown; submitted_at: string }>;
+    } }).quiz, error: null };
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   const { data: quiz, error } = await db
@@ -207,6 +257,15 @@ export async function getQuiz(quizId: string, internProfileId: string) {
 }
 
 export async function getAssignment(assignmentId: string, internProfileId: string) {
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/lms/assignments/${assignmentId}`);
+    if (!response.ok) return { data: null, error: new Error(`HTTP ${response.status}`) };
+    const assignment = ((await response.json()) as { assignment: any }).assignment;
+    if (assignment.submission?.attachment_path) {
+      assignment.submission.attachment_path = await resolveStorageUrl("academy-private", assignment.submission.attachment_path);
+    }
+    return { data: assignment, error: null };
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   const { data: assignment, error } = await db
@@ -259,6 +318,19 @@ export async function getAssignment(assignmentId: string, internProfileId: strin
  * resolveStaffInternScope sudah membatasi ke penempatan aktif (Asia/Jakarta).
  */
 export async function getMentorSubmissions(allowedInternIds: string[] | null) {
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/lms/submissions");
+    if (!response.ok) return { data: [], error: new Error(`HTTP ${response.status}`) };
+    const rows = ((await response.json()) as { submissions: any[] }).submissions;
+    return {
+      data: await Promise.all(rows.map(async (submission) => ({
+        ...submission,
+        attachment_is_image: isImagePath(submission.attachment_path, "academy-private"),
+        attachment_path: await resolveStorageUrl("academy-private", submission.attachment_path),
+      }))),
+      error: null,
+    };
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   if (allowedInternIds !== null && allowedInternIds.length === 0) {
@@ -311,6 +383,14 @@ export async function getMentorSubmissions(allowedInternIds: string[] | null) {
 
 /** Katalog lengkap termasuk draft. Hanya untuk halaman staf. */
 export async function getAllCourses() {
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/lms/courses");
+    if (!response.ok) return { data: [], error: new Error(`HTTP ${response.status}`) };
+    const body = await response.json() as {
+      courses: Array<{ id: string; title: string; description: string | null; slug: string; status: string }>;
+    };
+    return { data: body.courses, error: null };
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("courses")
@@ -328,6 +408,14 @@ export async function getAllCourses() {
  * terkirim dalam payload halaman. Penyaringan dipindah ke query.
  */
 export async function getPublishedCourses() {
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/lms/courses/published");
+    if (!response.ok) return { data: [], error: new Error(`HTTP ${response.status}`) };
+    const body = await response.json() as {
+      courses: Array<{ id: string; title: string; description: string | null; slug: string; status: string }>;
+    };
+    return { data: body.courses, error: null };
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("courses")
@@ -339,6 +427,18 @@ export async function getPublishedCourses() {
 }
 
 export async function getMentorCourseDetails(courseId: string) {
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/lms/courses/${courseId}/detail`);
+    if (!response.ok) return { data: null, error: new Error(`HTTP ${response.status}`) };
+    const body = await response.json() as any;
+    return { data: { course: body.course,
+      lessons: await Promise.all(body.lessons.map(async (lesson: any) => ({
+        ...lesson, attachments: await signLessonAttachments(lesson.attachments),
+      }))) as Array<{ id: string; title: string; order_index: number; attachments: unknown[]; is_published: boolean }>,
+      quizzes: body.quizzes as Array<{ id: string; title: string; passing_score: number; is_published: boolean }>,
+      assignments: body.assignments as Array<{ id: string; title: string; due_at: string | null; is_published: boolean }>,
+    }, error: null };
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   const [courseRes, lessonsRes, quizzesRes, assignmentsRes] = await Promise.all([

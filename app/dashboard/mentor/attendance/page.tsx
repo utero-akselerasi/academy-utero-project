@@ -16,6 +16,8 @@ import { jakartaDateString, jakartaMinutesOfDay, parseWallClockMinutes } from "@
 import Link from "next/link";
 import { RouteModal } from "@/components/ui/route-modal";
 import { Clock, Settings, User, CheckCircle, AlertTriangle, Play, HelpCircle, MapPin, Eye, Download } from "lucide-react";
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { localMentorAttendanceDashboard } from "@/features/attendance/local";
 
 type Props = {
   searchParams: Promise<{ detailInternId?: string; showSettings?: string; date?: string }>;
@@ -35,12 +37,46 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
 
   const user = await requireAdmin();
 
-  // Presensi memuat selfie, titik lokasi, dan surat sakit peserta: batasi ke
-  // peserta bimbingan. Sebelumnya halaman ini menarik seluruh peserta aktif
-  // beserta SELURUH baris attendances dan permits.
-  const scope = await resolveStaffInternScope(user.id);
+  let settings: any = null;
+  let interns: any[] = [];
+  let attendances: any[] = [];
+  let pendingPermits: any[] = [];
+  let setupRequired = false;
 
-  if (scope.kind === "setup_required") {
+  if (usesLocalBackend()) {
+    const dashboard = await localMentorAttendanceDashboard();
+    settings = dashboard.settings;
+    interns = dashboard.interns;
+    attendances = dashboard.attendances;
+    pendingPermits = dashboard.pendingPermits;
+    setupRequired = dashboard.setupRequired;
+  } else {
+    const scope = await resolveStaffInternScope(user.id);
+    setupRequired = scope.kind === "setup_required";
+    if (!setupRequired) {
+      const scopedInternIds = scope.kind === "global" ? null : scope.kind === "scoped" ? scope.internIds : [];
+      const db = await createUteroAcademyServiceRoleClient();
+      const settingsResult = await db.from("attendance_settings").select("*").eq("id", ATTENDANCE_SETTINGS_ID).maybeSingle();
+      settings = settingsResult.data;
+      const { data: internRoleUsers } = await db.from("user_roles").select("user_id, roles(code)").returns<any[]>();
+      const internUserIds = (internRoleUsers || []).filter((entry) => {
+        const role = Array.isArray(entry.roles) ? entry.roles[0] : entry.roles;
+        return role?.code === "intern";
+      }).map((entry) => entry.user_id);
+      let internQuery = db.from("intern_profiles").select("id, full_name, user_id, status, start_date, major, phone, email")
+        .eq("status", "active").in("user_id", internUserIds.length ? internUserIds : ["00000000-0000-0000-0000-000000000000"]);
+      if (scopedInternIds !== null) internQuery = internQuery.in("id", scopedInternIds);
+      interns = (await internQuery.order("full_name", { ascending: true })).data || [];
+      const visibleInternIds = interns.map((intern) => intern.id);
+      if (visibleInternIds.length) {
+        attendances = (await db.from("attendances").select("*").in("intern_id", visibleInternIds).order("attendance_date", { ascending: false })).data || [];
+        pendingPermits = (await db.from("permits").select("*, intern_profiles(full_name)").eq("status", "pending")
+          .in("intern_id", visibleInternIds).order("created_at", { ascending: false })).data || [];
+      }
+    }
+  }
+
+  if (setupRequired) {
     return (
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="surface p-6 text-sm font-semibold text-red-700">
@@ -50,69 +86,10 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
     );
   }
 
-  const scopedInternIds = scope.kind === "global" ? null : scope.internIds;
-
-  const db = await createUteroAcademyServiceRoleClient();
-
-  // 1. Fetch active settings
-  const { data: settings } = await db
-    .from("attendance_settings")
-    .select("*")
-    .eq("id", ATTENDANCE_SETTINGS_ID)
-    .maybeSingle();
-
   const checkInTime = settings?.check_in_time || "08:00";
   const checkOutTime = settings?.check_out_time || "17:00";
   const lateTolerance = settings?.late_tolerance_minutes ?? 15;
   const targetHours = settings?.monthly_target_hours ?? 120;
-
-  // Fetch user ids having role 'intern'
-  const { data: internRoleUsers } = await db
-    .from("user_roles")
-    .select("user_id, roles(code)")
-    .returns<any[]>();
-
-  const internUserIds = (internRoleUsers || [])
-    .filter(ur => {
-      const roleObj = Array.isArray(ur.roles) ? ur.roles[0] : ur.roles;
-      return roleObj?.code === "intern";
-    })
-    .map(ur => ur.user_id);
-
-  // 2. Fetch active interns having role 'intern', dibatasi scope
-  let internQuery = db
-    .from("intern_profiles")
-    .select("id, full_name, user_id, status, start_date, major, phone, email")
-    .eq("status", "active")
-    .in("user_id", internUserIds.length > 0 ? internUserIds : ["00000000-0000-0000-0000-000000000000"]);
-
-  if (scopedInternIds !== null) {
-    internQuery = internQuery.in("id", scopedInternIds);
-  }
-
-  const { data: internsData } = await internQuery.order("full_name", { ascending: true });
-
-  const interns = internsData || [];
-  const visibleInternIds = interns.map((intern) => intern.id);
-
-  // 3. Fetch attendances milik peserta yang terlihat saja
-  const { data: attendances } = visibleInternIds.length
-    ? await db
-        .from("attendances")
-        .select("*")
-        .in("intern_id", visibleInternIds)
-        .order("attendance_date", { ascending: false })
-    : { data: [] as any[] };
-
-  // 3.5. Fetch pending permits milik peserta yang terlihat saja
-  const { data: pendingPermits } = visibleInternIds.length
-    ? await db
-        .from("permits")
-        .select("*, intern_profiles(full_name)")
-        .eq("status", "pending")
-        .in("intern_id", visibleInternIds)
-        .order("created_at", { ascending: false })
-    : { data: [] as any[] };
 
   // 4. Calculate stats for each intern
   //

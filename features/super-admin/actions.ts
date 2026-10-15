@@ -9,6 +9,7 @@ import { writeAuditLog } from "./audit";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { updateInternPeriodSchema } from "./schemas";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 
 const assignRoleSchema = z.object({
   userId: z.string().uuid(),
@@ -112,6 +113,15 @@ export async function assignUserRoleAction(formData: FormData) {
     throw new Error("Data role tidak valid.");
   }
 
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/super-admin/roles", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(parsed.data),
+    });
+    if (!response.ok) throw new Error("Gagal menetapkan role pada backend lokal.");
+    revalidatePath("/dashboard/super-admin/users");
+    return;
+  }
+
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db.from("user_roles").insert({
     user_id: parsed.data.userId,
@@ -160,6 +170,12 @@ export async function removeUserRoleAction(formData: FormData) {
   const user = await requireSuperAdmin();
 
   const id = z.string().uuid().parse(formData.get("id"));
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/super-admin/roles/${id}`, { method: "DELETE" });
+    if (!response.ok) throw new Error("Gagal menghapus role pada backend lokal.");
+    revalidatePath("/dashboard/super-admin/users");
+    return;
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db.from("user_roles").delete().eq("id", id);
 
@@ -189,6 +205,16 @@ export async function createUserManualAction(formData: FormData) {
 
   if (!email || !password || !fullName) {
     throw new Error("Email, password, dan nama lengkap wajib diisi.");
+  }
+
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/super-admin/users", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password, fullName, phone, roleId }),
+    });
+    if (!response.ok) throw new Error("Gagal membuat user pada backend lokal.");
+    revalidatePath("/dashboard/super-admin/users");
+    return;
   }
 
   const db = await createUteroAcademyServiceRoleClient();
@@ -286,6 +312,16 @@ export async function updateUserAdminAction(formData: FormData) {
     throw new Error("ID pengguna dan nama lengkap wajib diisi.");
   }
 
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/super-admin/users/${encodeURIComponent(userId)}`, {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fullName, phone, isActive }),
+    });
+    if (!response.ok) throw new Error("Gagal mengupdate profil pada backend lokal.");
+    revalidatePath("/dashboard/super-admin/users");
+    return;
+  }
+
   const db = await createUteroAcademyServiceRoleClient();
 
   // Update profile
@@ -332,8 +368,19 @@ export async function resetUserPasswordAction(formData: FormData) {
   const userId = formData.get("userId") as string;
   const password = formData.get("password") as string;
 
-  if (!userId || !password || password.length < 6) {
-    throw new Error("Password minimal 6 karakter.");
+  if (!userId || !password || password.length < 12) {
+    throw new Error("Password minimal 12 karakter.");
+  }
+
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/super-admin/users/${encodeURIComponent(userId)}/reset-password`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    if (!response.ok) throw new Error("Gagal meriset kata sandi.");
+    revalidatePath("/dashboard/super-admin/users");
+    return;
   }
 
   const supabase = createSupabaseServiceRoleClient();
@@ -358,6 +405,29 @@ export async function resetUserPasswordAction(formData: FormData) {
   revalidatePath("/dashboard/super-admin/users");
 }
 
+export async function activateImportedUserAction(formData: FormData) {
+  await requireSuperAdmin();
+
+  const userId = formData.get("userId") as string;
+  if (!userId) throw new Error("ID pengguna wajib diisi.");
+  if (!usesLocalBackend()) throw new Error("Aktivasi akun impor hanya tersedia pada backend lokal.");
+
+  const response = await backendRequest(`/v1/super-admin/users/${encodeURIComponent(userId)}/activate`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    const messages: Record<string, string> = {
+      role_required: "Tetapkan role pengguna sebelum mengirim undangan.",
+      pending_user_not_found: "Akun tidak lagi menunggu aktivasi.",
+      invitation_email_unavailable: "SMTP gagal mengirim email undangan.",
+    };
+    throw new Error(messages[body?.error ?? ""] ?? "Gagal mengirim undangan aktivasi.");
+  }
+
+  revalidatePath("/dashboard/super-admin/users");
+}
+
 export async function deleteUserAction(formData: FormData) {
   const user = await requireSuperAdmin();
 
@@ -369,6 +439,13 @@ export async function deleteUserAction(formData: FormData) {
 
   if (userId === user.id) {
     throw new Error("Anda tidak dapat menghapus akun Anda sendiri.");
+  }
+
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/super-admin/users/${encodeURIComponent(userId)}`, { method: "DELETE" });
+    if (!response.ok) throw new Error("Gagal menghapus user pada backend lokal.");
+    revalidatePath("/dashboard/super-admin/users");
+    return;
   }
 
   const supabase = createSupabaseServiceRoleClient();
@@ -398,6 +475,16 @@ export async function linkSchoolContactAction(formData: FormData) {
 
   if (!userId) {
     throw new Error("ID pengguna wajib diisi.");
+  }
+
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/super-admin/users/${encodeURIComponent(userId)}/school-contact`, {
+      method: "PUT", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ schoolId: schoolId || null, position }),
+    });
+    if (!response.ok) throw new Error("Gagal menghubungkan perwakilan pada backend lokal.");
+    revalidatePath("/dashboard/super-admin/users");
+    return;
   }
 
   const db = await createUteroAcademyServiceRoleClient();
@@ -449,6 +536,33 @@ export async function linkSchoolContactAction(formData: FormData) {
   revalidatePath("/dashboard/super-admin/users");
 }
 
+export async function inviteSchoolContactAction(formData: FormData) {
+  await requireSuperAdmin();
+  const schoolId = formData.get("schoolId");
+  const contactId = formData.get("contactId");
+  if (typeof schoolId !== "string" || typeof contactId !== "string") throw new Error("Kontak sekolah tidak valid.");
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/super-admin/schools/${encodeURIComponent(schoolId)}/invite`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contactId }),
+    });
+    if (!response.ok) throw new Error("Undangan sekolah belum berhasil dikirim.");
+    revalidatePath("/dashboard/super-admin/schools");
+    return;
+  }
+  const db = await createUteroAcademyServiceRoleClient();
+  const { data: contact, error } = await db.from("school_contacts").select("name,email").eq("id", contactId).eq("school_id", schoolId).maybeSingle();
+  if (error || !contact?.email) throw new Error("Kontak sekolah tidak ditemukan.");
+  const supabase = createSupabaseServiceRoleClient();
+  const invited = await supabase.auth.admin.inviteUserByEmail(contact.email, { data: { full_name: contact.name, source_app: "utero_academy_school" } });
+  if (invited.error || !invited.data.user) throw new Error("Undangan sekolah belum berhasil dikirim.");
+  const { data: role } = await db.from("roles").select("id").eq("code", "school").maybeSingle();
+  if (!role) throw new Error("Role sekolah belum tersedia.");
+  await db.from("user_profiles").insert({ id: invited.data.user.id, full_name: contact.name, is_active: true });
+  await db.from("user_roles").insert({ user_id: invited.data.user.id, role_id: role.id });
+  await db.from("school_contacts").update({ user_id: invited.data.user.id }).eq("id", contactId).eq("school_id", schoolId);
+  revalidatePath("/dashboard/super-admin/schools");
+}
+
 export async function createSchoolAction(formData: FormData) {
   const user = await requireSuperAdmin();
   const parsed = schoolSchema.safeParse({
@@ -462,6 +576,16 @@ export async function createSchoolAction(formData: FormData) {
 
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message || "Data instansi tidak valid.");
+  }
+
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/super-admin/schools", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(parsed.data),
+    });
+    if (!response.ok) throw new Error("Gagal menambahkan instansi pada backend lokal.");
+    revalidatePath("/dashboard/super-admin/schools");
+    revalidatePath("/dashboard/super-admin/users");
+    return;
   }
 
   const db = await createUteroAcademyServiceRoleClient();
@@ -503,6 +627,16 @@ export async function updateSchoolAction(formData: FormData) {
     throw new Error(parsed.error?.issues[0]?.message || "ID instansi tidak valid.");
   }
 
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/super-admin/schools/${encodeURIComponent(parsed.data.schoolId)}`, {
+      method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(parsed.data),
+    });
+    if (!response.ok) throw new Error("Gagal memperbarui instansi pada backend lokal.");
+    revalidatePath("/dashboard/super-admin/schools");
+    revalidatePath("/dashboard/super-admin/users");
+    return;
+  }
+
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db
     .from("schools")
@@ -539,6 +673,14 @@ export async function updateSchoolPartnershipAction(formData: FormData) {
     referralExpiresAt: formData.get("referralExpiresAt"),
   });
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Data kemitraan tidak valid.");
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/super-admin/schools/${encodeURIComponent(parsed.data.schoolId)}/partnership`, {
+      method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(parsed.data),
+    });
+    if (!response.ok) throw new Error("Kemitraan belum berhasil disimpan pada backend lokal.");
+    revalidatePath("/dashboard/super-admin/schools");
+    return;
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data: previous, error: readError } = await db.from("schools")
     .select("partner_status, referral_code, referral_quota, referral_expires_at")
@@ -563,6 +705,14 @@ export async function deleteSchoolAction(formData: FormData) {
 
   if (!schoolId) {
     throw new Error("ID instansi wajib diisi.");
+  }
+
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/super-admin/schools/${encodeURIComponent(schoolId)}`, { method: "DELETE" });
+    if (!response.ok) throw new Error("Gagal menghapus instansi pada backend lokal.");
+    revalidatePath("/dashboard/super-admin/schools");
+    revalidatePath("/dashboard/super-admin/users");
+    return;
   }
 
   const db = await createUteroAcademyServiceRoleClient();
@@ -593,6 +743,16 @@ export async function linkInternToSchoolAction(formData: FormData) {
 
   if (!internId) {
     throw new Error("Siswa wajib dipilih.");
+  }
+
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/super-admin/interns/${encodeURIComponent(internId)}/school`, {
+      method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ schoolId: schoolId || null }),
+    });
+    if (!response.ok) throw new Error("Gagal menghubungkan siswa pada backend lokal.");
+    revalidatePath("/dashboard/super-admin/schools");
+    revalidatePath("/dashboard/school");
+    return;
   }
 
   const db = await createUteroAcademyServiceRoleClient();
@@ -627,6 +787,16 @@ export async function cleanupOrphanDataAction(formData: FormData) {
   
   if (!orphanType || !['contacts', 'interns', 'all'].includes(orphanType)) {
     throw new Error("Tipe orphan tidak valid.");
+  }
+
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/super-admin/orphans/cleanup", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ orphanType }),
+    });
+    if (!response.ok) throw new Error("Pembersihan data yatim gagal pada backend lokal.");
+    revalidatePath("/dashboard/super-admin/schools");
+    revalidatePath("/dashboard/super-admin/users");
+    return;
   }
 
   const db = await createUteroAcademyServiceRoleClient();
@@ -742,6 +912,18 @@ export async function updateInternPeriodAction(formData: FormData) {
 
   const status = parsed.data.status ?? "active";
 
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/super-admin/interns/${encodeURIComponent(parsed.data.internId)}/period`, {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ startDate: startDate || null, endDate: endDate || null, major: major || null, gradeOrSemester: gradeOrSemester || null, status }),
+    });
+    if (!response.ok) throw new Error("Gagal memperbarui periode magang pada backend lokal.");
+    revalidatePath("/dashboard/super-admin/schools");
+    revalidatePath("/dashboard/intern");
+    revalidatePath("/dashboard/school/students");
+    return;
+  }
+
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("intern_profiles")
@@ -793,6 +975,14 @@ export async function updateInternPeriodAction(formData: FormData) {
  */
 export async function backfillDomainProfilesAction() {
   const user = await requireSuperAdmin();
+
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/super-admin/domain-profiles/backfill", { method: "POST" });
+    if (!response.ok) throw new Error("Gagal melengkapi profil domain pada backend lokal.");
+    revalidatePath("/dashboard/super-admin/users");
+    revalidatePath("/dashboard/super-admin/orphan-cleanup");
+    return;
+  }
 
   const { missing, error } = await detectMissingDomainProfiles();
 

@@ -8,7 +8,21 @@ export const dynamic = "force-dynamic";
 
 export default async function SchoolApplicationsPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: ApplicationStatus; selection?: SelectionStatus; invite?: string }> }) {
   const params = await searchParams;
-  const { school, applications } = await getOwnSchoolApplications({ query: params.q, status: params.status ?? "all", selectionStatus: params.selection ?? "all" });
+  let result: Awaited<ReturnType<typeof getOwnSchoolApplications>>;
+  try {
+    result = await getOwnSchoolApplications({ query: params.q, status: params.status ?? "all", selectionStatus: params.selection ?? "all" });
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "school_partner_inactive") throw error;
+    return (
+      <main className="mx-auto max-w-4xl px-4 py-8">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+          <h1 className="text-xl font-bold">Akses pendaftaran belum aktif</h1>
+          <p className="mt-2 text-sm">Status kemitraan sekolah belum aktif. Hubungi admin untuk mengaktifkan pendaftaran peserta.</p>
+        </div>
+      </main>
+    );
+  }
+  const { school, applications } = result;
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
       <section className="rounded-3xl bg-gradient-to-r from-blue-800 via-blue-700 to-cyan-700 p-7 text-white shadow-lg">

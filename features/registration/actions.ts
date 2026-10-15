@@ -6,6 +6,7 @@ import { createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } 
 import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 
 const schema = z.object({
   programId: z.string().uuid(), fullName: z.string().trim().min(3).max(150),
@@ -19,7 +20,7 @@ export type RegistrationState = { ok: boolean; message: string };
 
 export async function submitRegistrationAction(_: RegistrationState, formData: FormData): Promise<RegistrationState> {
   const user = await requireApplicant();
-  if (await userHasAnyRole(user.id, ["intern"])) return { ok: false, message: "Akun ini sudah menjadi peserta magang." };
+  if (!usesLocalBackend() && await userHasAnyRole(user.id, ["intern"])) return { ok: false, message: "Akun ini sudah menjadi peserta magang." };
   if (!user.email) return { ok: false, message: "Email akun belum tersedia." };
   const input = schema.safeParse(Object.fromEntries([...formData.entries()].filter(([key]) => key !== "cv" && key !== "portfolio")));
   if (!input.success) return { ok: false, message: input.error.issues[0]?.message ?? "Data pendaftaran tidak valid." };
@@ -33,6 +34,34 @@ export async function submitRegistrationAction(_: RegistrationState, formData: F
     if (portfolioFile instanceof File && portfolioFile.size > 0) portfolio = await validateUpload(portfolioFile, ["document", "image"]);
   } catch (error) {
     return { ok: false, message: error instanceof UploadValidationError ? error.message : "Berkas tidak dapat diproses." };
+  }
+  if (usesLocalBackend()) {
+    const paths: string[] = [];
+    try {
+      for (const [kind, upload] of [["cv", cv], ["portfolio", portfolio]] as const) {
+        if (!upload) continue;
+        const path = buildStoragePath(`${user.id}/applications/${kind}`, upload.ext);
+        const body = new FormData();
+        body.append("file", new Blob([Buffer.from(upload.buffer)], { type: upload.contentType }), upload.displayName);
+        const response = await backendRequest("/v1/storage/academy-private", { method: "POST", headers: { "x-object-path": path }, body });
+        if (!response.ok) throw new Error(`Upload gagal: ${response.status}`);
+        paths.push(path);
+      }
+      const response = await backendRequest("/v1/registration/applications", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...input.data, cvPath: paths[0], portfolioPath: paths[1] ?? null }),
+      });
+      if (!response.ok) {
+        const result = await response.json() as { error?: string };
+        throw new Error(result.error ?? `Pendaftaran gagal: ${response.status}`);
+      }
+      revalidatePath("/dashboard/applicant");
+      return { ok: true, message: "Pendaftaran terkirim. Pantau review dan seleksi dari halaman ini." };
+    } catch (error) {
+      await Promise.allSettled(paths.map((path) => backendRequest(`/v1/storage/academy-private/${path}`, { method: "DELETE" })));
+      console.error("Gagal menyimpan pendaftaran lokal:", error);
+      return { ok: false, message: "Pendaftaran belum berhasil disimpan. Coba lagi atau hubungi admin." };
+    }
   }
   const db = await createUteroAcademyServiceRoleClient();
   const { data: existing } = await db.from("internship_applications").select("id").eq("applicant_user_id", user.id).not("status", "in", '("rejected","cancelled","converted")').limit(1).maybeSingle();

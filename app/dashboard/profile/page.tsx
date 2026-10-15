@@ -5,42 +5,45 @@ import { isActiveRoleCode } from "@/features/auth/roles";
 import { resolveStorageUrl } from "@/lib/storage-urls";
 import { ProfileFormWrapper } from "./ProfileFormWrapper";
 import { type InternProfileData, isInternBiodataComplete } from "@/features/auth/profile-schema";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 
 export default async function EditProfilePage() {
   // Halaman profil terbuka untuk semua peran yang login, jadi requireUser()
   // saja - tetapi guard-nya harus di page: layout dan page dirender bersamaan.
   const user = await requireUser();
-  const db = await createUteroAcademyClient();
-  const { data: userProfile } = await db.from("user_profiles").select("*").eq("id", user.id).maybeSingle();
-  const internId = await getInternProfileId(user.id);
-  const mentorId = await getMentorProfileId(user.id);
+  let userProfile: any = null;
   let internProfile: InternProfileData | null = null;
-  if (internId) {
-    const { data } = await db.from("intern_profiles")
-      .select("id, full_name, phone, major, grade_or_semester, school_name, address, school_supervisor_name, school_supervisor_phone, emergency_contact_name, emergency_contact_phone, schools(name)")
-      .eq("id", internId).returns<InternProfileData>().maybeSingle();
-    internProfile = data;
+  let mentorProfile: any = null;
+  let roles: Array<{ code: string; name: string }> = [];
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/profile");
+    if (response.ok) {
+      const data = await response.json() as { profile: any; internProfile: InternProfileData | null; mentorProfile: any; roles: Array<{ code: string; name: string }> };
+      userProfile = data.profile;
+      internProfile = data.internProfile;
+      mentorProfile = data.mentorProfile;
+      roles = data.roles.filter((role) => isActiveRoleCode(role.code));
+    }
+  } else {
+    const db = await createUteroAcademyClient();
+    const { data: profile } = await db.from("user_profiles").select("*").eq("id", user.id).maybeSingle();
+    userProfile = profile;
+    const internId = await getInternProfileId(user.id);
+    const mentorId = await getMentorProfileId(user.id);
+    if (internId) {
+      const { data } = await db.from("intern_profiles")
+        .select("id, full_name, phone, major, grade_or_semester, school_name, address, school_supervisor_name, school_supervisor_phone, emergency_contact_name, emergency_contact_phone, schools(name)")
+        .eq("id", internId).returns<InternProfileData>().maybeSingle();
+      internProfile = data;
+    }
+    if (mentorId) {
+      const { data } = await db.from("mentor_profiles").select("*").eq("id", mentorId).maybeSingle();
+      mentorProfile = data;
+    }
+    const { data: userRoles } = await db.from("user_roles").select("roles(code, name)").eq("user_id", user.id).returns<any[]>();
+    roles = (userRoles || []).map((ur) => (Array.isArray(ur.roles) ? ur.roles[0] : ur.roles))
+      .filter((roleObj) => roleObj && isActiveRoleCode(roleObj.code));
   }
-  let mentorProfile = null;
-  if (mentorId) {
-    const { data } = await db.from("mentor_profiles").select("*").eq("id", mentorId).maybeSingle();
-    mentorProfile = data;
-  }
-
-  // Fetch real user roles from database
-  const { data: userRoles } = await db
-    .from("user_roles")
-    .select("roles(code, name)")
-    .eq("user_id", user.id)
-    .returns<any[]>();
-
-  // Baris peran legacy (`mentor`, `admin_academy`) sengaja dibiarkan hidup di
-  // database oleh migrasi 0028, jadi kueri mentah ini masih bisa mengembalikannya.
-  // Disaring lewat isActiveRoleCode() supaya badge di halaman ini tidak
-  // menampilkan peran yang sudah tidak diakui satu pun guard.
-  const roles = (userRoles || [])
-    .map((ur) => (Array.isArray(ur.roles) ? ur.roles[0] : ur.roles))
-    .filter((roleObj) => roleObj && isActiveRoleCode(roleObj.code));
 
   const avatarUrl = await resolveStorageUrl("academy-private", userProfile?.avatar_path);
 

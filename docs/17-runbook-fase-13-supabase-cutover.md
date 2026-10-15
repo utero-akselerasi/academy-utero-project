@@ -2,6 +2,38 @@
 
 Status: 12 Oktober 2026. Cutover production masih **NO-GO**. Dokumen ini tidak memberi izin menjalankan migrasi pada server live.
 
+## Point 6: production read-only preflight
+
+`scripts/preflight-phase13-production.mjs` memakai HTTP `GET`, PostgreSQL `default_transaction_read_only=on` dengan `BEGIN READ ONLY`, dan SSH `df -Pk / /data`. Tidak membuat baseline atau mengubah production. Target terkunci ke production.
+
+Operator menyimpan baseline JSON dari snapshot final yang disetujui setelah write freeze di lokasi terlindungi di luar repo. Bentuk wajib: `{"target":"production","counts":{"auth.users":209,"utero_academy.attendances":1180,"utero_academy.daily_reports":1032,"utero_academy.daily_report_attachments":1307,"storage.objects:academy-private":417},"minFreeKiB":10485760,"rlsSha256":"<64 hex>","policiesSha256":"<64 hex>","bucketsSha256":"<64 hex>"}`. Angka di sini **contoh, bukan baseline sah**. `counts` wajib memuat seluruh tabel yang dicek dan semua bucket dengan object. Digest adalah SHA-256 dari JSON baris terurut hasil query masing-masing untuk RLS, policy Academy/Storage, dan bucket; bandingkan bukti dari snapshot terpercaya. Jangan menghasilkan baseline langsung dari hasil preflight live lalu menyebutnya valid.
+
+Jalankan hanya bila kredensial tersedia dan host key SSH sudah dipercaya:
+
+```powershell
+$env:SUPABASE_PROD_URL='https://supabase.carubra.space'
+$env:SUPABASE_PROD_DATABASE_URL='postgresql://...@20.20.20.3/postgres'
+$env:SUPABASE_PROD_SERVICE_ROLE_KEY='...'
+$env:PHASE13_PROD_SSH_USER='operator'
+node scripts/preflight-phase13-production.mjs 'I:\secure-evidence\phase13-production-baseline.json'
+```
+
+Exit `0` hanya bila delta data nol, kedua mount `/` dan `/data` cukup ruang, seluruh tabel Academy tetap RLS-enabled, digest RLS/policy/bucket cocok, serta Auth/REST/Storage/PostgreSQL/SSH dapat dihubungi. Baseline hilang, timeout, respons tidak valid, perbedaan, atau HTTP non-2xx menghasilkan exit nonzero. Jangan ubah baseline untuk meluluskan gate; investigasi dan minta persetujuan pemilik data/keamanan.
+
+## Latihan staging terisolasi 12 Oktober 2026
+
+Verifier readiness memeriksa Auth lewat `GET /auth/v1/admin/users?page=1&per_page=1` dengan service-role, bukan endpoint settings publik. Tracker migrasi dicek keberadaannya dengan `to_regclass` dalam transaksi baca-saja; jika tidak ada, hasilnya `migrationTrackerExists: false`, seluruh versi repo hilang, dan status NO-GO. Pemeriksaan ini tidak membuat tracker maupun baseline. Bahkan tracker lengkap hanya bukti catatan versi, bukan pembuktian efek historis SQL; audit baseline terpisah tetap wajib sebelum cutover.
+
+- Instance `supabase-02` di server production diaktifkan **sebagai staging terpisah**, bukan `supabase-01` production. Data awal instance kosong untuk Academy dan Storage. Snapshot sebelum restore staging disimpan di `/data/supabase/instances/supabase-02/academy-staging-pre-rehearsal-20261012T110258Z/` (dump PostgreSQL dan archive Storage beserta SHA-256); konfigurasi awal disimpan pada `config-pre-academy-staging-20261012T103646Z.tgz`. Jangan hapus volume instance lain.
+- Gateway staging `8100` serta port pooler `5532/6643` sekarang hanya bind `127.0.0.1` di server. Operator memakai tunnel SSH `127.0.0.1:18100` ke gateway dan `127.0.0.1:15532` ke database; tanpa tunnel, staging tidak dapat diakses dari workstation. Pada awal latihan gateway sempat terbuka lewat HTTP IP publik dan sejumlah objek disalin. `JWT_SECRET`, anon key, dan service-role key staging kemudian dirotasi; token service-role lama terbukti ditolak HTTP 400 dan token baru diterima HTTP 200. Tetap tinjau akses dan batasi staging PII sebelum pilot. Jangan gunakan kredensial staging untuk develop/production.
+- `0047` dan asersi pengganti host-aware `0048` lulus di staging serta dalam transaksi rollback pada clone. `0048` hanya mengasersi bucket Academy; **tidak** menandai `0032a/0032b/0034` sebagai telah diterapkan, tidak mengubah `avatars` SoundPub, dan tidak mengizinkan replay historis pada server bersama. Runner migrasi kini menolak `--baseline` tanpa bukti, menolak replay historis ke schema Academy yang sudah ada, dan `--status` baca-saja ketika tracker belum ada.
+- Tiga allowlist cocok: 417 `avatars` production, 1.693 `avatars` develop, dan 108 `daily-report` develop. Pada staging, ketiganya sudah disalin dan **2.218 path diverifikasi SHA-256/ukuran** melalui tunnel. Storage production memberi HTTP 500 `ENODATA` pada mayoritas objek karena extended attribute tidak ada; 415 objek diambil dari salinan backup production yang diverifikasi manifest SHA-256, dua objek sisanya cocok lewat API. Jangan mengubah extended attribute server production tanpa audit/rollback. Snapshot backup production **bukan** backup final saat write freeze.
+- Staging menerima salinan terbatas dari clone rekonsiliasi: 209 user Auth dan schema/data `utero_academy`; Storage metadata tetap utuh. Migrasi `0038–0048` dijalankan satu per satu di staging. Tidak ada migrasi atau deploy Academy pada server live. Instance staging sekarang mengandung PII; aksesnya harus tetap terbatas dan data harus dihapus aman setelah latihan selesai.
+- Smoke Storage staging berhasil untuk selfie masuk/keluar, bukti luar lokasi, surat sakit, izin, avatar, dan lampiran laporan; tiap probe mengecek unduhan service-role, signed URL, serta penolakan akses publik/anon. CV, portofolio, dan template sertifikat belum memiliki contoh path di clone; status **missing**, bukan passed. Signup/onboarding/interaktif sekolah dan SoundPub end-to-end belum diuji. Verifier readiness staging masih **NO-GO**: tracker `schema_migrations` historis tidak ada dan bucket Academy lain belum lengkap.
+- Validasi repository setelah patch: **912 tes**, typecheck, lint CI, dan build Next.js lulus. Build khusus target staging juga lulus melalui verifier yang hanya menerima endpoint Supabase `127.0.0.1:18100` dan URL aplikasi loopback. Peluncuran server lokal dari harness ditolak kebijakan proses, sehingga ini bukti build, bukan smoke UI interaktif. Pada staging lama, template `roles.sql` awal tidak menyelaraskan password TCP; lima role internal diselaraskan melalui parameter SQL dan koneksi network untuk empat role diuji berhasil. `verify:phase13-readiness -- staging` tetap gagal (HTTP 503 intermiten pada endpoint Auth lewat CLI; tracker migrasi historis pun belum ada), sehingga **jangan** menyebut staging siap cutover.
+- Audit baca-saja kedua clone menghasilkan digest katalog Academy yang sama tetapi `baselineProven=false` untuk 43 migrasi historis `0001–0037`; tracker tidak ada. Production live saat pemeriksaan tetap memiliki RLS pada 62/62 tabel Academy, bucket `avatars` SoundPub tetap public, dan empat policy Storage selimut lama tidak ada. Pemeriksaan itu tidak membuktikan seluruh baseline ataupun seluruh alur SoundPub.
+- **Jangan lanjutkan langkah 7–8 production** sebelum: replay/diff schema historis dan keputusan adopsi migrasi terbukti; selesaikan contoh tiga kategori smoke dan tes SoundPub; siapkan domain/env deploy terpisah; tulis jadwal serta pemilik write freeze dan pilot; lakukan backup final PostgreSQL/Auth/Storage yang konsisten dan uji restore; audit delta pasca-freeze; jalankan rollback instance pengganti. Server production hanya punya sekitar 8 GiB kosong di root; backup final harus memakai `/data` atau lokasi lain yang cukup. Restore backup awal saat penulisan masih berjalan tidak valid sebagai rollback cutover.
+
 ## Isolasi Storage Academy: tahap persiapan 12 Oktober 2026
 
 - `0047_isolate_academy_storage_bucket.sql` membuat bucket privat `academy-private` dengan batas 20 MiB dan MIME gambar/PDF/DOCX. Migrasi tidak mengubah bucket `avatars` atau policy SoundPub. Pengujian pada clone `phase13_reconciled_prod_20261012` lulus dua kali (idempoten); hash policy SoundPub sebelum dan sesudah tetap sama. Pengujian pada clone develop dibatalkan dengan `ROLLBACK`. Belum dijalankan pada server live.
@@ -126,6 +158,7 @@ Verifikasi clone memastikan bucket `selection-answers` privat, fungsi deadline m
 
 ## Rollback
 
+- Latihan dan validator rollback khusus staging ada di `docs/18-rollback-staging-phase13.md` dan `npm run verify:phase13-rollback-staging -- <evidence.json> <snapshot.dump> <storage.tar> <config.tgz>`. Validator mengunci instance pengganti ke gateway `18200`, DB `15632`, dan app `3100`; port source staging `18100/15532` serta production ditolak sebelum koneksi.
 - Hentikan aplikasi baru dan aktifkan maintenance kembali.
 - Kembalikan image sebelumnya.
 - Jika schema/data berubah dan rollback SQL tidak aman, restore backup final production ke instance pengganti, verifikasi Auth/Storage, lalu alihkan endpoint.

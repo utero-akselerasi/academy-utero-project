@@ -19,7 +19,7 @@
  *   node scripts/migrate.mjs --status
  *   node scripts/migrate.mjs --dry-run
  *   node scripts/migrate.mjs --apply
- *   node scripts/migrate.mjs --baseline 0027
+ *   --baseline dinonaktifkan sampai bukti kesesuaian schema dapat diverifikasi.
  */
 
 import fs from "node:fs";
@@ -168,6 +168,20 @@ async function readApplied(client) {
   return new Map(rows.map((row) => [row.version, row]));
 }
 
+async function trackingTableExists(client) {
+  const { rows } = await client.query(
+    "select to_regclass('utero_academy.schema_migrations') is not null as exists",
+  );
+  return rows[0].exists;
+}
+
+async function existingAcademySchema(client) {
+  const { rows } = await client.query(
+    "select to_regnamespace('utero_academy') is not null as exists",
+  );
+  return rows[0].exists;
+}
+
 /**
  * Bandingkan checksum tiap versi yang sudah diterapkan. Ini mekanisme yang
  * membuat penyimpangan terdeteksi ke depan: menyunting migrasi yang sudah
@@ -290,8 +304,7 @@ function parseArgs(argv) {
           "  node scripts/migrate.mjs --status         daftar diterapkan vs tertunda",
           "  node scripts/migrate.mjs --dry-run       sama, tanpa menyentuh DB (default)",
           "  node scripts/migrate.mjs --apply         terapkan yang tertunda, berurutan",
-          "  node scripts/migrate.mjs --baseline 0027 tandai 0001-0027 sudah diterapkan",
-          "                                           TANPA menjalankannya",
+          "  --baseline dinonaktifkan sampai bukti schema diaudit",
           "",
         ].join("\n"),
       );
@@ -310,6 +323,10 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const migrations = discoverMigrations();
 
+  if (options.mode === "baseline") {
+    fail("--baseline dinonaktifkan: nomor versi bukan bukti kesesuaian schema. Audit baseline eksternal dahulu.");
+  }
+
   if (options.mode === "dry-run") {
     console.log("\nMode dry-run: tidak ada koneksi ke database, tidak ada yang diterapkan.");
     console.log(`\nDitemukan ${migrations.length} berkas migrasi, urutan penerapan:\n`);
@@ -327,8 +344,8 @@ async function main() {
   await client.connect();
 
   try {
-    await ensureTrackingTable(client);
-    const applied = await readApplied(client);
+    const hasTracker = await trackingTableExists(client);
+    const applied = hasTracker ? await readApplied(client) : new Map();
 
     assertChecksums(migrations, applied);
 
@@ -336,43 +353,25 @@ async function main() {
 
     if (options.mode === "status") {
       printPlan(migrations, applied);
+      if (!hasTracker) console.log("\nTracker belum ada; status dibaca tanpa membuat schema atau tabel.");
       console.log(`\n${applied.size} diterapkan, ${pending.length} tertunda.\n`);
-      process.exit(pending.length > 0 ? 1 : 0);
-    }
-
-    if (options.mode === "baseline") {
-      const target = migrations.filter((m) => m.version <= options.baselineTo && !applied.has(m.version));
-      if (target.length === 0) {
-        console.log(`\nTidak ada yang perlu ditandai sampai ${options.baselineTo}.\n`);
-        return;
-      }
-      console.log(`\nMenandai ${target.length} migrasi sebagai sudah diterapkan TANPA menjalankannya:\n`);
-      await client.query("begin");
-      try {
-        for (const migration of target) {
-          await client.query(
-            `insert into utero_academy.schema_migrations (version, filename, checksum, duration_ms)
-             values ($1, $2, $3, null)`,
-            [migration.version, migration.filename, migration.checksum],
-          );
-          console.log(`  ditandai ${migration.filename}`);
-        }
-        await client.query("commit");
-      } catch (error) {
-        await client.query("rollback");
-        throw error;
-      }
-      console.log("\nSelesai. Tidak ada SQL migrasi yang dieksekusi.\n");
+      process.exitCode = pending.length > 0 ? 1 : 0;
       return;
     }
 
     // options.mode === "apply"
     assertNoBackfilledGaps(migrations, applied);
 
+    if (pending.some((migration) => migration.version <= "0037") && await existingAcademySchema(client)) {
+      fail("Migrasi historis <=0037 tertunda pada database dengan schema utero_academy. Audit schema dan baseline dahulu; --apply ditolak.");
+    }
+
     if (pending.length === 0) {
       console.log("\nTidak ada migrasi tertunda.\n");
       return;
     }
+
+    if (!hasTracker) await ensureTrackingTable(client);
 
     console.log(`\nMenerapkan ${pending.length} migrasi, berurutan:\n`);
 

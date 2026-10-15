@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getBackendIdentity, usesLocalBackend } from "@/lib/backend/server";
 import { type RoleCode, userHasAnyRole } from "./roles";
 import { redirect } from "next/navigation";
 
@@ -13,7 +14,11 @@ export class RouteAuthorizationError extends Error {
   }
 }
 
-async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
+export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
+  if (usesLocalBackend()) {
+    const identity = await getBackendIdentity();
+    return identity ? { id: identity.id, email: identity.email } : null;
+  }
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },

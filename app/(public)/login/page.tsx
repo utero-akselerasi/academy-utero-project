@@ -1,11 +1,10 @@
 import { LoginForm } from "@/features/auth/LoginForm";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser } from "@/features/auth/guards";
 import { getPrimaryDashboardPath } from "@/features/auth/roles";
 import { redirect } from "next/navigation";
 
 export default async function LoginPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
   
   if (user) {
     const dashboardPath = await getPrimaryDashboardPath(user.id);

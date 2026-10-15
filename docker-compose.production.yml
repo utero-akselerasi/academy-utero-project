@@ -1,0 +1,62 @@
+name: website-academy-utero-production
+
+services:
+  web:
+    environment:
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?Set NEXT_PUBLIC_APP_URL to the canonical HTTPS URL}
+      ACADEMY_SECURE_COOKIES: "true"
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    environment:
+      SECURE_COOKIES: "true"
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:?Set PUBLIC_APP_URL to the canonical HTTPS URL}
+      SMTP_HOST: ${SMTP_HOST:?Set SMTP_HOST for production email}
+      SMTP_FROM: ${SMTP_FROM:?Set SMTP_FROM for production email}
+    security_opt:
+      - no-new-privileges:true
+
+  ops-health:
+    environment:
+      OPS_HEALTH_TARGET: production
+
+  role-smoke:
+    environment:
+      ROLE_SMOKE_TARGET: production
+      ROLE_SMOKE_OUTPUT: /evidence/roleSmoke.json
+
+  migration-verify:
+    environment:
+      MIGRATION_VERIFY_TARGET: production
+
+  rbac-verify:
+    environment:
+      RBAC_VERIFY_TARGET: production
+      RBAC_VERIFY_OUTPUT: /evidence/rbacVerification.json
+
+  restore:
+    environment:
+      RESTORE_EVIDENCE_TARGET: production
+
+  nginx:
+    ports: !override
+      - "${ACADEMY_HTTP_BIND_ADDRESS:-0.0.0.0}:${ACADEMY_HTTP_PORT:-80}:80"
+      - "${ACADEMY_HTTPS_BIND_ADDRESS:-0.0.0.0}:${ACADEMY_HTTPS_PORT:-443}:443"
+    volumes: !override
+      - ./nginx.production.conf:/etc/nginx/nginx.conf:ro
+      - ${ACADEMY_TLS_CERT_DIR:?Set ACADEMY_TLS_CERT_DIR}:/etc/nginx/tls:ro
+      - ${ACADEMY_ACME_CHALLENGE_DIR:-./data/acme}:/var/www/acme:ro
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

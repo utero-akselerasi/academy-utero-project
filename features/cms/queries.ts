@@ -1,6 +1,8 @@
 import { resolveStorageUrl, resolveStorageUrls } from "@/lib/storage-urls";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
-import { type CmsSite, type Faq, type Testimonial, type Gallery, type Article } from "./types";
+import { usesLocalBackend } from "@/lib/backend/server";
+import { localCmsRequest } from "./local-api";
+import { type CmsSite, type Faq, type Testimonial, type Gallery, type Article, type LandingPageSettings } from "./types";
 
 /**
  * Kolom storage CMS diselesaikan di lapisan query ini, bukan di titik render.
@@ -19,6 +21,14 @@ import { type CmsSite, type Faq, type Testimonial, type Gallery, type Article } 
  */
 
 export async function getDefaultSite() {
+  if (usesLocalBackend()) {
+    try {
+      const { site } = await localCmsRequest<{ site: CmsSite }>("/v1/cms/site/default");
+      return { data: site, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("cms_sites")
@@ -29,7 +39,27 @@ export async function getDefaultSite() {
   return { data: data as CmsSite | null, error };
 }
 
-export async function getCmsData(siteId: string) {
+export async function getCmsData(siteId: string, options: { includeDrafts?: boolean } = {}) {
+  if (usesLocalBackend()) {
+    try {
+      const suffix = options.includeDrafts ? "?includeDrafts=true" : "";
+      const content = await localCmsRequest<{ faqs: Faq[]; testimonials: Testimonial[]; galleries: Gallery[]; articles: Article[] }>(`/v1/cms/sites/${encodeURIComponent(siteId)}/content${suffix}`);
+      const [testimonialPhotos, galleryImages, articleCovers] = await Promise.all([
+        resolveStorageUrls("gallery", content.testimonials.map((item) => item.photo_path)),
+        resolveStorageUrls("gallery", content.galleries.map((item) => item.image_path)),
+        resolveStorageUrls("article", content.articles.map((item) => item.cover_path)),
+      ]);
+      return {
+        faqs: content.faqs,
+        testimonials: content.testimonials.map((item, index) => ({ ...item, photo_path: testimonialPhotos[index] })),
+        galleries: content.galleries.map((item, index) => ({ ...item, image_path: galleryImages[index] })),
+        articles: content.articles.map((item, index) => ({ ...item, cover_path: articleCovers[index] })),
+        error: null,
+      };
+    } catch (error) {
+      return { faqs: [], testimonials: [], galleries: [], articles: [], error };
+    }
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   const [faqsRes, testimonialsRes, galleriesRes, articlesRes] = await Promise.all([
@@ -91,6 +121,15 @@ export async function getCmsData(siteId: string) {
  * senyap** gambar yang sudah benar, dan perlindungannya harus tetap di sini.
  */
 export async function getLandingPageSettings() {
+  if (usesLocalBackend()) {
+    try {
+      const { settings } = await localCmsRequest<{ settings: LandingPageSettings | null }>("/v1/cms/landing");
+      if (!settings) return { data: null, error: null };
+      return { data: { ...settings, hero_image_url: await resolveStorageUrl("gallery", settings.hero_image_path) }, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("landing_page_settings")

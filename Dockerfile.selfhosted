@@ -1,0 +1,36 @@
+# syntax=docker/dockerfile:1.7
+FROM node:24.20.0-alpine3.24@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS base
+RUN apk add --no-cache libc6-compat tzdata
+ENV TZ=Asia/Jakarta
+
+FROM base AS dependencies
+WORKDIR /app
+COPY package.json package-lock.json .npmrc ./
+RUN npm ci
+
+FROM base AS builder
+WORKDIR /app
+COPY --from=dependencies /app/node_modules ./node_modules
+COPY . .
+ENV ACADEMY_BACKEND_MODE=local
+ENV ACADEMY_API_INTERNAL_URL=http://api:3001
+RUN npm run build
+
+FROM base AS production-dependencies
+WORKDIR /app
+COPY package.json package-lock.json .npmrc ./
+RUN npm ci --omit=dev
+
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+ENV ACADEMY_BACKEND_MODE=local
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=production-dependencies --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --chown=nextjs:nodejs package.json next.config.ts tsconfig.json ./
+USER nextjs
+EXPOSE 3000
+CMD ["npm", "start"]

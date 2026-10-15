@@ -1,0 +1,13 @@
+# Stack Docker aplikasi develop
+
+Production tetap memakai `docker-compose.yml`: project `website-academy-utero`, container `utero_academy_web` / `utero_academy_nginx`, port host `9982`, dan Supabase `https://supabase.carubra.space` (`20.20.20.3`). Container production lama wajib dibangun ulang dengan marker target sebelum dianggap benar; audit 14 Oktober menemukan image lama belum memiliki `.supabase-build-target.json` dan masih terikat endpoint develop. Jangan gabungkan file Compose production dengan develop atau menjalankan `docker compose down` tanpa `-f`.
+
+Develop memakai `docker-compose.develop.yml`: project `website-academy-utero-develop`, container `utero_academy_develop_web` / `utero_academy_develop_nginx`, network internal tersendiri, serta nginx hanya di `127.0.0.1:9983`. Origin default `http://127.0.0.1:9983`; reverse proxy/domain dev dapat ditambahkan kemudian. Tidak ada koneksi ke external network production.
+Network memakai subnet eksplisit `10.253.88.0/24` karena address pool otomatis Docker Desktop pada workstation sudah habis; audit route dan network lokal 14 Oktober 2026 tidak menemukan benturan subnet tersebut.
+
+1. Salin `.env.develop.build.example` ke `.env.develop.build`. Isi anon key develop sebenarnya; file build hanya boleh berisi tiga variabel `NEXT_PUBLIC_*` tersebut. Build memverifikasi target `develop` dan memasukkan konfigurasi publik ke bundle Next.js.
+2. Salin `.env.develop.example` ke `.env.develop`. Samakan ketiga nilai publik dengan file build, lalu tambah `SUPABASE_SERVICE_ROLE_KEY` develop. Jangan gunakan key production. Verifikasi startup menolak perbedaan nilai publik dari build.
+3. Batasi akses kedua file kredensial lokal. File `.env.develop` dan `.env.develop.build` tidak masuk build context karena `.dockerignore`, tetapi dipakai Compose sebagai env runtime dan secret build.
+4. Jalankan `docker compose -f docker-compose.develop.yml config` untuk validasi; lalu `docker compose -f docker-compose.develop.yml up -d --build` hanya bila siap deploy develop. Jangan jalankan perintah Compose tanpa `-f docker-compose.develop.yml` untuk stack ini. CI dapat memvalidasi contoh tanpa membuat kredensial lokal dengan mengatur `DEVELOP_ENV_FILE=.env.develop.example` dan `DEVELOP_BUILD_ENV_FILE=.env.develop.build.example` hanya untuk perintah `config`.
+
+Container web develop memetakan `supabase.carubra.com` ke `20.20.20.173` melalui `extra_hosts` sambil tetap memakai HTTPS hostname untuk TLS. URL production `supabase.carubra.space` tidak dipakai oleh stack develop. Pastikan host develop dapat menjangkau IP tersebut dan sertifikat TLS domain valid. Port `9983` sengaja loopback; akses publik memerlukan reverse proxy host terpisah.

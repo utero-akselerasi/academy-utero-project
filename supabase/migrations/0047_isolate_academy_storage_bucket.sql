@@ -1,11 +1,33 @@
 do $$
+declare
+  unsafe_policy text;
 begin
-  if exists (
-    select 1 from pg_policies
+  with relevant_policy as (
+    select policyname, cmd,
+      case when cmd in ('SELECT', 'DELETE', 'UPDATE', 'ALL') then qual end as using_expression,
+      case when cmd in ('INSERT', 'UPDATE', 'ALL') then coalesce(with_check, qual) end as check_expression
+    from pg_policies
     where schemaname = 'storage' and tablename = 'objects'
-      and (policyname = 'Public Access' or trim(qual) = 'true')
-  ) then
-    raise exception 'Policy Storage global masih terbuka; bucket privat Academy tidak aman dibuat.';
+      and roles::text[] && array['anon', 'authenticated', 'public']
+  ), policy_expression as (
+    select policyname, expression
+    from relevant_policy
+    cross join lateral unnest(array[using_expression, check_expression]) expression
+    where expression is not null
+  )
+  select string_agg(distinct policyname, ', ' order by policyname) into unsafe_policy
+  from (
+    select policyname from relevant_policy
+    where (cmd in ('SELECT', 'DELETE', 'UPDATE', 'ALL') and using_expression is null)
+      or (cmd in ('INSERT', 'UPDATE', 'ALL') and check_expression is null)
+    union all
+    select policyname from policy_expression
+    where lower(expression) like '%academy-private%'
+      or expression !~* '(?s)^(\(bucket_id = ((\x27[^\x27]+\x27::text)|ANY \(ARRAY\[(\x27[^\x27]+\x27::text)(, \x27[^\x27]+\x27::text)*\]\))\)|\(\(bucket_id = ((\x27[^\x27]+\x27::text)|ANY \(ARRAY\[(\x27[^\x27]+\x27::text)(, \x27[^\x27]+\x27::text)*\]\))\) AND .*\))$'
+  ) unsafe;
+
+  if unsafe_policy is not null then
+    raise exception 'Policy Storage dapat menjangkau bucket baru atau scope-nya tidak dapat dibuktikan aman: %.', unsafe_policy;
   end if;
 
   if exists (

@@ -3,6 +3,7 @@ import { resolveStaffInternScope } from "@/features/auth/scope";
 import { getMentorDailyReports } from "@/features/daily-reports/queries";
 import { MentorReportsManager } from "@/features/daily-reports/MentorReportsManager";
 import Link from "next/link";
+import { usesLocalBackend } from "@/lib/backend/mode";
 
 export default async function MentorDailyReportsPage() {
   const user = await requireAdmin();
@@ -10,9 +11,9 @@ export default async function MentorDailyReportsPage() {
   // Bacaan dibatasi scope yang sama dengan aksi review-nya: admin hanya melihat
   // peserta bimbingannya, super_admin global. Sebelumnya halaman ini memuat
   // laporan seluruh peserta aktif.
-  const scope = await resolveStaffInternScope(user.id);
+  const scope = usesLocalBackend() ? null : await resolveStaffInternScope(user.id);
 
-  if (scope.kind === "setup_required") {
+  if (scope?.kind === "setup_required") {
     return (
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="surface p-6 text-sm font-semibold text-red-700">
@@ -23,7 +24,7 @@ export default async function MentorDailyReportsPage() {
   }
 
   const { data: reports, error } = await getMentorDailyReports(
-    scope.kind === "global" ? null : scope.internIds,
+    !scope || scope.kind === "global" ? null : scope.internIds,
   );
 
   const pendingCount = (reports || []).filter((r) => r.status === "submitted").length;

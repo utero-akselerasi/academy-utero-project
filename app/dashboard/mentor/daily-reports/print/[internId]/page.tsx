@@ -1,7 +1,11 @@
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { getInternDailyReports } from "@/features/daily-reports/queries";
-import { redirect } from "next/navigation";
 import { AutoPrint } from "@/features/shared/AutoPrint";
+import { requireAdmin } from "@/features/auth/guards";
+import { resolveStaffInternScope } from "@/features/auth/scope";
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { localInternForPrint, localReports } from "@/features/daily-reports/local";
+import { notFound } from "next/navigation";
 
 type Props = {
   params: Promise<{ internId: string }>;
@@ -16,14 +20,19 @@ export default async function PrintDailyReportPage({ params, searchParams }: Pro
   const { internId } = await params;
   const { filter = "all" } = await searchParams;
 
-  const db = await createUteroAcademyServiceRoleClient();
-
-  // 1. Fetch intern profile
-  const { data: intern } = await db
-    .from("intern_profiles")
-    .select("*, schools(name)")
-    .eq("id", internId)
-    .maybeSingle();
+  const user = await requireAdmin();
+  const localMode = usesLocalBackend();
+  if (!localMode) {
+    const scope = await resolveStaffInternScope(user.id);
+    if (scope.kind === "setup_required" || (scope.kind === "scoped" && !scope.internIds.includes(internId))) notFound();
+  }
+  let intern: any = null;
+  if (localMode) {
+    intern = await localInternForPrint(internId);
+  } else {
+    const db = await createUteroAcademyServiceRoleClient();
+    intern = (await db.from("intern_profiles").select("*, schools(name)").eq("id", internId).maybeSingle()).data;
+  }
 
   if (!intern) {
     return (
@@ -37,7 +46,9 @@ export default async function PrintDailyReportPage({ params, searchParams }: Pro
   const schoolName = schoolObj?.name || "-";
 
   // 2. Fetch reports
-  const { data: reports } = await getInternDailyReports(internId);
+  const reports = localMode
+    ? await localReports(internId)
+    : (await getInternDailyReports(internId)).data;
 
   // 3. Filter reports by time
   const filteredReports = reports.filter(r => {

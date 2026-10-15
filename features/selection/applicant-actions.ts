@@ -1,8 +1,9 @@
 "use server";
 
 import { requireApplicant } from "@/features/auth/guards";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 import { createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
-import { validateUpload } from "@/lib/uploads";
+import { buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getApplicantAttempt } from "./applicant";
@@ -11,9 +12,23 @@ import { calculateSelectionScore } from "./scoring";
 const uuid = z.string().uuid();
 const path = "/dashboard/applicant/selection";
 
+async function localCall(route: string, options: RequestInit = {}) {
+  const response = await backendRequest(route, options);
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(result.error ?? "Operasi seleksi gagal.");
+  }
+  return response;
+}
+
 export async function startSelectionAttemptAction(formData: FormData) {
   const user = await requireApplicant();
   const assignmentId = uuid.parse(formData.get("assignmentId"));
+  if (usesLocalBackend()) {
+    await localCall(`/v1/registration/selection/${assignmentId}/start`, { method: "POST" });
+    revalidatePath(path);
+    return;
+  }
   const { assignment, test, attempt } = await getApplicantAttempt(assignmentId);
   const now = Date.now();
   if (assignment.due_at && now >= Date.parse(assignment.due_at)) throw new Error("Batas penugasan telah lewat.");
@@ -31,9 +46,39 @@ export async function startSelectionAttemptAction(formData: FormData) {
 }
 
 export async function saveSelectionAnswerAction(formData: FormData) {
-  await requireApplicant();
+  const user = await requireApplicant();
   const assignmentId = uuid.parse(formData.get("assignmentId"));
   const questionId = uuid.parse(formData.get("questionId"));
+  if (usesLocalBackend()) {
+    const attemptResponse = await localCall(`/v1/registration/selection/${assignmentId}`);
+    const attemptData = await attemptResponse.json() as { attempt?: { id: string } };
+    if (!attemptData.attempt?.id) throw new Error("Percobaan tidak aktif.");
+    let attachmentPath: string | null = null;
+    const file = formData.get("file");
+    if (file instanceof File && file.size > 0) {
+      const upload = await validateUpload(file, ["document", "image"]);
+      attachmentPath = buildStoragePath(`${user.id}/selection/${attemptData.attempt.id}/${questionId}`, upload.ext);
+      const body = new FormData();
+      body.append("file", new Blob([Buffer.from(upload.buffer)], { type: upload.contentType }), upload.displayName);
+      await localCall("/v1/storage/selection-answers", { method: "POST", headers: { "x-object-path": attachmentPath }, body });
+    }
+    try {
+      const response = await localCall(`/v1/registration/selection/${assignmentId}/answers/${questionId}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ optionId: formData.get("optionId") || null, answerText: String(formData.get("answerText") ?? ""), attachmentPath }),
+      });
+      const result = await response.json() as { previousAttachmentPath?: string | null };
+      if (attachmentPath && result.previousAttachmentPath?.startsWith(`${user.id}/selection/${attemptData.attempt.id}/${questionId}/`)) {
+        await backendRequest(`/v1/storage/selection-answers/${result.previousAttachmentPath}`, { method: "DELETE" });
+      }
+    } catch (error) {
+      if (attachmentPath) await backendRequest(`/v1/storage/selection-answers/${attachmentPath}`, { method: "DELETE" });
+      throw error;
+    }
+    revalidatePath(`${path}/${assignmentId}`);
+    return;
+  }
   const { assignment, test, attempt } = await getApplicantAttempt(assignmentId);
   const now = Date.now();
   if (test.available_from && now < Date.parse(test.available_from)) throw new Error("Tes belum dibuka.");
@@ -83,6 +128,11 @@ export async function saveSelectionAnswerAction(formData: FormData) {
 export async function submitSelectionAttemptAction(formData: FormData) {
   await requireApplicant();
   const assignmentId = uuid.parse(formData.get("assignmentId"));
+  if (usesLocalBackend()) {
+    await localCall(`/v1/registration/selection/${assignmentId}/submit`, { method: "POST" });
+    revalidatePath(path);
+    return;
+  }
   const { assignment, test, attempt, questions } = await getApplicantAttempt(assignmentId);
   if (attempt?.status !== "in_progress") throw new Error("Percobaan tidak aktif.");
   const now = Date.now();

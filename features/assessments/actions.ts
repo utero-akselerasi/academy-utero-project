@@ -7,6 +7,8 @@ import { createUteroAcademyServiceRoleClient, createSupabaseServiceRoleClient } 
 import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
 import { hitungSkorAspekTetap, hitungSkorKriteria } from "./scoring";
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { localSaveAssessment, uploadLocalCertificateTemplate } from "./local-api";
 
 // Guard terpusat: cek role lewat semua baris user_roles dan izinkan super_admin.
 // Guard lama pakai maybeSingle() sehingga user multi-role gagal.
@@ -52,6 +54,14 @@ export async function saveAssessmentAction(formData: FormData) {
   }
 
   const { scoreJson, finalScore } = hasil;
+
+  if (usesLocalBackend()) {
+    await localSaveAssessment(internId, { score: scoreJson, finalScore, feedback, submitType });
+    revalidatePath("/dashboard/mentor/assessments");
+    revalidatePath("/dashboard/intern/certificate");
+    revalidatePath("/dashboard/school");
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -177,8 +187,16 @@ export async function uploadCertificateTemplateAction(formData: FormData) {
     throw new Error("Template sertifikat tidak dapat diproses.");
   }
 
-  const supabase = createSupabaseServiceRoleClient();
   const filePath = buildStoragePath("settings", template.ext);
+
+  if (usesLocalBackend()) {
+    await uploadLocalCertificateTemplate(filePath, file);
+    revalidatePath("/dashboard/mentor/assessments");
+    revalidatePath("/dashboard/intern/certificate");
+    return;
+  }
+
+  const supabase = createSupabaseServiceRoleClient();
 
   const { error: uploadError } = await supabase.storage
     .from("academy-private")

@@ -1,0 +1,45 @@
+name: website-academy-utero-selfhosted
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.selfhosted
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      ACADEMY_BACKEND_MODE: local
+      ACADEMY_API_INTERNAL_URL: http://api:3001
+      ACADEMY_SECURE_COOKIES: ${ACADEMY_SECURE_COOKIES:-true}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://127.0.0.1:9982}
+    depends_on:
+      api: { condition: service_healthy }
+    expose: ["3000"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks: [backend_network]
+    logging:
+      driver: json-file
+      options:
+        max-size: ${ACADEMY_LOG_MAX_SIZE:-10m}
+        max-file: ${ACADEMY_LOG_MAX_FILES:-5}
+
+  nginx:
+    image: nginx:1.27.5-alpine3.21@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+    restart: unless-stopped
+    ports:
+      - "${ACADEMY_HTTP_PORT:-9982}:80"
+    volumes:
+      - ./nginx.selfhosted.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      web: { condition: service_healthy }
+    networks: [backend_network]
+    logging:
+      driver: json-file
+      options:
+        max-size: ${ACADEMY_LOG_MAX_SIZE:-10m}
+        max-file: ${ACADEMY_LOG_MAX_FILES:-5}

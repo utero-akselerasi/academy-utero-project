@@ -2,6 +2,8 @@ export const dynamic = "force-dynamic";
 
 ﻿import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { requireIntern } from "@/features/auth/guards";
+import { backendRequest } from "@/lib/backend/server";
+import { usesLocalBackend } from "@/lib/backend/mode";
 import { getInternProfileId, getInternDailyReports } from "@/features/daily-reports/queries";
 import { getInternAttendances, getTodayAttendance } from "@/features/attendance/queries";
 import { getInternCards } from "@/features/tasks/queries";
@@ -62,7 +64,6 @@ export default async function InternDashboardPage() {
   // Guard peran di page, bukan hanya di layout.
   const user = await requireIntern();
 
-  const db = await createUteroAcademyServiceRoleClient();
   const internProfileId = await getInternProfileId(user.id);
 
   if (!internProfileId) {
@@ -75,18 +76,29 @@ export default async function InternDashboardPage() {
     );
   }
 
+  const internProfilePromise = usesLocalBackend()
+    ? backendRequest("/v1/profile").then(async (response) => {
+        if (!response.ok) return null;
+        const body = await response.json() as { internProfile?: Record<string, any> | null };
+        return body.internProfile ?? null;
+      })
+    : createUteroAcademyServiceRoleClient().then(async (db) => {
+        const result = await db.from("intern_profiles").select("*, schools(name)").eq("id", internProfileId).maybeSingle();
+        return result.data;
+      });
+
   // Fetch all stats
   const [internProfileResult, tasksResult, attendancesResult, reportsResult, todayAttendance] = await Promise.all([
-    db.from("intern_profiles").select("*, schools(name)").eq("id", internProfileId).maybeSingle(),
+    internProfilePromise,
     getInternCards(internProfileId),
     getInternAttendances(internProfileId),
     getInternDailyReports(internProfileId),
     getTodayAttendance(internProfileId)
   ]);
 
-  const internProfile = internProfileResult.data;
+  const internProfile = internProfileResult;
   const schoolObj = Array.isArray(internProfile?.schools) ? internProfile?.schools[0] : internProfile?.schools;
-  const schoolName = schoolObj?.name || "-";
+  const schoolName = schoolObj?.name || internProfile?.school_name || "-";
   const periodInfo = getInternshipPeriodInfo(internProfile?.start_date || null, internProfile?.end_date || null);
 
   const tasks = tasksResult.data || [];

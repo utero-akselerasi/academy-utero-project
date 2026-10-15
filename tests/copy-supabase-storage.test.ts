@@ -136,6 +136,24 @@ describe("copyStorage", () => {
     expect(sourceCalls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
   });
 
+  it("menerima NoSuchKey berstatus HTTP 400 sebagai objek target belum ada", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "storage-copy-"));
+    const pathList = path.join(directory, "paths.txt");
+    await writeFile(pathList, "private/person/avatar.jpg\n");
+    let uploaded = false;
+    const fetchMock = vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("source.invalid")) return response("abc", 200, { "content-type": "image/jpeg" });
+      if (init?.method === "POST") { uploaded = true; return response("{}", 200); }
+      if (uploaded) return response("abc", 200, { "content-type": "image/jpeg" });
+      return response(JSON.stringify({ statusCode: "404", code: "NoSuchKey" }), 400,
+        { "content-type": "application/json" });
+    });
+    const options = parseOptions([...baseArgs, "--apply", "true", "--state", path.join(directory, "state.json"),
+      "--path-list", pathList]);
+    expect(await copyStorage(options, { env, fetch: fetchMock })).toMatchObject({ copied: 1, verified: 1 });
+  });
+
   it("menolak overwrite objek berbeda dan meredaksi token, URL, serta path", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "storage-copy-"));
     const pathList = path.join(directory, "paths.txt");

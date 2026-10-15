@@ -137,10 +137,13 @@ async function streamArchive(sshArgs, destination, paths) {
   try {
     ssh.stdin.end(encodePathList(paths));
     await Promise.all([pipeline(ssh.stdout, tar.stdin), sshClosed, tarClosed]);
-  } catch {
+  } catch (error) {
     ssh.kill();
     tar.kill();
-    throw new Error("Stream SSH/tar gagal; staging dipertahankan untuk retry.");
+    const reason = error instanceof Error && /^(ssh|tar) gagal \(kode \d+\)$/.test(error.message)
+      ? ` ${error.message}.`
+      : " Pipeline stream gagal.";
+    throw new Error(`Stream SSH/tar gagal.${reason} Staging dipertahankan untuk retry.`);
   }
 }
 

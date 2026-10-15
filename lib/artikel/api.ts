@@ -1,7 +1,10 @@
 import type { Article } from "@/features/cms/types";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
+import { resolveStorageUrl } from "@/lib/storage-urls";
 
 type ArtikelCategory = { name: string; slug: string } | null;
 export type ArtikelArticle = Article & { content: unknown; featured_image_url: string | null; og_image_url: string | null; category: ArtikelCategory; article_tags: unknown[]; addons: unknown[] };
+export type ArtikelArticleDetail = ArtikelArticle & { author_name?: string | null };
 export type ArtikelPagination = { page: number; limit: number; total: number };
 type ArtikelResponse<T> = { data: T; meta?: ArtikelPagination };
 
@@ -51,12 +54,14 @@ function positiveInteger(value: number | undefined, fallback: number) {
 }
 
 export async function getArtikelArticles(options: { category?: string; page?: number; limit?: number } = {}) {
+  const page = positiveInteger(options.page, 1);
+  const limit = Math.min(50, positiveInteger(options.limit, 10));
+  if (usesLocalBackend()) return getLocalCmsArticles({ page, limit });
+
   const categoryValue = options.category || process.env.ARTIKEL_DEFAULT_CATEGORY;
   if (!categoryValue) throw new Error("Kategori artikel belum dikonfigurasi.");
   const categories = [...new Set(categoryValue.split(",").map((category) => category.trim()).filter(Boolean))];
   if (categories.length === 0) throw new Error("Kategori artikel belum dikonfigurasi.");
-  const page = positiveInteger(options.page, 1);
-  const limit = Math.min(50, positiveInteger(options.limit, 10));
 
   if (categories.length === 1) {
     const query = new URLSearchParams({ category: categories[0], page: String(page), limit: String(limit) });
@@ -82,7 +87,30 @@ export async function getArtikelArticles(options: { category?: string; page?: nu
   return { articles: articles.slice(offset, offset + limit), meta: { page, limit, total: articles.length } };
 }
 
-export async function getArtikelArticle(slug: string) {
+export async function getLocalCmsArticles(options: { page?: number; limit?: number } = {}) {
+  const page = positiveInteger(options.page, 1);
+  const limit = Math.min(50, positiveInteger(options.limit, 10));
+  const response = await backendRequest(`/v1/cms/articles?page=${page}&limit=${limit}`);
+  if (!response.ok) throw new ArtikelApiError(response.status);
+  const body = await response.json() as { articles: Partial<ArtikelArticle>[]; meta: ArtikelPagination };
+  const articles = await Promise.all(body.articles.map(async (value) => {
+    const article = mapArticle(value);
+    article.cover_path = await resolveStorageUrl("article", article.cover_path);
+    return article;
+  }));
+  return { articles, meta: body.meta };
+}
+
+export async function getArtikelArticle(slug: string): Promise<ArtikelArticleDetail | null> {
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/cms/articles/${encodeURIComponent(slug)}`);
+    if (response.status === 404) return null;
+    if (!response.ok) throw new ArtikelApiError(response.status);
+    const body = await response.json() as { article: Partial<ArtikelArticle> & { author_name?: string | null } };
+    const article = mapArticle(body.article);
+    article.cover_path = await resolveStorageUrl("article", article.cover_path);
+    return Object.assign(article, { author_name: body.article.author_name || null });
+  }
   try {
     const response = await artikelFetch<ArtikelResponse<Partial<ArtikelArticle>>>(`/api/v1/articles/${encodeURIComponent(slug)}`);
     return response.data ? mapArticle(response.data) : null;
@@ -90,13 +118,4 @@ export async function getArtikelArticle(slug: string) {
     if (error instanceof ArtikelApiError && error.status === 404) return null;
     throw error;
   }
-}
-
-export async function publishArtikelArticle(payload: Record<string, unknown>) {
-  const key = process.env.ARTIKEL_AUTOMATION_API_KEY;
-  if (!key) throw new Error("ARTIKEL_AUTOMATION_API_KEY belum dikonfigurasi.");
-  const response = await fetch("https://supabase.carubra.com/functions/v1/automation-api", { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": key }, body: JSON.stringify(payload), cache: "no-store" });
-  const body = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(body?.error || `Automation API gagal (${response.status}).`);
-  return body;
 }

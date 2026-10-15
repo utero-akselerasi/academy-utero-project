@@ -1,4 +1,5 @@
 "use server";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 
 import { requireAdmin, requireUser } from "@/features/auth/guards";
 import { getUserRoleCodes } from "@/features/auth/roles";
@@ -19,6 +20,12 @@ import { updateCourseStatusSchema } from "./schemas";
  * materi dan menilai tugas lewat pemanggilan action ID langsung.
  */
 const requireStaff = requireAdmin;
+
+async function localLms(path: string, method: string, body?: unknown) {
+  const response = await backendRequest(path, { method, headers: body === undefined ? undefined : { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  if (!response.ok) throw new Error(`Backend LMS gagal (${response.status}).`);
+  return response;
+}
 
 async function userIsStaff(userId: string) {
   const roles = await getUserRoleCodes(userId);
@@ -47,6 +54,7 @@ export async function createLessonAction(formData: FormData) {
   const videoUrl = formData.get("videoUrl") as string;
 
   if (!courseId || !title) throw new Error("Course ID dan Judul wajib diisi.");
+  if (usesLocalBackend()) { await localLms(`/v1/lms/courses/${courseId}/lessons`,"POST",{title,content:content||"",videoUrl:videoUrl||null}); revalidatePath("/dashboard/mentor/lms/"+courseId); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -85,6 +93,7 @@ export async function updateLessonAction(formData: FormData) {
   const videoUrl = formData.get("videoUrl") as string;
 
   if (!lessonId || !title) throw new Error("Lesson ID dan Judul wajib diisi.");
+  if (usesLocalBackend()) { await localLms(`/v1/lms/lessons/${lessonId}`,"PATCH",{title,content:content||"",videoUrl:videoUrl||null}); revalidatePath("/dashboard/mentor/lms/"+courseId); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -112,6 +121,7 @@ export async function deleteLessonAction(formData: FormData) {
   const courseId = formData.get("courseId") as string;
 
   if (!lessonId) throw new Error("Lesson ID tidak valid.");
+  if (usesLocalBackend()) { await localLms(`/v1/lms/lessons/${lessonId}`,"DELETE"); revalidatePath("/dashboard/mentor/lms/"+courseId); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -135,6 +145,7 @@ export async function toggleLessonPublishAction(formData: FormData) {
   const isPublished = formData.get("isPublished") === "true";
 
   if (!lessonId) throw new Error("Lesson ID tidak valid.");
+  if (usesLocalBackend()) { await localLms(`/v1/lms/lessons/${lessonId}`,"PATCH",{isPublished}); revalidatePath("/dashboard/mentor/lms/"+courseId); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -286,6 +297,14 @@ export async function markLessonCompletedAction(formData: FormData) {
 
   if (!lessonId) throw new Error("Lesson ID tidak valid.");
 
+  if (usesLocalBackend()) {
+    const response = await localLms(`/v1/lms/lessons/${lessonId}/progress`, "POST", {});
+    const body = await response.json() as { courseId: string };
+    revalidatePath(`/dashboard/intern/lms/${body.courseId}`);
+    revalidatePath(`/dashboard/intern/lms/${body.courseId}/lessons/${lessonId}`);
+    return;
+  }
+
   const internProfileId = await requireActiveInternProfile(user.id);
   if (!internProfileId) throw new Error("Profil peserta belum ditemukan.");
 
@@ -385,6 +404,17 @@ export async function submitQuizAttemptAction(formData: FormData) {
   const quizId = formData.get("quizId") as string;
 
   if (!quizId) throw new Error("Quiz ID tidak valid.");
+
+  if (usesLocalBackend()) {
+    const answers: Record<string, string> = {};
+    for (const [key, value] of formData.entries()) {
+      if (key.startsWith("q_") && typeof value === "string") answers[key.slice(2)] = value;
+    }
+    const response = await localLms(`/v1/lms/quizzes/${quizId}/attempts`, "POST", { answers });
+    const body = await response.json() as { courseId: string };
+    revalidatePath(`/dashboard/intern/lms/${body.courseId}`);
+    redirect(`/dashboard/intern/lms/${body.courseId}/quizzes/${quizId}`);
+  }
 
   const internProfileId = await requireActiveInternProfile(user.id);
   if (!internProfileId) throw new Error("Profil peserta belum ditemukan.");
@@ -527,6 +557,29 @@ export async function submitAssignmentAction(formData: FormData) {
 
   if (!assignmentId) throw new Error("Assignment ID tidak valid.");
 
+  if (usesLocalBackend()) {
+    let attachmentPath: string | null = null;
+    let courseId: string;
+    if (file && file.size > 0) {
+      const attachment = await validateUpload(file, ["image", "document"]);
+      attachmentPath = buildStoragePath(`${user.id}/assignment/${assignmentId}`, attachment.ext);
+      const upload = new FormData();
+      upload.set("file", new Blob([new Uint8Array(attachment.buffer)], { type: attachment.contentType }), attachment.displayName);
+      const stored = await backendRequest("/v1/storage/academy-private", { method: "POST", headers: { "x-object-path": attachmentPath }, body: upload });
+      if (!stored.ok) throw new Error("Gagal mengunggah file bukti tugas.");
+    }
+    try {
+      const response = await localLms(`/v1/lms/assignments/${assignmentId}/submission`, "POST", { content, attachmentPath });
+      const result = await response.json() as { courseId: string };
+      courseId = result.courseId;
+    } catch (error) {
+      if (attachmentPath) await backendRequest(`/v1/storage/academy-private/${attachmentPath.split("/").map(encodeURIComponent).join("/")}`, { method: "DELETE" });
+      throw error;
+    }
+    revalidatePath(`/dashboard/intern/lms/${courseId}`);
+    redirect(`/dashboard/intern/lms/${courseId}/assignments/${assignmentId}`);
+  }
+
   const internProfileId = await requireActiveInternProfile(user.id);
   if (!internProfileId) throw new Error("Profil peserta belum ditemukan.");
 
@@ -641,6 +694,11 @@ export async function gradeAssignmentAction(formData: FormData) {
   if (isNaN(score) || score < 0 || score > 100) {
     throw new Error("Skor harus antara 0-100.");
   }
+  if (usesLocalBackend()) {
+    await localLms(`/v1/lms/submissions/${submissionId}/grade`, "PATCH", { score, feedback });
+    revalidatePath("/dashboard/mentor/lms");
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -689,6 +747,11 @@ export async function toggleAssignmentPublishAction(formData: FormData) {
   const isPublished = formData.get("isPublished") === "true";
 
   if (!assignmentId) throw new Error("Assignment ID tidak valid.");
+  if (usesLocalBackend()) {
+    await localLms(`/v1/lms/assignments/${assignmentId}/publish`, "PATCH", { isPublished });
+    revalidatePath("/dashboard/mentor/lms/" + courseId);
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -713,6 +776,7 @@ export async function createCourseAction(formData: FormData) {
   const description = formData.get("description") as string;
 
   if (!title) throw new Error("Judul course wajib diisi.");
+  if (usesLocalBackend()) { await localLms("/v1/lms/courses","POST",{title,description}); revalidatePath("/dashboard/mentor/lms"); return; }
 
   const slug = title
     .toLowerCase()
@@ -750,6 +814,7 @@ export async function updateCourseStatusAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "Status course tidak valid.");
   }
+  if (usesLocalBackend()) { await localLms(`/v1/lms/courses/${parsed.data.courseId}/status`,"PATCH",{status:parsed.data.status}); revalidatePath("/dashboard/mentor/lms"); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -779,6 +844,7 @@ export async function enrollCourseAction(formData: FormData) {
   const courseId = formData.get("courseId") as string;
 
   if (!courseId) throw new Error("Course ID tidak valid.");
+  if (usesLocalBackend()) { await localLms(`/v1/lms/courses/${courseId}/enroll`,"POST"); revalidatePath("/dashboard/intern/lms"); redirect("/dashboard/intern/lms/"+courseId); }
 
   const internProfileId = await requireActiveInternProfile(user.id);
   if (!internProfileId) throw new Error("Profil peserta belum ditemukan.");
@@ -824,6 +890,11 @@ export async function createAssignmentAction(formData: FormData) {
   const dueAt = formData.get("dueAt") as string;
 
   if (!courseId || !title) throw new Error("Course ID dan Judul wajib diisi.");
+  if (usesLocalBackend()) {
+    await localLms(`/v1/lms/courses/${courseId}/assignments`, "POST", { title, description, dueAt });
+    revalidatePath("/dashboard/mentor/lms/" + courseId);
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -897,6 +968,13 @@ export async function createCommentAction(formData: FormData) {
 
   if (!lessonId || !content) throw new Error("Lesson ID dan konten wajib diisi.");
 
+  if (usesLocalBackend()) {
+    await localLms(`/v1/lms/lessons/${lessonId}/comments`, "POST", { content });
+    revalidatePath(`/dashboard/intern/lms/${courseId}/lessons/${lessonId}`);
+    revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+    return;
+  }
+
   const db = await createUteroAcademyServiceRoleClient();
 
   const { error } = await db.from("lesson_comments").insert({
@@ -923,6 +1001,13 @@ export async function replyCommentAction(formData: FormData) {
 
   if (!lessonId || !parentCommentId || !content) {
     throw new Error("Data tidak lengkap.");
+  }
+
+  if (usesLocalBackend()) {
+    await localLms(`/v1/lms/lessons/${lessonId}/comments`, "POST", { content, parentCommentId });
+    revalidatePath(`/dashboard/intern/lms/${courseId}/lessons/${lessonId}`);
+    revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+    return;
   }
 
   const db = await createUteroAcademyServiceRoleClient();
@@ -952,6 +1037,13 @@ export async function pinCommentAction(formData: FormData) {
 
   if (!commentId) throw new Error("Comment ID tidak valid.");
 
+  if (usesLocalBackend()) {
+    await localLms(`/v1/lms/comments/${commentId}/pin`, "PATCH", { isPinned });
+    revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+    revalidatePath(`/dashboard/intern/lms/${courseId}`);
+    return;
+  }
+
   const db = await createUteroAcademyServiceRoleClient();
 
   const { error } = await db
@@ -974,6 +1066,13 @@ export async function deleteCommentAction(formData: FormData) {
   const courseId = formData.get("courseId") as string;
 
   if (!commentId) throw new Error("Comment ID tidak valid.");
+
+  if (usesLocalBackend()) {
+    await localLms(`/v1/lms/comments/${commentId}`, "DELETE");
+    revalidatePath(`/dashboard/intern/lms/${courseId}`);
+    revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -1013,6 +1112,10 @@ export async function deleteCommentAction(formData: FormData) {
 // Badges & Achievements
 export async function getUserBadges(userId: string) {
   await requireSelfOrStaff(userId);
+  if (usesLocalBackend()) {
+    const response = await localLms(`/v1/lms/users/${userId}/achievements`, "GET");
+    return ((await response.json()) as { badges: unknown[] }).badges;
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("user_badges")
@@ -1029,6 +1132,10 @@ export async function getUserBadges(userId: string) {
 
 export async function getUserPoints(userId: string) {
   await requireSelfOrStaff(userId);
+  if (usesLocalBackend()) {
+    const response = await localLms(`/v1/lms/users/${userId}/achievements`, "GET");
+    return ((await response.json()) as { points: unknown }).points;
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("user_points")
@@ -1042,6 +1149,10 @@ export async function getUserPoints(userId: string) {
 
 export async function getAllBadges() {
   await requireUser();
+  if (usesLocalBackend()) {
+    const response = await localLms("/v1/lms/badges", "GET");
+    return ((await response.json()) as { badges: unknown[] }).badges;
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("badges")
@@ -1057,6 +1168,10 @@ export async function getAllBadges() {
 // Learning Analytics
 export async function getUserDailyActivity(userId: string, days: number = 30) {
   await requireSelfOrStaff(userId);
+  if (usesLocalBackend()) {
+    const response = await localLms(`/v1/lms/users/${userId}/activity?days=${encodeURIComponent(days)}`, "GET");
+    return ((await response.json()) as { activity: unknown[] }).activity;
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
@@ -1074,6 +1189,10 @@ export async function getUserDailyActivity(userId: string, days: number = 30) {
 
 export async function getUserStreak(userId: string) {
   await requireSelfOrStaff(userId);
+  if (usesLocalBackend()) {
+    const response = await localLms(`/v1/lms/users/${userId}/achievements`, "GET");
+    return ((await response.json()) as { streak: unknown }).streak;
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("user_streaks")
@@ -1093,6 +1212,10 @@ export async function trackLearningSession(
 ) {
   // Sesi belajar hanya boleh dicatat untuk diri sendiri.
   await requireSelfOrStaff(userId);
+  if (usesLocalBackend()) {
+    await localLms("/v1/lms/learning-sessions", "POST", { userId, lessonId, courseId, durationSeconds });
+    return;
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db
     .from("learning_sessions")
@@ -1123,6 +1246,10 @@ export async function trackLearningSession(
 // Course Announcements
 export async function getCourseAnnouncements(courseId: string, userId: string) {
   await requireSelfOrStaff(userId);
+  if (usesLocalBackend()) {
+    const response = await localLms(`/v1/lms/courses/${courseId}/announcements`, "GET");
+    return ((await response.json()) as { announcements: unknown[] }).announcements;
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("course_announcements")
@@ -1153,6 +1280,12 @@ export async function createCourseAnnouncement(
   isPinned: boolean = false
 ) {
   const user = await requireStaff();
+  if (usesLocalBackend()) {
+    const response = await localLms(`/v1/lms/courses/${courseId}/announcements`, "POST", { title, content, priority, isPinned });
+    revalidatePath(`/dashboard/intern/lms/${courseId}`);
+    revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+    return ((await response.json()) as { announcement: unknown }).announcement;
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   const { data, error } = await db
@@ -1178,6 +1311,10 @@ export async function createCourseAnnouncement(
 
 export async function markAnnouncementAsRead(announcementId: string) {
   const user = await requireUser();
+  if (usesLocalBackend()) {
+    await localLms(`/v1/lms/announcements/${announcementId}/read`, "POST");
+    return;
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   const { error } = await db
@@ -1199,6 +1336,10 @@ export async function markAnnouncementAsRead(announcementId: string) {
 // Lesson Bookmarks
 export async function getUserBookmarks(userId: string) {
   await requireSelfOrStaff(userId);
+  if (usesLocalBackend()) {
+    const response = await localLms("/v1/lms/bookmarks", "GET");
+    return ((await response.json()) as { bookmarks: unknown[] }).bookmarks;
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("lesson_bookmarks")
@@ -1218,6 +1359,10 @@ export async function toggleLessonBookmark(
   note?: string
 ) {
   const user = await requireUser();
+  if (usesLocalBackend()) {
+    const response = await localLms(`/v1/lms/lessons/${lessonId}/bookmark`, "POST", { note });
+    return response.json() as Promise<{ bookmarked: boolean }>;
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   // Check if already bookmarked
@@ -1254,6 +1399,10 @@ export async function toggleLessonBookmark(
 
 export async function deleteBookmark(bookmarkId: string) {
   const user = await requireUser();
+  if (usesLocalBackend()) {
+    await localLms(`/v1/lms/bookmarks/${bookmarkId}`, "DELETE");
+    return;
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   const { error } = await db
@@ -1268,6 +1417,10 @@ export async function deleteBookmark(bookmarkId: string) {
 // Quiz Retry Limit
 export async function checkCanAttemptQuiz(userId: string, quizId: string) {
   await requireSelfOrStaff(userId);
+  if (usesLocalBackend()) {
+    const response = await localLms(`/v1/lms/quizzes/${quizId}/attempt-status`, "GET");
+    return ((await response.json()) as { status: unknown }).status;
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db.rpc("can_attempt_quiz", {
     p_user_id: userId,
@@ -1280,6 +1433,10 @@ export async function checkCanAttemptQuiz(userId: string, quizId: string) {
 
 export async function getQuizAttemptsSummary(userId: string, quizId: string) {
   await requireSelfOrStaff(userId);
+  if (usesLocalBackend()) {
+    const response = await localLms(`/v1/lms/quizzes/${quizId}/attempt-summary`, "GET");
+    return ((await response.json()) as { summary: unknown }).summary;
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("user_quiz_attempts_summary")

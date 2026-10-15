@@ -1,5 +1,7 @@
 ﻿import { resolveStorageUrl } from "@/lib/storage-urls";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { schoolBackend } from "./local";
 import type {
   SchoolAttendance,
   SchoolDailyReport,
@@ -99,6 +101,10 @@ function getAttendanceHours(attendance: Pick<SchoolAttendance, "check_in_at" | "
 }
 
 export async function getSchoolProfile(userId: string): Promise<{ data: SchoolProfile | null; error: any }> {
+  if (usesLocalBackend()) {
+    try { const body = await schoolBackend<{ school: SchoolProfile }>("/context"); return { data: body.school, error: null }; }
+    catch (error) { return { data: null, error }; }
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   const { data: contact, error } = await db
@@ -116,6 +122,10 @@ export async function getSchoolProfile(userId: string): Promise<{ data: SchoolPr
 }
 
 export async function getSchoolInterns(schoolId: string): Promise<{ data: SchoolIntern[]; error: any }> {
+  if (usesLocalBackend()) {
+    try { const body = await schoolBackend<{ students: SchoolIntern[] }>("/students"); return { data: body.students, error: null }; }
+    catch (error) { return { data: [], error }; }
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   const { data, error } = await db
@@ -129,6 +139,10 @@ export async function getSchoolInterns(schoolId: string): Promise<{ data: School
 }
 
 export async function getSchoolInternsAttendances(schoolId: string): Promise<{ data: SchoolAttendance[]; error: any }> {
+  if (usesLocalBackend()) {
+    try { const body = await schoolBackend<{ attendances: SchoolAttendance[] }>("/dashboard"); return { data: body.attendances ?? [], error: null }; }
+    catch (error) { return { data: [], error }; }
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data: interns } = await getSchoolInterns(schoolId);
 
@@ -147,6 +161,10 @@ export async function getSchoolInternsAttendances(schoolId: string): Promise<{ d
 }
 
 export async function getSchoolInternsDailyReports(schoolId: string): Promise<{ data: SchoolDailyReport[]; error: any }> {
+  if (usesLocalBackend()) {
+    try { const body = await schoolBackend<{ dailyReports: SchoolDailyReport[] }>("/reports"); return { data: body.dailyReports, error: null }; }
+    catch (error) { return { data: [], error }; }
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data: interns } = await getSchoolInterns(schoolId);
 
@@ -165,6 +183,10 @@ export async function getSchoolInternsDailyReports(schoolId: string): Promise<{ 
 }
 
 export async function getSchoolDashboardStats(schoolId: string): Promise<{ data: SchoolDashboardStats; error: any }> {
+  if (usesLocalBackend()) {
+    try { const body = await schoolBackend<{ stats: SchoolDashboardStats }>("/dashboard"); return { data: body.stats, error: null }; }
+    catch (error) { return { data: { totalInterns: 0, activeInterns: 0, alumniInterns: 0, avgAttendanceRate: 0, avgFinalScore: null, needAttentionCount: 0 }, error }; }
+  }
   const [{ data: interns }, { data: attendances }] = await Promise.all([
     getSchoolInterns(schoolId),
     getSchoolInternsAttendances(schoolId),
@@ -199,6 +221,13 @@ export async function getSchoolDashboardStats(schoolId: string): Promise<{ data:
 }
 
 export async function getSchoolStudentDetail(schoolId: string, internId: string): Promise<{ data: SchoolStudentDetail | null; error: any }> {
+  if (usesLocalBackend()) {
+    try {
+      const body = await schoolBackend<{ intern: SchoolIntern; attendances: SchoolAttendance[]; reports: SchoolDailyReport[] }>(`/students/${internId}`);
+      const present = body.attendances.filter((a) => a.attendance_type === "present" && ["valid", "pending"].includes(a.status));
+      return { data: { intern: body.intern, attendances: body.attendances, reports: body.reports, attendanceRate: body.attendances.length ? Math.round(present.length / body.attendances.length * 100) : 0, totalHours: Number(body.attendances.reduce((sum, a) => sum + getAttendanceHours(a), 0).toFixed(2)), lateCount: body.attendances.filter((a) => a.status === "manual_review").length, permitCount: body.attendances.filter((a) => a.attendance_type === "permit").length, sickCount: body.attendances.filter((a) => a.attendance_type === "sick").length }, error: null };
+    } catch (error) { return { data: null, error }; }
+  }
   const [{ data: interns }, { data: attendances }, { data: reports }] = await Promise.all([
     getSchoolInterns(schoolId),
     getSchoolInternsAttendances(schoolId),
@@ -234,6 +263,10 @@ export async function getSchoolStudentDetail(schoolId: string, internId: string)
 }
 
 export async function getSchoolReports(schoolId: string) {
+  if (usesLocalBackend()) {
+    try { const body = await schoolBackend<{ reports: any[] }>("/reports"); return { data: body.reports, error: null }; }
+    catch (error) { return { data: [], error }; }
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   const { data, error } = await db

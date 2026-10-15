@@ -2,10 +2,11 @@ import { deleteBoardAction } from "@/features/tasks/actions";
 import { staffCanDeleteBoard } from "@/features/tasks/board-permissions";
 import { Trash2, ShieldAlert, BarChart2, Eye, Calendar } from "lucide-react";
 import { CreateBoardForm } from "@/features/tasks/CreateBoardForm";
-import { getMentorBoards } from "@/features/tasks/queries";
+import { getMentorBoards, getTaskMonitoring } from "@/features/tasks/queries";
 import { requireAdmin } from "@/features/auth/guards";
 import { getUserRoleCodes } from "@/features/auth/roles";
 import { resolveStaffInternScope } from "@/features/auth/scope";
+import { usesLocalBackend } from "@/lib/backend/server";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import Link from "next/link";
 
@@ -49,6 +50,10 @@ export default async function MentorTasksPage({ searchParams }: Props) {
   // Monitoring dibatasi scope bimbingan: aksi pada card sudah lewat
   // requireCardAccess, jadi daftarnya tidak boleh lebih luas dari itu.
   // Sebelumnya halaman ini menarik SELURUH task_cards tanpa filter.
+  let mappedCards: any[];
+  if (usesLocalBackend()) {
+    mappedCards = await getTaskMonitoring() ?? [];
+  } else {
   const db = await createUteroAcademyServiceRoleClient();
 
   let cardsQuery = db
@@ -88,7 +93,7 @@ export default async function MentorTasksPage({ searchParams }: Props) {
     userProfiles.forEach(p => profilesMap.set(p.id, p));
   }
 
-  const mappedCards = (allCards || []).map(card => {
+  mappedCards = (allCards || []).map(card => {
     const list = Array.isArray(card.task_lists) ? card.task_lists[0] : card.task_lists;
     const board = list ? (Array.isArray((list as any).task_boards) ? (list as any).task_boards[0] : (list as any).task_boards) : null;
     const intern = card.intern_id ? internsMap.get(card.intern_id) : null;
@@ -103,6 +108,7 @@ export default async function MentorTasksPage({ searchParams }: Props) {
       creator_name: creator?.full_name || "Sistem"
     };
   });
+  }
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">

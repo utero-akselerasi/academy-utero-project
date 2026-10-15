@@ -22,6 +22,11 @@ describe("verifyTarget", () => {
     });
   });
 
+  it("menerima loopback develop untuk stack Docker lokal", () => {
+    expect(verifyTarget("develop", { ...developEnv, NEXT_PUBLIC_APP_URL: "http://127.0.0.1:9983" }))
+      .toMatchObject({ target: "develop", appUrl: "http://127.0.0.1:9983" });
+  });
+
   it("menerima domain production yang tepat", () => {
     expect(verifyTarget("production", {
       ...developEnv,
@@ -29,12 +34,25 @@ describe("verifyTarget", () => {
     })).toMatchObject({ target: "production", supabaseUrl: "https://supabase.carubra.space" });
   });
 
+  it("menerima staging localhost dengan port nonprivileged", () => {
+    expect(verifyTarget("staging", {
+      ...developEnv,
+      NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:18100",
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3000",
+    })).toMatchObject({ target: "staging", supabaseUrl: "http://127.0.0.1:18100", appUrl: "http://127.0.0.1:3000" });
+  });
+
   it.each([
     ["production", developEnv],
     ["develop", { ...developEnv, NEXT_PUBLIC_SUPABASE_URL: "https://supabase.carubra.space" }],
+    ["production", { ...developEnv, NEXT_PUBLIC_SUPABASE_URL: "https://supabase.carubra.space", NEXT_PUBLIC_APP_URL: "http://127.0.0.1:9982" }],
     ["develop", { ...developEnv, NEXT_PUBLIC_SUPABASE_URL: "http://supabase.carubra.com" }],
     ["develop", { ...developEnv, NEXT_PUBLIC_SUPABASE_URL: "https://supabase.carubra.com/path" }],
     ["staging", developEnv],
+    ["staging", { ...developEnv, NEXT_PUBLIC_SUPABASE_URL: "http://localhost:18100", NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3000" }],
+    ["staging", { ...developEnv, NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:18101", NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3000" }],
+    ["staging", { ...developEnv, NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:18100", NEXT_PUBLIC_APP_URL: "http://127.0.0.1:80" }],
+    ["staging", { ...developEnv, NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:18100", NEXT_PUBLIC_APP_URL: "http://localhost:3000" }],
   ])("menolak target atau URL yang tidak cocok", (target, values) => {
     expect(() => verifyTarget(target, values)).toThrow();
   });

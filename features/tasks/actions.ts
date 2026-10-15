@@ -7,6 +7,7 @@ import { requireActiveInternProfile } from "@/features/intern/activation";
 import { createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 import { staffCanDeleteBoard } from "./board-permissions";
 import {
   createBoardSchema,
@@ -25,6 +26,12 @@ import {
  * langsung lewat action ID dan menulis via service role.
  */
 const requireStaff = requireAdmin;
+
+async function localTask(path: string, method: string, body?: unknown) {
+  const response = await backendRequest(path, { method, headers: body === undefined ? undefined : { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  if (!response.ok) throw new Error(`Backend task gagal (${response.status}).`);
+  return response;
+}
 
 /** Admin hanya boleh menugaskan intern yang dibimbingnya; super_admin bebas. */
 async function requireInternInScope(userId: string, internId: string) {
@@ -123,6 +130,12 @@ export async function createBoardAction(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Data tidak valid." };
   }
 
+  if (usesLocalBackend()) {
+    await localTask("/v1/tasks/boards", "POST", parsed.data);
+    revalidatePath("/dashboard/mentor/tasks");
+    return { ok: true, message: "Board berhasil dibuat." };
+  }
+
   const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db.from("task_boards").insert({
     name: parsed.data.name,
@@ -150,6 +163,7 @@ export async function createListAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error("Data list tidak valid.");
   }
+  if (usesLocalBackend()) { await localTask("/v1/tasks/lists","POST",parsed.data); revalidatePath("/dashboard/mentor/tasks"); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -191,6 +205,7 @@ export async function createCardAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "Data card tidak valid.");
   }
+  if (usesLocalBackend()) { await localTask("/v1/tasks/cards","POST",parsed.data); revalidatePath("/dashboard/mentor/tasks"); return; }
 
   if (parsed.data.internId) {
     await requireInternInScope(user.id, parsed.data.internId);
@@ -237,6 +252,7 @@ export async function addChecklistAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error("Data checklist tidak valid.");
   }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${parsed.data.cardId}/checklists`,"POST",{title:parsed.data.title}); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccess(user.id, parsed.data.cardId);
 
@@ -278,6 +294,7 @@ export async function toggleChecklistAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error("Data checklist tidak valid.");
   }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/checklists/${parsed.data.checklistId}`,"PATCH",{isDone:parsed.data.isDone==="true"}); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccessVia(user.id, "task_checklists", parsed.data.checklistId);
 
@@ -308,7 +325,8 @@ export async function addTaskAttachmentAction(formData: FormData) {
     throw new Error("File attachment wajib diunggah.");
   }
 
-  await requireCardAccess(user.id, cardId);
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${cardId}/access`,"GET"); }
+  else await requireCardAccess(user.id, cardId);
 
   // Tipe & ekstensi ditentukan dari isi berkas: bucket "task" publik, jadi
   // .html/.svg dari klien akan jadi stored XSS.
@@ -321,6 +339,15 @@ export async function addTaskAttachmentAction(formData: FormData) {
     }
     console.error("Gagal memvalidasi lampiran task:", error);
     throw new Error("Lampiran tidak dapat diproses.");
+  }
+
+  if (usesLocalBackend()) {
+    const filePath=buildStoragePath(cardId,attachment.ext); const upload=new FormData(); const bytes=new Uint8Array(attachment.buffer.byteLength); bytes.set(attachment.buffer); upload.set("file",new Blob([bytes.buffer],{type:attachment.contentType}),attachment.displayName);
+    const stored=await backendRequest("/v1/storage/task",{method:"POST",headers:{"x-object-path":filePath},body:upload});
+    if(!stored.ok)throw new Error("Gagal mengunggah file lampiran.");
+    try { await localTask(`/v1/tasks/cards/${cardId}/attachments`,"POST",{path:filePath,name:attachment.displayName}); }
+    catch(error){ await backendRequest(`/v1/storage/task/${filePath.split("/").map(encodeURIComponent).join("/")}`,{method:"DELETE"}); throw error; }
+    revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return;
   }
 
   const supabase = createSupabaseServiceRoleClient(); // Gunakan service role untuk storage upload
@@ -364,6 +391,7 @@ export async function deleteBoardAction(formData: FormData) {
   const user = await requireStaff();
   const boardId = formData.get("boardId") as string;
   if (!boardId) throw new Error("Board ID tidak valid.");
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/boards/${boardId}`,"DELETE"); revalidatePath("/dashboard/mentor/tasks"); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -417,6 +445,7 @@ export async function deleteCardAction(formData: FormData) {
   const cardId = formData.get("cardId") as string;
   const boardId = formData.get("boardId") as string;
   if (!cardId) throw new Error("Card ID tidak valid.");
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${cardId}`,"DELETE"); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccess(user.id, cardId);
 
@@ -444,6 +473,7 @@ export async function assignCardToInternAction(formData: FormData) {
   const boardId = formData.get("boardId") as string;
 
   if (!cardId) throw new Error("Card ID tidak valid.");
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${cardId}`,"PATCH",{internId}); revalidatePath("/dashboard/mentor/tasks/"+boardId); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccess(user.id, cardId);
   if (internId) {
@@ -473,6 +503,7 @@ export async function deleteListAction(formData: FormData) {
   const listId = formData.get("listId") as string;
   const boardId = formData.get("boardId") as string;
   if (!listId) throw new Error("List ID tidak valid.");
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/lists/${listId}`,"DELETE"); revalidatePath("/dashboard/mentor/tasks/"+boardId); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -509,6 +540,7 @@ export async function deleteChecklistItemAction(formData: FormData) {
   const checklistId = formData.get("checklistId") as string;
   const boardId = formData.get("boardId") as string;
   if (!checklistId) throw new Error("Checklist ID tidak valid.");
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/checklists/${checklistId}`,"DELETE"); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccessVia(user.id, "task_checklists", checklistId);
 
@@ -539,6 +571,7 @@ export async function createSubtaskAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error("Data subtask tidak valid.");
   }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${parsed.data.cardId}/subtasks`,"POST",{title:parsed.data.title}); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccess(user.id, parsed.data.cardId);
 
@@ -581,6 +614,7 @@ export async function toggleSubtaskAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error("Data subtask tidak valid.");
   }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/subtasks/${parsed.data.subtaskId}`,"PATCH",{isDone:parsed.data.isDone==="true"}); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccessVia(user.id, "task_subtasks", parsed.data.subtaskId);
 
@@ -606,6 +640,7 @@ export async function deleteSubtaskAction(formData: FormData) {
   const user = await requireUser();
   const subtaskId = formData.get("subtaskId") as string;
   if (!subtaskId) throw new Error("Subtask ID tidak valid.");
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/subtasks/${subtaskId}`,"DELETE"); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccessVia(user.id, "task_subtasks", subtaskId);
 
@@ -632,6 +667,7 @@ export async function updateCardPriorityAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error("Data prioritas tidak valid.");
   }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${parsed.data.cardId}`,"PATCH",{priority:parsed.data.priority}); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccess(user.id, parsed.data.cardId);
 
@@ -657,6 +693,7 @@ export async function updateCardPriorityAction(formData: FormData) {
 export async function moveCardAction(cardId: string, listId: string, boardId: string) {
   const user = await requireStaff();
   if (!cardId || !listId) throw new Error("ID kartu atau list tidak valid.");
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${cardId}`,"PATCH",{listId}); revalidatePath("/dashboard/mentor/tasks/"+boardId); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccess(user.id, cardId);
 

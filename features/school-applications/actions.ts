@@ -7,6 +7,8 @@ import { parseSchoolApplicationsCsv } from "./csv";
 import { requireActiveSchoolPartner } from "./queries";
 import { schoolApplicationSchema, type SchoolApplicationInput } from "./schemas";
 import type { BulkImportState, CreateApplicationState } from "./types";
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { schoolBackend } from "@/features/school/local";
 
 const MAX_CSV_BYTES = 1024 * 1024;
 const MAX_CSV_ROWS = 200;
@@ -145,6 +147,17 @@ async function linkApplicant(applicationId: string, userId: string) {
 }
 
 export async function retryApplicantInvitationAction(formData: FormData): Promise<void> {
+  if (usesLocalBackend()) {
+      await requireActiveSchoolPartner();
+      const applicationId = formData.get("applicationId");
+      if (typeof applicationId !== "string") redirect("/dashboard/school/applications?invite=failed");
+      try {
+        await schoolBackend(`/applications/${encodeURIComponent(applicationId)}/invite`, { method: "POST" });
+        redirect("/dashboard/school/applications?invite=sent");
+      } catch {
+        redirect("/dashboard/school/applications?invite=failed");
+      }
+  }
   let outcome = "failed";
   try {
     const applicationId = formData.get("applicationId");
@@ -201,6 +214,13 @@ export async function createSchoolApplicationAction(
     if (!parsed.success) {
       return { ok: false, message: "Periksa kembali data peserta.", fieldErrors: parsed.error.flatten().fieldErrors };
     }
+    if (usesLocalBackend()) {
+      const created = await schoolBackend<{ id: string }>("/applications", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(parsed.data) });
+      let invited = true;
+      try { await schoolBackend(`/applications/${encodeURIComponent(created.id)}/invite`, { method: "POST" }); } catch { invited = false; }
+      revalidatePath("/dashboard/school/applications");
+      return { ok: true, message: invited ? "Pendaftaran tersimpan dan undangan akun pelamar dikirim." : "Pendaftaran tersimpan, tetapi undangan belum terkirim." };
+    }
     if (await findDuplicate(school.id, parsed.data.email, parsed.data.studentNumber)) {
       return { ok: false, message: "Email atau NIS/NIM sudah memiliki pendaftaran aktif di sekolah ini." };
     }
@@ -234,6 +254,24 @@ export async function importSchoolApplicationsCsvAction(
     const parsedRows = parseSchoolApplicationsCsv(await file.text());
     if (parsedRows.length === 0) throw new Error("CSV tidak memiliki baris peserta.");
     if (parsedRows.length > MAX_CSV_ROWS) throw new Error(`Maksimal ${MAX_CSV_ROWS} peserta per import.`);
+
+    if (usesLocalBackend()) {
+      const results = [];
+      for (const parsedRow of parsedRows) {
+        if (!parsedRow.data) { results.push(parsedRow.result); continue; }
+        try {
+          const created = await schoolBackend<{ id: string }>("/applications", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(parsedRow.data) });
+          await schoolBackend(`/applications/${encodeURIComponent(created.id)}/invite`, { method: "POST" });
+          results.push({ ...parsedRow.result, status: "created" as const, errors: [] });
+        } catch (error) {
+          const duplicate = error instanceof Error && error.message === "duplicate_application";
+          results.push({ ...parsedRow.result, status: duplicate ? "duplicate" as const : "invalid" as const, errors: [duplicate ? "Email atau NIS/NIM sudah terdaftar." : "Baris gagal disimpan."] });
+        }
+      }
+      const created = results.filter((row) => row.status === "created").length;
+      revalidatePath("/dashboard/school/applications");
+      return { ok: created > 0, message: `${created} dari ${results.length} peserta berhasil dibuat.`, total: results.length, created, failed: results.length - created, rows: results };
+    }
 
     const db = await createUteroAcademyServiceRoleClient();
     const results = [];

@@ -1,6 +1,8 @@
 import { ATTENDANCE_SETTINGS_ID } from "@/features/attendance/constants";
 import { resolveStorageUrl } from "@/lib/storage-urls";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { usesLocalBackend } from "@/lib/backend/mode";
+import { localAssessmentInterns, localAssessmentSettings, localCertificate, localInternAssessment } from "./local-api";
 
 /**
  * Daftar peserta untuk halaman penilaian staf.
@@ -11,6 +13,7 @@ import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
  * peserta di luar bimbingannya.
  */
 export async function getInternsForAssessment(allowedInternIds: string[] | null) {
+  if (usesLocalBackend()) return { data: await localAssessmentInterns(), error: null };
   const db = await createUteroAcademyServiceRoleClient();
 
   if (allowedInternIds !== null && allowedInternIds.length === 0) {
@@ -76,6 +79,7 @@ export async function getInternsForAssessment(allowedInternIds: string[] | null)
 }
 
 export async function getInternAssessment(internProfileId: string) {
+  if (usesLocalBackend()) return { data: await localInternAssessment(internProfileId), error: null };
   const db = await createUteroAcademyServiceRoleClient();
 
   const { data, error } = await db
@@ -108,6 +112,7 @@ export async function getInternAssessment(internProfileId: string) {
  * kalau migrasi itu ternyata belum terpasang.
  */
 export async function getInternCertificate(internProfileId: string) {
+  if (usesLocalBackend()) return { data: await localCertificate(internProfileId), error: null };
   const db = await createUteroAcademyServiceRoleClient();
 
   const { data, error } = await db
@@ -139,6 +144,11 @@ export async function getInternCertificate(internProfileId: string) {
 
 
 export async function getAttendanceSettings() {
+  if (usesLocalBackend()) {
+    const data = await localAssessmentSettings();
+    if (!data) return data;
+    return { ...data, certificate_template_path: await resolveStorageUrl("academy-private", data.certificate_template_path) };
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data } = await db
     .from("attendance_settings")

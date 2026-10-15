@@ -15,6 +15,7 @@ README.md
 .next-*
 .next-dev
 .codegraph
+/data
 .codex
 .claude
 .gemini

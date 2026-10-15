@@ -3,6 +3,8 @@
 import { type ApplicationStatus } from "@/features/admin/types";
 import { requireAdmin } from "@/features/auth/guards";
 import { createUteroAcademyClient } from "@/lib/supabase/server";
+import { usesLocalBackend } from "@/lib/backend/server";
+import { approveLocalOnboarding, createLocalPlacement, deleteLocalPlacement, updateLocalApplication } from "./local";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -41,8 +43,13 @@ export async function updateApplicationStatusAction(formData: FormData) {
     throw new Error("Status pendaftaran tidak valid.");
   }
 
-  const db = await createUteroAcademyClient();
   const status = parsed.data.status satisfies ApplicationStatus;
+  if (usesLocalBackend()) {
+    await updateLocalApplication(parsed.data.id, { status, startDate: parsed.data.startDate, endDate: parsed.data.endDate });
+    revalidatePath("/dashboard/admin/pendaftaran");
+    return;
+  }
+  const db = await createUteroAcademyClient();
   if (status === "accepted") {
     const dates = z.object({ startDate: z.string().date(), endDate: z.string().date() }).refine((value) => value.endDate >= value.startDate).safeParse(parsed.data);
     if (!dates.success) throw new Error("Tanggal magang resmi wajib valid.");
@@ -72,6 +79,12 @@ export async function approveApplicationOnboardingAction(formData: FormData) {
   const parsed = approveOnboardingSchema.safeParse({ id: formData.get("id") });
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Pendaftaran tidak valid.");
 
+  if (usesLocalBackend()) {
+    await approveLocalOnboarding(parsed.data.id);
+    revalidatePath("/dashboard/admin/pendaftaran");
+    return;
+  }
+
   const db = await createUteroAcademyClient();
   const { error } = await db.rpc("approve_application_onboarding", {
     p_application_id: parsed.data.id,
@@ -90,6 +103,12 @@ export async function assignMentorAction(formData: FormData) {
 
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "Pilih peserta magang dan mentor.");
+  }
+
+  if (usesLocalBackend()) {
+    await createLocalPlacement(parsed.data);
+    revalidatePath("/dashboard/admin/penempatan");
+    return;
   }
 
   const db = await createUteroAcademyClient();
@@ -115,6 +134,12 @@ export async function removeMentorAssignmentAction(formData: FormData) {
 
   if (!parsedId.success) {
     throw new Error("ID penempatan tidak valid.");
+  }
+
+  if (usesLocalBackend()) {
+    await deleteLocalPlacement(parsedId.data);
+    revalidatePath("/dashboard/admin/penempatan");
+    return;
   }
 
   const db = await createUteroAcademyClient();

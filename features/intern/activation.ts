@@ -1,5 +1,6 @@
 import { isInternBiodataComplete, type InternProfileData } from "@/features/auth/profile-schema";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 
 function jakartaToday() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -29,6 +30,23 @@ export function hasApprovedOnboarding(application: ActivationApplication, profil
 }
 
 export async function requireActiveInternProfile(userId: string) {
+  if (usesLocalBackend()) {
+    const response = await backendRequest("/v1/auth/intern-activation");
+    if (!response.ok) throw new Error("Gagal memverifikasi status peserta.");
+    const { profile, application } = await response.json() as { profile: (InternProfileData & ActivationProfile & { email: string | null; user_full_name: string | null; status: string }) | null; application: ActivationApplication | null };
+    if (!profile) throw new Error("Profil peserta belum tersedia.");
+    if (!isInternBiodataComplete(profile, profile.user_full_name, profile.email)) throw new Error("Lengkapi biodata sebelum menggunakan fitur magang.");
+    if (application && !hasApprovedOnboarding(application, profile)) throw new Error("Daftar ulang belum disetujui admin.");
+    if (!application && profile.status !== "active") throw new Error("Status peserta belum disetujui admin.");
+    if (!profile.start_date || profile.start_date > jakartaToday()) throw new Error(`Fitur magang aktif mulai ${profile.start_date ?? "tanggal yang ditetapkan admin"}.`);
+    if (profile.end_date && profile.end_date < jakartaToday()) throw new Error("Periode magang sudah selesai.");
+    if (["paused", "completed", "failed", "alumni"].includes(profile.status)) throw new Error("Status peserta belum mengizinkan aktivitas magang.");
+    if (application?.onboarding_status === "waiting_start" || (application && profile.status !== "active")) {
+      const activation = await backendRequest("/v1/auth/intern-activation", { method: "POST" });
+      if (!activation.ok) throw new Error("Gagal mengaktifkan status peserta.");
+    }
+    return profile.id;
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const [{ data: profile, error: profileError }, { data: userProfile, error: userError }, { data: application, error: applicationError }] = await Promise.all([
     db.from("intern_profiles").select("id,full_name,email,phone,major,grade_or_semester,school_name,address,school_supervisor_name,school_supervisor_phone,emergency_contact_name,emergency_contact_phone,start_date,end_date,status").eq("user_id", userId).maybeSingle(),

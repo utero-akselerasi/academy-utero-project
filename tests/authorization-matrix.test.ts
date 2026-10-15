@@ -218,6 +218,8 @@ const PUBLIC_PAGES: Record<string, string> = {
 const PUBLIC_ROUTES: Record<string, string> = {
   "app/api/health/route.ts":
     "Health check untuk container/monitor. Tidak menyentuh data domain.",
+  "app/api/internal/deployment-probe/route.ts":
+    "Probe internal hanya aktif pada DEPLOY_TARGET=staging, memakai token 32+ karakter, dan tidak mengembalikan data domain atau secret.",
   "app/api/articles/route.ts":
     "Proksi artikel publik (cms.carubra.com). Isinya memang ditayangkan ke pengunjung anonim di /blog.",
   "app/api/articles/[slug]/route.ts":
@@ -356,6 +358,10 @@ describe("server action", () => {
       "Login & logout. Login justru yang MEMBUAT sesi, jadi tak mungkin menuntut sesi.",
     "features/registration/signup-action.ts":
       "Signup publik membuat sesi awal pelamar; role applicant diprovisi trigger server setelah akun dibuat.",
+    "features/registration/verify-email-action.ts":
+      "Verifikasi dan kirim ulang email dipanggil sebelum user memiliki sesi; backend membatasi token sekali pakai dan rate limit.",
+    "features/auth/accept-invitation-action.ts":
+      "Penerimaan undangan terjadi sebelum sesi ada; backend memvalidasi token SHA-256 sekali pakai, expiry, rate limit, dan password minimum.",
     "features/lms/certificate-helper.ts":
       "Helper internal, dipanggil dari action lain yang sudah memagari pemanggilnya.",
   };

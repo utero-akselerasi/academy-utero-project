@@ -14,6 +14,7 @@ export type UserProfile = {
   email?: string;
   last_sign_in_at?: string | null;
   auth_linked?: boolean;
+  activation_pending?: boolean;
   school_name?: string | null;
 };
 

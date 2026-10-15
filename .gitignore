@@ -8,6 +8,10 @@ out/
 # env
 .env
 .env*.local
+.env.develop.build
+.env.develop
+.env.production.build
+.env.production
 
 # logs
 *.log
@@ -50,3 +54,14 @@ Thumbs.db
 # berubah setiap kali repo dibaca.
 .codegraph/
 .audit-*.txt
+.codex-artifacts/
+.claude/
+.codex/
+.gemini/
+.kiro/
+/supabase/.temp/
+
+# Backend local state and credentials
+/data/
+/backend/.env
+/backend/node_modules/
