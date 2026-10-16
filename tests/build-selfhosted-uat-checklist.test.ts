@@ -16,8 +16,12 @@ function semanticEvidence(kind: string) {
   const common = { gate: kind, target: "production", status: "PASS",
     finishedAt: "2026-10-15T09:00:00Z", expiresAt: "2026-10-16T09:00:00Z" };
   const values: Record<string, object> = {
-    migrationVerification: { failures: [], tableCount: 76, foreignKeysChecked: 278 },
-    storageVerification: { failures: [], storageObjects: 3, storageBytesChecked: 3 },
+    identityOnlyMigration: { checks: Object.fromEntries(["profileCount", "profileChecksum", "emailIdentities", "noPasswordHashes",
+      "noConfirmedEmails", "noSessions", "noRoleAssignments", "noDomainRows", "noStorageObjects", "avatarsCleared"].map((name) => [name, true])),
+      counts: { sourceProfiles: 29, targetProfiles: 29, users: 29, profiles: 29, identities: 29, emailIdentities: 29,
+        passwordHashes: 0, confirmedEmails: 0, sessions: 0,
+        roleAssignments: 0, domainRows: 0, storageObjects: 0 },
+      checksums: { sourceProfiles: "a".repeat(64), targetProfiles: "a".repeat(64) } },
     rbacVerification: { roles, permissionMismatchCount: 0, orphanAssignmentCount: 0 },
     roleSmoke: { anonymousStatus: 401, negativeChecks: 4, secureCookies: 5, results: roles.map((role) => ({ role, status: 200,
       forbiddenEndpoint: role === "super_admin" ? null : "/v1/super-admin/diagnostics", forbiddenStatus: role === "super_admin" ? null : 403 })) },
@@ -77,9 +81,9 @@ describe("self-hosted UAT checklist builder", () => {
 
   it("menolak gate duplikat atau evidence tambahan", async () => {
     const duplicate = await fixture();
-    await writeFile(path.join(duplicate.evidenceDir, "storageVerification.json"), JSON.stringify(semanticEvidence("migrationVerification")));
+    await writeFile(path.join(duplicate.evidenceDir, "roleSmoke.json"), JSON.stringify(semanticEvidence("identityOnlyMigration")));
     await expect(buildSelfhostedUatChecklist({ ...duplicate, operator: "operator-a", reviewer: "reviewer-b" },
-      new Date("2026-10-15T10:00:00Z"))).rejects.toThrow("Gate evidence migrationVerification wajib unik");
+      new Date("2026-10-15T10:00:00Z"))).rejects.toThrow("Gate evidence identityOnlyMigration wajib unik");
 
     const knownManifest = await fixture();
     await writeFile(path.join(knownManifest.evidenceDir, "operator-review.json"), "{}");
@@ -91,12 +95,12 @@ describe("self-hosted UAT checklist builder", () => {
     const unknownJson = await fixture();
     await writeFile(path.join(unknownJson.evidenceDir, "extra.json"), "{}");
     await expect(buildSelfhostedUatChecklist({ ...unknownJson, operator: "operator-a", reviewer: "reviewer-b" },
-      new Date("2026-10-15T10:00:00Z"))).rejects.toThrow("wajib tepat 12");
+      new Date("2026-10-15T10:00:00Z"))).rejects.toThrow(`wajib tepat ${REQUIRED_UAT_EVIDENCE.length}`);
   });
 
   it("menolak symlink dan evidence yang gagal evaluator sebelum rename", async () => {
     const linked = await fixture();
-    const link = path.join(linked.evidenceDir, "migrationVerification.json");
+    const link = path.join(linked.evidenceDir, "identityOnlyMigration.json");
     const linkTarget = path.join(linked.evidenceDir, "linked-evidence");
     await unlink(link);
     await mkdir(linkTarget);

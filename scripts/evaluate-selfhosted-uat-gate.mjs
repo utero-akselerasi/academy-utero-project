@@ -5,7 +5,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const REQUIRED_UAT_EVIDENCE = Object.freeze([
-  "migrationVerification", "storageVerification", "rbacVerification", "roleSmoke", "readonlyUatPerformance",
+  "identityOnlyMigration", "rbacVerification", "roleSmoke", "readonlyUatPerformance",
   "backupRestore", "rollbackRehearsal", "tlsPreflight", "smtpSmoke", "opsHealth", "monitoringReadiness", "writeFreeze",
 ]);
 
@@ -57,6 +57,23 @@ export function validateEvidenceReport(kind, report) {
       requireEvidence(Array.isArray(report.failures) && report.failures.length === 0, kind, "failures wajib kosong");
       requireEvidence(Number.isSafeInteger(report.storageObjects) && report.storageObjects >= 0, kind, "storageObjects tidak valid");
       requireEvidence(report.storageBytesChecked === report.storageObjects, kind, "byte objek belum seluruhnya diverifikasi");
+      break;
+    case "identityOnlyMigration":
+      requireEvidence(checks && Object.keys(checks).length === 10 && ["profileCount", "profileChecksum", "emailIdentities",
+        "noPasswordHashes", "noConfirmedEmails", "noSessions", "noRoleAssignments", "noDomainRows",
+        "noStorageObjects", "avatarsCleared"].every((name) => checks[name] === true), kind,
+        "checksum identitas atau larangan data terlarang gagal");
+      requireEvidence(report.counts?.sourceProfiles > 0 && report.counts.sourceProfiles === report.counts?.targetProfiles,
+        kind, "jumlah profil source/target tidak cocok");
+      requireEvidence(report.counts?.users === report.counts.sourceProfiles &&
+        report.counts?.profiles === report.counts.sourceProfiles &&
+        report.counts?.identities === report.counts.sourceProfiles &&
+        report.counts?.emailIdentities === report.counts.sourceProfiles &&
+        report.counts?.passwordHashes === 0 && report.counts?.confirmedEmails === 0 &&
+        report.counts?.sessions === 0 && report.counts?.roleAssignments === 0 && report.counts?.domainRows === 0 &&
+        report.counts?.storageObjects === 0, kind, "target membawa auth, role, domain, atau storage lama");
+      requireEvidence(/^[a-f0-9]{64}$/.test(report.checksums?.sourceProfiles ?? "") &&
+        report.checksums.sourceProfiles === report.checksums?.targetProfiles, kind, "checksum profil tidak cocok");
       break;
     case "rbacVerification":
       requireEvidence(REQUIRED_ROLES.every((role) => report.roles?.includes(role)), kind, "lima role wajib diverifikasi");

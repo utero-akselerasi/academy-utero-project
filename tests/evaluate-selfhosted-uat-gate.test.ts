@@ -15,8 +15,12 @@ function semanticEvidence(kind: string) {
   const common = { gate: kind, target: "production", status: "PASS",
     finishedAt: "2026-10-15T09:00:00Z", expiresAt: "2026-10-16T09:00:00Z" };
   const values: Record<string, object> = {
-    migrationVerification: { failures: [], tableCount: 76, foreignKeysChecked: 278 },
-    storageVerification: { failures: [], storageObjects: 3, storageBytesChecked: 3 },
+    identityOnlyMigration: { checks: Object.fromEntries(["profileCount", "profileChecksum", "emailIdentities", "noPasswordHashes",
+      "noConfirmedEmails", "noSessions", "noRoleAssignments", "noDomainRows", "noStorageObjects", "avatarsCleared"].map((name) => [name, true])),
+      counts: { sourceProfiles: 29, targetProfiles: 29, users: 29, profiles: 29, identities: 29, emailIdentities: 29,
+        passwordHashes: 0, confirmedEmails: 0, sessions: 0,
+        roleAssignments: 0, domainRows: 0, storageObjects: 0 },
+      checksums: { sourceProfiles: "a".repeat(64), targetProfiles: "a".repeat(64) } },
     rbacVerification: { roles, permissionMismatchCount: 0, orphanAssignmentCount: 0 },
     roleSmoke: { anonymousStatus: 401, negativeChecks: 4, secureCookies: 5, results: roles.map((role) => ({ role, status: 200,
       forbiddenEndpoint: role === "super_admin" ? null : "/v1/super-admin/diagnostics", forbiddenStatus: role === "super_admin" ? null : 403 })) },
@@ -88,7 +92,7 @@ describe("self-hosted UAT gate", () => {
 
   it("menolak evidence PASS yang kosong secara semantik", async () => {
     const value = await fixture();
-    const evidence = value.document.evidence.find((entry) => entry.kind === "migrationVerification")!;
+    const evidence = value.document.evidence.find((entry) => entry.kind === "identityOnlyMigration")!;
     const content = Buffer.from(JSON.stringify({ gate: evidence.kind, target: "production", status: "PASS",
       finishedAt: "2026-10-15T09:00:00Z", expiresAt: "2026-10-16T09:00:00Z" }));
     await writeFile(evidence.path, content);
@@ -96,7 +100,7 @@ describe("self-hosted UAT gate", () => {
     evidence.sha256 = createHash("sha256").update(content).digest("hex");
     await writeFile(value.checklist, JSON.stringify(value.document));
     await expect(evaluateSelfhostedUatGate(value.checklist, new Date("2026-10-15T10:00:00Z")))
-      .rejects.toThrow("Evidence migrationVerification tidak lengkap");
+      .rejects.toThrow("Evidence identityOnlyMigration tidak lengkap");
   });
 
   it("menolak health report dengan masa berlaku diperpanjang lewat checklist", async () => {

@@ -100,6 +100,24 @@ services:
     networks: [backend_network]
     restart: "no"
 
+  identity-verify:
+    profiles: ["migration"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["node", "backend/scripts/verify-user-profiles.mjs"]
+    environment:
+      SOURCE_DATABASE_URL: ${SOURCE_DATABASE_URL:-}
+      TARGET_DATABASE_URL: ${ACADEMY_MIGRATION_DATABASE_URL:?Set ACADEMY_MIGRATION_DATABASE_URL}
+      IDENTITY_VERIFY_TARGET: ${IDENTITY_VERIFY_TARGET:-uat}
+      IDENTITY_VERIFY_OUTPUT: /evidence/identity-only.json
+    volumes:
+      - ./data/ops-evidence:/evidence
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [backend_network]
+    restart: "no"
+
   bootstrap-super-admin:
     profiles: ["migration"]
     build:
