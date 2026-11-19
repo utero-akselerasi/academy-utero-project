@@ -25,11 +25,11 @@ Exit code `0` menghasilkan JSON ringkas dengan `ready: true` dan nama kelompok p
 - `SOURCE_DATABASE_URL` optional sebelum cutover. Bila terisi, URL harus valid dan tidak boleh menunjuk host, port, serta database target yang sama.
 - SMTP host, port, user, password, dan alamat pengirim wajib valid secara struktural. Validator tidak mencoba mengirim email.
 - Signing secret minimal 32 byte. Password PostgreSQL, API, SMTP, dan signing secret wajib berbeda.
-- `ACADEMY_TLS_CERT_DIR` wajib absolut dan memuat `fullchain.pem` serta `privkey.pem` nonkosong.
+- Nginx hanya melayani origin HTTP pada `127.0.0.1:${ACADEMY_HTTP_PORT:-9984}`. Cloudflare Tunnel menangani HTTPS publik; tidak perlu sertifikat lokal di Nginx.
 - `STORAGE_IMPORT_SOURCE` optional sebelum cutover. Bila terisi, path wajib absolut dan menunjuk direktori yang ada.
 
 Template `.env.example` hanya referensi nama variabel. Jangan menaruh env production nyata di repository atau meneruskannya melalui argumen command line selain path file.
 
 ## Batasan
 
-Kelulusan validator hanya membuktikan bentuk dan konsistensi konfigurasi lokal. Hasil ini tidak menggantikan `docker compose config`, validasi sertifikat terhadap domain, koneksi PostgreSQL sumber/target, uji SMTP, verifikasi migrasi data dan byte storage, smoke lima role, health check, backup/restore drill, monitoring, ataupun persetujuan GO/NO-GO production live.
+Kelulusan validator hanya membuktikan bentuk dan konsistensi konfigurasi lokal. Hasil ini tidak menggantikan `docker compose config`, verifikasi HTTPS publik melalui Cloudflare Tunnel, koneksi PostgreSQL sumber/target, uji SMTP, verifikasi migrasi data dan byte storage, smoke lima role, health check, backup/restore drill, monitoring, ataupun persetujuan GO/NO-GO production live.

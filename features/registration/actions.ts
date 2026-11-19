@@ -10,13 +10,14 @@ import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 
 const schema = z.object({
   programId: z.string().uuid(), fullName: z.string().trim().min(3).max(150),
-  phone: z.string().trim().min(8).max(25), schoolName: z.string().trim().min(2).max(150),
+  phone: z.string().trim().regex(/^62[0-9]{8,13}$/, "Nomor WhatsApp harus berupa angka dan diawali 62 (contoh: 6281234567890)."), schoolName: z.string().trim().min(2).max(150),
   major: z.string().trim().min(2).max(120), motivation: z.string().trim().min(20).max(3000),
   studentNumber: z.string().trim().max(80), referralCode: z.string().trim().max(80),
   proposedStartDate: z.string().date(), proposedEndDate: z.string().date(),
 }).refine((value) => value.proposedEndDate >= value.proposedStartDate, { path: ["proposedEndDate"], message: "Tanggal selesai tidak boleh sebelum tanggal mulai." });
 
 export type RegistrationState = { ok: boolean; message: string };
+const maxRegistrationFileBytes = 5 * 1024 * 1024;
 
 export async function submitRegistrationAction(_: RegistrationState, formData: FormData): Promise<RegistrationState> {
   const user = await requireApplicant();
@@ -27,6 +28,7 @@ export async function submitRegistrationAction(_: RegistrationState, formData: F
   const cvFile = formData.get("cv");
   const portfolioFile = formData.get("portfolio");
   if (!(cvFile instanceof File) || cvFile.size === 0) return { ok: false, message: "Berkas CV wajib diunggah." };
+  if (cvFile.size > maxRegistrationFileBytes || (portfolioFile instanceof File && portfolioFile.size > maxRegistrationFileBytes)) return { ok: false, message: "Setiap berkas CV dan portofolio maksimal 5 MB." };
   let cv;
   let portfolio = null;
   try {

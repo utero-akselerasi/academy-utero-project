@@ -81,7 +81,9 @@ export async function storageRoutes(app, options) {
         !resolved.normalized.startsWith(`${identity.id}/`)) {
       return reply.code(403).send({ error: "forbidden" });
     }
-    const file = await request.file({ limits: { files: 1, fileSize: bucket.maxBytes } });
+    const maxBytes = bucketName === "academy-private" && /^[^/]+\/applications\/(?:cv|portfolio)\//.test(resolved.normalized)
+      ? 5 * 1024 * 1024 : bucket.maxBytes;
+    const file = await request.file({ limits: { files: 1, fileSize: maxBytes } });
     if (!file || !bucket.mime.includes(file.mimetype)) return reply.code(415).send({ error: "unsupported_media_type" });
     await mkdir(path.dirname(resolved.target), { recursive: true });
     const temporary = `${resolved.target}.${randomUUID()}.upload`;
@@ -99,7 +101,7 @@ export async function storageRoutes(app, options) {
     let linked = false;
     try {
       await pipeline(file.file, meter, createWriteStream(temporary, { flags: "wx", mode: 0o600 }));
-      if (file.file.truncated || byteSize > bucket.maxBytes) throw new Error("file_too_large");
+      if (file.file.truncated || byteSize > maxBytes) throw new Error("file_too_large");
       if (!(await verifyContentType(sample, file.mimetype))) throw new Error("unsupported_media_type");
       try {
         await link(temporary, resolved.target);

@@ -1,6 +1,7 @@
 "use server";
 
-import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
+import { backendRequest, setBackendSession, usesLocalBackend } from "@/lib/backend/server";
+import { redirect } from "next/navigation";
 
 export type VerifyEmailState = { ok: boolean; message: string };
 
@@ -15,10 +16,15 @@ export async function verifyEmailAction(_: VerifyEmailState, formData: FormData)
       body: JSON.stringify({ token }),
     });
     if (!response.ok) return { ok: false, message: "Tautan sudah digunakan atau kedaluwarsa." };
-    return { ok: true, message: "Email terverifikasi. Sekarang kamu dapat login." };
+    try {
+      await setBackendSession(response);
+    } catch {
+      return { ok: false, message: "Email terverifikasi, tetapi login otomatis gagal. Silakan masuk lewat halaman login." };
+    }
   } catch {
     return { ok: false, message: "Backend belum siap. Coba lagi nanti." };
   }
+  redirect("/dashboard/applicant");
 }
 
 export async function resendVerificationAction(_: VerifyEmailState, formData: FormData): Promise<VerifyEmailState> {

@@ -48,6 +48,7 @@ export default async function AdminDashboardPage() {
         </p>
         <div className="mt-6 flex flex-wrap gap-3 text-sm">
           <Link href="/dashboard/admin/pendaftaran" className="rounded-full bg-slate-950 px-4 py-2 font-bold text-white hover:bg-slate-800 shadow-sm transition-all">Review Pendaftaran</Link>
+          <Link href="/dashboard/admin/programs" className="rounded-full border border-white/40 bg-white/10 px-4 py-2 font-bold text-white hover:bg-white/20 transition-all">Kelola Program</Link>
           <Link href="/dashboard/admin/cms" className="rounded-full border border-white/40 bg-white/10 px-4 py-2 font-bold text-white hover:bg-white/20 transition-all">Manajemen CMS</Link>
         </div>
       </section>

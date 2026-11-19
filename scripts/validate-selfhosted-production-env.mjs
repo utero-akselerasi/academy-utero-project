@@ -16,7 +16,6 @@ const REQUIRED = Object.freeze([
   "SMTP_USER",
   "SMTP_PASSWORD",
   "SMTP_FROM",
-  "ACADEMY_TLS_CERT_DIR",
 ]);
 
 const PLACEHOLDER = /(?:<[A-Za-z][A-Za-z0-9_-]*>|\$\{[^}]+\}|change[-_ ]?me|replace[-_ ]?me|local-full-test|fixture|example\.(?:com|net|org|test)|\.example(?:[/:]|$)|\/absolute\/path|password-kuat-123)/i;
@@ -28,7 +27,6 @@ const CHECKS = Object.freeze([
   "postgres-target-isolation",
   "smtp",
   "signing-secret",
-  "tls-files",
   "optional-cutover-inputs",
 ]);
 
@@ -124,24 +122,7 @@ export function validateComposeCookieOverrides(composeText) {
   return true;
 }
 
-async function requireExistingFile(path, label) {
-  try {
-    const metadata = await stat(path);
-    if (!metadata.isFile() || metadata.size === 0) fail(`File TLS tidak valid: ${label}`);
-  } catch (error) {
-    if (error?.message?.startsWith("File TLS")) throw error;
-    fail(`File TLS tidak ditemukan: ${label}`);
-  }
-}
-
 async function validateFilesystem(env) {
-  const tlsDirectory = requiredValue(env, "ACADEMY_TLS_CERT_DIR");
-  if (!isAbsolute(tlsDirectory)) fail("ACADEMY_TLS_CERT_DIR wajib path absolut");
-  await Promise.all([
-    requireExistingFile(resolve(tlsDirectory, "fullchain.pem"), "fullchain.pem"),
-    requireExistingFile(resolve(tlsDirectory, "privkey.pem"), "privkey.pem"),
-  ]);
-
   const storageSource = env.STORAGE_IMPORT_SOURCE?.trim();
   if (storageSource) {
     if (!isAbsolute(storageSource)) fail("STORAGE_IMPORT_SOURCE wajib path absolut bila diisi");

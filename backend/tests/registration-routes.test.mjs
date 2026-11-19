@@ -7,7 +7,7 @@ const userId = "11111111-1111-4111-8111-111111111111";
 const otherId = "22222222-2222-4222-8222-222222222222";
 const programId = "33333333-3333-4333-8333-333333333333";
 const body = {
-  programId, fullName: "Budi Santoso", phone: "0812345678", schoolName: "SMK Utero",
+  programId, fullName: "Budi Santoso", phone: "6281234567890", schoolName: "SMK Utero",
   major: "RPL", motivation: "Saya ingin belajar pengembangan aplikasi.", studentNumber: "", referralCode: "",
   proposedStartDate: "2026-11-01", proposedEndDate: "2027-01-01",
   cvPath: `${userId}/applications/cv/44444444-4444-4444-8444-444444444444.pdf`, portfolioPath: null,

@@ -7,11 +7,18 @@ import { UPLOAD_SIZE_LIMITS } from "../lib/uploads";
 const nextConfig = readFileSync(resolve(process.cwd(), "next.config.ts"), "utf8");
 const nginxConfig = readFileSync(resolve(process.cwd(), "nginx.conf"), "utf8");
 const registrationAction = readFileSync(resolve(process.cwd(), "features/registration/actions.ts"), "utf8");
+const registrationForm = readFileSync(resolve(process.cwd(), "features/registration/RegistrationForm.tsx"), "utf8");
+const storageRoute = readFileSync(resolve(process.cwd(), "backend/src/routes/storage.mjs"), "utf8");
 
 describe("upload request body limit", () => {
   it("keeps combined CV and portfolio uploads within Next and nginx limits", () => {
     expect(registrationAction).toMatch(/validateUpload\(cvFile, \["document", "image"\]\)/);
     expect(registrationAction).toMatch(/validateUpload\(portfolioFile, \["document", "image"\]\)/);
+    expect(registrationAction).toMatch(/maxRegistrationFileBytes = 5 \* 1024 \* 1024/);
+    expect(registrationForm).toContain("maxFileBytes = 5 * 1024 * 1024");
+    expect(registrationForm).toContain("localStorage.setItem(draftKey");
+    expect(storageRoute).toContain("applications\\/(?:cv|portfolio)");
+    expect(storageRoute).toContain("5 * 1024 * 1024");
     expect(nextConfig).toMatch(/bodySizeLimit:\s*"128mb"/);
     expect(nextConfig).toMatch(/proxyClientMaxBodySize:\s*"128mb"/);
     expect(nginxConfig).toMatch(/client_max_body_size\s+128m;/);

@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import Fastify from "fastify";
 import { tokenDigest, sendVerificationEmail, smtpTransportOptions } from "../src/auth/email.mjs";
+import { verificationEmailContent } from "../src/auth/verification-email.mjs";
 import { authRoutes } from "../src/routes/auth.mjs";
 
 function verificationDatabase() {
-  const state = { consumed: false, confirmed: false };
+  const state = { consumed: false, confirmed: false, sessions: [] };
   const client = {
     async query(sql) {
       if (sql.includes("select token.user_id")) {
@@ -19,7 +20,10 @@ function verificationDatabase() {
   return {
     state,
     async apiTransaction(callback) { return callback(client); },
-    async query() { return { rows: [] }; },
+    async query(sql, params) {
+      if (sql.includes("insert into auth.sessions")) state.sessions.push(params);
+      return { rows: [] };
+    },
   };
 }
 
@@ -31,8 +35,12 @@ test("token verifikasi hanya dapat dipakai sekali", async () => {
   const first = await app.inject({ method: "POST", url: "/v1/auth/verify-email", payload: { token } });
   const reused = await app.inject({ method: "POST", url: "/v1/auth/verify-email", payload: { token } });
   assert.equal(first.statusCode, 200);
+  assert.match(first.headers["set-cookie"], /^test=/);
   assert.equal(reused.statusCode, 400);
+  assert.equal(reused.headers["set-cookie"], undefined);
   assert.equal(db.state.confirmed, true);
+  assert.equal(db.state.sessions.length, 1);
+  assert.equal(db.state.sessions[0][0], "00000000-0000-4000-8000-000000000001");
   await app.close();
 });
 
@@ -49,6 +57,17 @@ test("token disimpan sebagai digest dan format buruk ditolak", async () => {
 
 test("SMTP tanpa konfigurasi gagal eksplisit", async () => {
   await assert.rejects(() => sendVerificationEmail({ smtp: {}, publicAppUrl: "https://example.com" }, "user@example.com", "a".repeat(64)));
+});
+
+test("email verifikasi menyediakan HTML rapi, tautan aman, dan fallback teks", () => {
+  const url = 'https://academy.example.com/register/verify?token=abc&source="signup"';
+  const content = verificationEmailContent(url);
+  assert.match(content.html, /<!doctype html>/i);
+  assert.match(content.html, /Verifikasi email Anda/);
+  assert.match(content.html, /href="https:\/\/academy\.example\.com\/register\/verify\?token=abc&amp;source=&quot;signup&quot;"/);
+  assert.match(content.html, /Tautan berlaku 1 jam/);
+  assert.ok(content.text.includes(url));
+  assert.match(content.text, /hanya dapat digunakan satu kali/);
 });
 
 test("SMTP production mewajibkan TLS pada port 587 dan SMTPS pada port 465", () => {

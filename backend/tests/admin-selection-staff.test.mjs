@@ -46,11 +46,26 @@ test("staff review calls acceptance function inside identity-scoped transaction"
   const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
   const queries = [];
   const { app, transactions } = await fixture(identity, async (sql, params) => { queries.push([sql, params]); return { rows: [{ id: uuid }], rowCount: 1 }; });
-  const response = await app.inject({ method: "PATCH", url: `/v1/admin/applications/${uuid}/status`, payload: { status: "accepted", startDate: "2026-11-01", endDate: "2027-01-01" } });
+  const response = await app.inject({ method: "PATCH", url: "/v1/admin/applications/" + uuid + "/status", payload: { status: "accepted", startDate: "2026-11-01", endDate: "2027-01-01" } });
   assert.equal(response.statusCode, 200);
   assert.match(queries[0][0], /accept_application_as_intern/);
   assert.deepEqual(queries[0][1], [uuid, "2026-11-01", "2027-01-01"]);
   assert.deepEqual(transactions, [identity]);
-  assert.equal((await app.inject({ method: "PATCH", url: `/v1/admin/applications/${uuid}/status`, payload: { status: "accepted", startDate: "2027-01-01", endDate: "2026-11-01" } })).statusCode, 400);
+  assert.equal((await app.inject({ method: "PATCH", url: "/v1/admin/applications/" + uuid + "/status", payload: { status: "accepted", startDate: "2027-01-01", endDate: "2026-11-01" } })).statusCode, 400);
   await app.close();
+});
+
+test("acceptance maps only the selection precondition error to conflict", async () => {
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
+  const payload = { status: "accepted", startDate: "2026-11-01", endDate: "2027-01-01" };
+  for (const [error, expectedStatus] of [
+    [Object.assign(new Error("Peserta belum dinyatakan lolos seleksi"), { code: "P0001" }), 409],
+    [Object.assign(new Error("Other failure"), { code: "P0001" }), 500],
+  ]) {
+    const { app } = await fixture(identity, async () => { throw error; });
+    const response = await app.inject({ method: "PATCH", url: "/v1/admin/applications/" + uuid + "/status", payload });
+    assert.equal(response.statusCode, expectedStatus);
+    if (expectedStatus === 409) assert.deepEqual(response.json(), { error: "selection_not_passed" });
+    await app.close();
+  }
 });

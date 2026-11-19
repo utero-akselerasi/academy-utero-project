@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -10,10 +10,6 @@ import {
 async function envFixture(secret = "secret-that-must-not-be-printed") {
   const root = await mkdtemp(path.join(tmpdir(), "academy-readiness-summary-"));
   const envFile = path.join(root, "production.env");
-  const tlsDirectory = path.join(root, "tls");
-  await mkdir(tlsDirectory);
-  await writeFile(path.join(tlsDirectory, "fullchain.pem"), "certificate");
-  await writeFile(path.join(tlsDirectory, "privkey.pem"), "private-key");
   const env = {
     ACADEMY_POSTGRES_PASSWORD: "postgres-prod-F4!u8Q#2",
     ACADEMY_API_PASSWORD: "api-prod-N7!x3T#9",
@@ -28,7 +24,6 @@ async function envFixture(secret = "secret-that-must-not-be-printed") {
     SMTP_USER: "academy@utero.id",
     SMTP_PASSWORD: "smtp-prod-B6!r2P#8",
     SMTP_FROM: "Utero Academy <academy@utero.id>",
-    ACADEMY_TLS_CERT_DIR: tlsDirectory,
   };
   await writeFile(envFile, Object.entries(env).map(([key, value]) => `${key}=${value}`).join("\n"));
   return { root, envFile, secret };

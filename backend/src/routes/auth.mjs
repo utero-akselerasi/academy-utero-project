@@ -60,17 +60,18 @@ export async function authRoutes(app, options) {
   app.post("/v1/auth/verify-email", { config: { rateLimit: { max: 10, timeWindow: "10 minutes" } } }, async (request, reply) => {
     const parsed = parseVerificationToken(request.body);
     if (parsed.error) return reply.code(400).send({ error: parsed.error });
-    const verified = await db.apiTransaction(async (client) => {
+    const userId = await db.apiTransaction(async (client) => {
       const result = await client.query(
         `select token.user_id from auth.email_verification_tokens token
          join auth.users users on users.id = token.user_id
          where token.token_hash = $1 and token.consumed_at is null and token.expires_at > now()
            and users.deleted_at is null and users.email_confirmed_at is null
+           and (users.banned_until is null or users.banned_until < now())
          for update of token, users`,
         [tokenDigest(parsed.value)],
       );
       const row = result.rows[0];
-      if (!row) return false;
+      if (!row) return null;
       await client.query("update auth.email_verification_tokens set consumed_at = now() where token_hash = $1", [tokenDigest(parsed.value)]);
       await client.query("update auth.users set email_confirmed_at = now(), updated_at = now() where id = $1", [row.user_id]);
       await client.query(
@@ -78,9 +79,14 @@ export async function authRoutes(app, options) {
          where user_id = $1 and provider = 'email'`,
         [row.user_id],
       );
-      return true;
+      return row.user_id;
     });
-    if (!verified) return reply.code(400).send({ error: "invalid_or_expired_token" });
+    if (!userId) return reply.code(400).send({ error: "invalid_or_expired_token" });
+    const token = await createSession(db, userId, config.sessionTtlSeconds, {
+      ipAddress: request.ip,
+      userAgent: request.headers["user-agent"],
+    });
+    reply.header("set-cookie", sessionCookie(config.sessionCookie, token, config.sessionTtlSeconds, config.secureCookies));
     return { ok: true };
   });
 

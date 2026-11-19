@@ -59,10 +59,61 @@ const SIDEBAR_ID = "dashboard-sidebar";
 const PROFILE_MENU_ID = "dashboard-profile-menu";
 
 type NavItem = {
+  section: string;
   label: string;
   href: string;
   icon: NavIconName;
 };
+
+type SidebarSectionProps = {
+  title: string;
+  items: NavItem[];
+  activeHref: string | undefined;
+  initiallyOpen: boolean;
+  onNavigate: () => void;
+};
+
+function SidebarSection({ title, items, activeHref, initiallyOpen, onNavigate }: SidebarSectionProps) {
+  const [open, setOpen] = useState(initiallyOpen);
+
+  return (
+    <div className="border-t border-slate-800/70 pt-2 first:border-0 first:pt-0">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        className="flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+      >
+        <span>{title}</span>
+        <ChevronDown size={14} className={`transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="space-y-0.5 pb-2 pl-2">
+          {items.map((item) => {
+            const IconComponent = iconMap[item.icon];
+            const isActive = item.href === activeHref;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                aria-current={isActive ? "page" : undefined}
+                className={`flex min-h-11 items-center gap-2.5 rounded-lg px-3 text-[13px] font-medium leading-5 transition-colors ${
+                  isActive
+                    ? "bg-teal-600 text-white shadow-sm shadow-teal-600/10"
+                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                }`}
+              >
+                <IconComponent size={16} className="shrink-0" aria-hidden="true" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type Props = {
   userName: string;
@@ -84,6 +135,11 @@ export function DashboardShell({
   children 
 }: Props) {
   const pathname = usePathname();
+  const activeHref = navItems
+    .filter((item) => pathname === item.href || pathname.startsWith(item.href + "/"))
+    .sort((first, second) => second.href.length - first.href.length)[0]?.href;
+  const sections = Array.from(new Set(navItems.map((item) => item.section)));
+  const activeSection = navItems.find((item) => item.href === activeHref)?.section;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -175,8 +231,8 @@ export function DashboardShell({
       }`}>
         {/* Branding header */}
         <div className="flex h-16 items-center justify-between px-6 border-b border-slate-800 bg-slate-950">
-          <Link href="/" className="flex items-center gap-2 font-black tracking-wider text-teal-400">
-            <GraduationCap size={24} aria-hidden="true" />
+          <Link href="/" className="flex items-center gap-2 text-sm font-black tracking-wider text-teal-400">
+            <GraduationCap size={20} aria-hidden="true" />
             <span>UTERO ACADEMY</span>
           </Link>
           {/*
@@ -199,35 +255,20 @@ export function DashboardShell({
           pembaca layar hanya menampilkan "navigation" — tak ada petunjuk bahwa
           inilah navigasi utama dashboard.
         */}
-        <nav aria-label="Navigasi dashboard" className="flex-1 space-y-1 px-4 py-6 overflow-y-auto">
-          {navItems.map((item) => {
-            // Fallback `|| LayoutDashboard` DIHAPUS. Justru fallback itulah yang
-            // menyembunyikan M-7 selama ini: ikon yang tidak ada di peta tampil
-            // sebagai ikon dashboard, jadi kesalahannya tidak pernah terlihat
-            // sebagai kesalahan. Sekarang `item.icon` bertipe `NavIconName`,
-            // sehingga nama yang salah tertangkap `tsc` dan pencarian ini tidak
-            // bisa mengembalikan undefined.
-            const IconComponent = iconMap[item.icon];
-            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setSidebarOpen(false)}
-                // Status aktif sebelumnya hanya disampaikan lewat warna latar.
-                // `aria-current` membuatnya tersedia untuk pembaca layar juga.
-                aria-current={isActive ? "page" : undefined}
-                className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-bold transition-all ${
-                  isActive
-                    ? "bg-teal-600 text-white shadow-md shadow-teal-600/10"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                }`}
-              >
-                <IconComponent size={18} aria-hidden="true" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+        <nav aria-label="Navigasi dashboard" className="flex-1 overflow-y-auto px-3 py-5">
+          <p className="mb-3 px-3 text-[11px] font-bold uppercase tracking-[0.18em] text-teal-300">Main Menu</p>
+          <div className="space-y-1">
+            {sections.map((section) => (
+              <SidebarSection
+                key={`${section}-${activeSection}`}
+                title={section}
+                items={navItems.filter((item) => item.section === section)}
+                activeHref={activeHref}
+                initiallyOpen={section === (activeSection ?? sections[0])}
+                onNavigate={() => setSidebarOpen(false)}
+              />
+            ))}
+          </div>
         </nav>
 
         {/* Quick User summary in Sidebar bottom */}

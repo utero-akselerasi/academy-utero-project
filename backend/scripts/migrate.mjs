@@ -1,10 +1,29 @@
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import pg from "pg";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+export function migrationChecksum(sql) {
+  return createHash("sha256").update(sql, "utf8").digest("hex");
+}
+
+export function migrationChecksumCandidates(sql) {
+  const lf = sql.replace(/\r\n?/g, "\n");
+  const finalNewlineCrLf = lf.replace(/\n$/, "\r\n");
+  const trailingNewlinesCrLf = lf.replace(/\n+$/, (ending) => ending.replace(/\n/g, "\r\n"));
+  return new Set([
+    migrationChecksum(sql),
+    migrationChecksum(lf),
+    migrationChecksum(lf.replace(/\n/g, "\r\n")),
+    migrationChecksum(finalNewlineCrLf),
+    migrationChecksum(trailingNewlinesCrLf),
+  ]);
+}
+
+async function migrate() {
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL wajib diisi");
 const client = new pg.Client({ connectionString: databaseUrl });
@@ -23,10 +42,10 @@ try {
   for (const entry of entries) {
     const fullPath = entry.startsWith("supabase/") ? path.resolve(root, "..", entry) : path.join(root, "migrations", entry);
     const sql = await readFile(fullPath, "utf8");
-    const digest = createHash("sha256").update(sql).digest("hex");
+    const digest = migrationChecksum(sql);
     const tracked = await client.query("select sha256 from public.academy_backend_migrations where name = $1", [entry]);
     if (tracked.rows[0]) {
-      if (tracked.rows[0].sha256 !== digest) throw new Error(`Checksum migrasi berubah: ${entry}`);
+      if (!migrationChecksumCandidates(sql).has(tracked.rows[0].sha256)) throw new Error(`Checksum migrasi berubah: ${entry}`);
       continue;
     }
     await client.query("begin");
@@ -43,3 +62,6 @@ try {
 } finally {
   await client.end();
 }
+}
+
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) await migrate();

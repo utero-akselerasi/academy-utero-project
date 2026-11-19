@@ -326,8 +326,7 @@ services:
         aliases:
           - academy-utero
     ports:
-      - ${ACADEMY_HTTP_BIND_ADDRESS:-0.0.0.0}:${ACADEMY_HTTP_PORT:-80}:80
-      - ${ACADEMY_HTTPS_BIND_ADDRESS:-0.0.0.0}:${ACADEMY_HTTPS_PORT:-443}:443
+      - 127.0.0.1:${ACADEMY_HTTP_PORT:-9984}:80
     read_only: true
     restart: unless-stopped
     security_opt:
@@ -343,18 +342,6 @@ services:
         source: ./nginx.conf
         target: /etc/nginx/nginx.conf
         type: bind
-      - read_only: true
-        source: ${ACADEMY_TLS_CERT_DIR:?Set ACADEMY_TLS_CERT_DIR}
-        target: /etc/nginx/tls
-        type: bind
-        bind:
-          create_host_path: false
-      - read_only: true
-        source: ${ACADEMY_ACME_CHALLENGE_DIR:-./data/acme}
-        target: /var/www/acme
-        type: bind
-        bind:
-          create_host_path: true
   ops-health:
     build:
       context: .

@@ -152,3 +152,26 @@ export async function removeMentorAssignmentAction(formData: FormData) {
 
   revalidatePath("/dashboard/admin/penempatan");
 }
+
+export type ApplicationStatusActionState = { ok: boolean; message: string };
+
+export async function updateApplicationStatusFormAction(
+  _previousState: ApplicationStatusActionState,
+  formData: FormData,
+): Promise<ApplicationStatusActionState> {
+  await requireStaff();
+  try {
+    await updateApplicationStatusAction(formData);
+    return { ok: true, message: "Status pendaftaran berhasil diperbarui." };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("selection_not_passed") || message.includes("Peserta belum dinyatakan lolos seleksi")) {
+      return { ok: false, message: "Pelamar belum lolos seleksi. Selesaikan atau bypass seleksi sebelum menerima pelamar." };
+    }
+    if (message.includes("Tanggal magang resmi wajib valid")) {
+      return { ok: false, message: "Tanggal mulai dan selesai magang tidak valid." };
+    }
+    console.error("Gagal memperbarui status pendaftaran:", error);
+    return { ok: false, message: "Status belum berhasil disimpan. Coba lagi." };
+  }
+}

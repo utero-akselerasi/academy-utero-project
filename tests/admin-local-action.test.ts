@@ -18,7 +18,7 @@ vi.mock("@/features/admin/local", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
-import { updateApplicationStatusAction } from "@/features/admin/actions";
+import { updateApplicationStatusAction, updateApplicationStatusFormAction } from "@/features/admin/actions";
 
 describe("aksi status pendaftaran pada backend lokal", () => {
   it("tidak membuat client Supabase", async () => {
@@ -34,6 +34,23 @@ describe("aksi status pendaftaran pada backend lokal", () => {
     expect(mocks.createSupabaseClient).not.toHaveBeenCalled();
     expect(mocks.updateLocalApplication).toHaveBeenCalledWith("22222222-2222-4222-8222-222222222222", {
       status: "reviewed", startDate: undefined, endDate: undefined,
+    });
+  });
+});
+
+describe("aksi review ramah saat prasyarat seleksi belum terpenuhi", () => {
+  it("mengubah penolakan backend menjadi pesan form, bukan error server action", async () => {
+    mocks.requireAdmin.mockResolvedValue({ id: "11111111-1111-4111-8111-111111111111" });
+    mocks.updateLocalApplication.mockRejectedValue(new Error("selection_not_passed"));
+    const form = new FormData();
+    form.set("id", "22222222-2222-4222-8222-222222222222");
+    form.set("status", "accepted");
+    form.set("startDate", "2026-11-01");
+    form.set("endDate", "2027-01-01");
+
+    await expect(updateApplicationStatusFormAction({ ok: false, message: "" }, form)).resolves.toEqual({
+      ok: false,
+      message: "Pelamar belum lolos seleksi. Selesaikan atau bypass seleksi sebelum menerima pelamar.",
     });
   });
 });

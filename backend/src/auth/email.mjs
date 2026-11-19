@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import nodemailer from "nodemailer";
+import { verificationEmailContent } from "./verification-email.mjs";
 
 export const TOKEN_TTL_SECONDS = 60 * 60;
 export const RESEND_INTERVAL_SECONDS = 60;
@@ -36,11 +37,12 @@ export async function sendVerificationEmail(config, email, token) {
   try {
     const url = new URL("/register/verify", config.publicAppUrl);
     url.searchParams.set("token", token);
+    const content = verificationEmailContent(url.toString());
     await transport.sendMail({
       from: config.smtp.from,
       to: email,
-      subject: "Verifikasi email akun Utero Academy",
-      text: `Buka tautan ini untuk verifikasi email (berlaku 1 jam): ${url.toString()}\nJika tidak mendaftar, abaikan pesan ini.`,
+      subject: "Verifikasi email Anda | Utero Academy",
+      ...content,
       disableFileAccess: true,
       disableUrlAccess: true,
     });

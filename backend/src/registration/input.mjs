@@ -14,6 +14,7 @@ export function parseRegistration(body) {
     value[key] = body[key].trim();
     if (value[key].length < minimum || value[key].length > maximum) return null;
   }
+  if (!/^62[0-9]{8,13}$/.test(value.phone)) return null;
   if (!validId(body.programId)) return null;
   for (const key of ["proposedStartDate", "proposedEndDate"]) {
     if (typeof body[key] !== "string" || !date.test(body[key]) || Number.isNaN(Date.parse(`${body[key]}T00:00:00Z`)) || new Date(`${body[key]}T00:00:00Z`).toISOString().slice(0, 10) !== body[key]) return null;

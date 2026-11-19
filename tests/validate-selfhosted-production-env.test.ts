@@ -20,12 +20,8 @@ const compose = `services:
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "academy-production-env-"));
-  const tls = join(root, "tls");
   const storage = join(root, "storage-export");
-  mkdirSync(tls);
   mkdirSync(storage);
-  writeFileSync(join(tls, "fullchain.pem"), "certificate");
-  writeFileSync(join(tls, "privkey.pem"), "private-key");
   const env = {
     ACADEMY_POSTGRES_PASSWORD: "prod-postgres-2Yx!9mQ#7Vk",
     ACADEMY_API_PASSWORD: "prod-api-W8q!4Ns#6Jt",
@@ -40,7 +36,6 @@ function fixture() {
     SMTP_USER: "academy@utero.id",
     SMTP_PASSWORD: "smtp-prod-B5n!8Fx#4Qa",
     SMTP_FROM: "Utero Academy <academy@utero.id>",
-    ACADEMY_TLS_CERT_DIR: tls,
     SOURCE_DATABASE_URL: "postgresql://reader:source-secret@source-db:5432/postgres",
     STORAGE_IMPORT_SOURCE: storage,
   };
@@ -54,7 +49,7 @@ describe("validate self-hosted production environment", () => {
       const result = await validateSelfhostedProductionEnv(env, { composeText: compose });
       expect(result.ready).toBe(true);
       expect(JSON.stringify(result)).not.toContain(env.ACADEMY_POSTGRES_PASSWORD);
-      expect(result.checks).toContain("tls-files");
+      expect(result.checks).not.toContain("tls-files");
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
@@ -93,7 +88,6 @@ describe("validate self-hosted production environment", () => {
       await expect(validateSelfhostedProductionEnv({ ...env, SMTP_PASSWORD: "CHANGE_ME" }, { composeText: compose })).rejects.toThrow("Placeholder");
       await expect(validateSelfhostedProductionEnv({ ...env, SMTP_PORT: "70000" }, { composeText: compose })).rejects.toThrow("SMTP_PORT");
       await expect(validateSelfhostedProductionEnv({ ...env, ACADEMY_STORAGE_SIGNING_SECRET: "short" }, { composeText: compose })).rejects.toThrow("32 byte");
-      await expect(validateSelfhostedProductionEnv({ ...env, ACADEMY_TLS_CERT_DIR: join(root, "missing") }, { composeText: compose })).rejects.toThrow("File TLS tidak ditemukan");
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 

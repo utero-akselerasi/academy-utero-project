@@ -5,6 +5,20 @@ function admin(request, reply, permission) {
   return requireRolePermission(request, reply, ["admin", "super_admin"], [permission]);
 }
 
+function programFields(body) {
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  const sourceSlug = typeof body?.slug === "string" && body.slug.trim()
+    ? body.slug.trim()
+    : name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  const slug = sourceSlug.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const description = typeof body?.description === "string" ? body.description.trim() : "";
+  const type = typeof body?.type === "string" ? body.type.trim() : "internship";
+  const status = body?.status ?? "draft";
+  if (name.length < 3 || name.length > 150 || !slug || slug.length > 180 || description.length > 5000
+    || !type || type.length > 80 || !["draft", "published", "archived"].includes(status)) return null;
+  return { name, slug, description: description || null, type, status };
+}
+
 export async function adminRoutes(app, { db }) {
   app.get("/v1/admin/dashboard", async (request, reply) => {
     const identity = admin(request, reply, "interns.read");
@@ -49,6 +63,63 @@ export async function adminRoutes(app, { db }) {
     });
   });
 
+  app.get("/v1/admin/programs", async (request, reply) => {
+    const identity = admin(request, reply, "programs.manage");
+    if (!identity) return;
+    return db.transaction(identity, async (client) => ({
+      programs: (await client.query("select id,name,slug,description,type,status,created_at,updated_at from utero_academy.programs order by updated_at desc, name")).rows,
+    }));
+  });
+
+  app.post("/v1/admin/programs", async (request, reply) => {
+    const identity = admin(request, reply, "programs.manage");
+    if (!identity) return;
+    const program = programFields(request.body);
+    if (!program) return reply.code(400).send({ error: "invalid_program" });
+    try {
+      const result = await db.transaction(identity, async (client) => {
+        const created = (await client.query(
+          "insert into utero_academy.programs(name,slug,description,type,status) values($1,$2,$3,$4,$5) returning id,name,slug,description,type,status,created_at,updated_at",
+          [program.name, program.slug, program.description, program.type, program.status],
+        )).rows[0];
+        await client.query("select utero_academy.append_audit_log($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb)", [
+          "create_program", "programs", created.id, null, JSON.stringify(program), "{}",
+        ]);
+        return created;
+      });
+      return reply.code(201).send({ program: result });
+    } catch (error) {
+      if (error?.code === "23505") return reply.code(409).send({ error: "program_slug_taken" });
+      throw error;
+    }
+  });
+
+  app.patch("/v1/admin/programs/:id", async (request, reply) => {
+    const identity = admin(request, reply, "programs.manage");
+    if (!identity) return;
+    if (!UUID.test(request.params.id || "")) return reply.code(400).send({ error: "invalid_id" });
+    const program = programFields(request.body);
+    if (!program) return reply.code(400).send({ error: "invalid_program" });
+    try {
+      const result = await db.transaction(identity, async (client) => {
+        const updated = (await client.query(
+          "update utero_academy.programs set name=$2,slug=$3,description=$4,type=$5,status=$6 where id=$1 returning id,name,slug,description,type,status,created_at,updated_at",
+          [request.params.id, program.name, program.slug, program.description, program.type, program.status],
+        )).rows[0];
+        if (!updated) return null;
+        await client.query("select utero_academy.append_audit_log($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb)", [
+          "update_program", "programs", updated.id, null, JSON.stringify(program), "{}",
+        ]);
+        return updated;
+      });
+      if (!result) return reply.code(404).send({ error: "program_not_found" });
+      return { program: result };
+    } catch (error) {
+      if (error?.code === "23505") return reply.code(409).send({ error: "program_slug_taken" });
+      throw error;
+    }
+  });
+
   app.get("/v1/admin/applications", async (request, reply) => {
     const identity = admin(request, reply, "applications.read");
     if (!identity) return;
@@ -63,17 +134,24 @@ export async function adminRoutes(app, { db }) {
     if (!UUID.test(request.params.id || "")) return reply.code(400).send({ error: "invalid_id" });
     const { status, startDate, endDate } = request.body || {};
     if (!["reviewed", "accepted", "rejected", "cancelled"].includes(status)) return reply.code(400).send({ error: "invalid_status" });
-    return db.transaction(identity, async (client) => {
-      if (status === "accepted") {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate || "") || !/^\d{4}-\d{2}-\d{2}$/.test(endDate || "") || endDate < startDate) return reply.code(400).send({ error: "invalid_dates" });
-        const result = await client.query("select utero_academy.accept_application_as_intern($1,$2,$3) id", [request.params.id, startDate, endDate]);
-        return { id: result.rows[0].id };
+    try {
+      return await db.transaction(identity, async (client) => {
+        if (status === "accepted") {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate || "") || !/^\d{4}-\d{2}-\d{2}$/.test(endDate || "") || endDate < startDate) return reply.code(400).send({ error: "invalid_dates" });
+          const result = await client.query("select utero_academy.accept_application_as_intern($1,$2,$3) id", [request.params.id, startDate, endDate]);
+          return { id: result.rows[0].id };
+        }
+        const result = await client.query("select utero_academy.review_application($1,$2) id", [request.params.id, status]);
+        if (!result.rows[0]?.id) return reply.code(404).send({ error: "application_not_found" });
+        await client.query("select utero_academy.append_audit_log($1,$2,$3,$4,$5,$6)", ["update_application_status", "internship_applications", request.params.id, null, JSON.stringify({ status }), "{}"]);
+        return { id: request.params.id };
+      });
+    } catch (error) {
+      if (status === "accepted" && error?.code === "P0001" && error.message === "Peserta belum dinyatakan lolos seleksi") {
+        return reply.code(409).send({ error: "selection_not_passed" });
       }
-      const result = await client.query("select utero_academy.review_application($1,$2) id", [request.params.id, status]);
-      if (!result.rows[0]?.id) return reply.code(404).send({ error: "application_not_found" });
-      await client.query("select utero_academy.append_audit_log($1,$2,$3,$4,$5,$6)", ["update_application_status", "internship_applications", request.params.id, null, JSON.stringify({ status }), "{}"]);
-      return { id: request.params.id };
-    });
+      throw error;
+    }
   });
 
   app.post("/v1/admin/applications/:id/approve-onboarding", async (request, reply) => {

@@ -8,7 +8,7 @@ Stack Docker hanya memakai `compose.yaml` dengan nilai dari `.env` di root repo.
 
 ## Catatan implementasi historis (bukan langkah cutover aktif)
 
-**Production masih NO-GO** sampai readiness gate, TLS, UAT, backup/restore, dan approval operator lulus.
+**Production masih NO-GO** sampai readiness gate, HTTPS publik via Cloudflare Tunnel, UAT, backup/restore, dan approval operator lulus.
 
 ## Jalankan stack baru
 
@@ -22,7 +22,7 @@ Untuk menjalankan web, API, PostgreSQL, nginx, dan storage lokal sebagai satu st
 
 `docker compose --env-file .env -f compose.yaml up -d --build`
 
-Web uji lokal tersedia pada `http://127.0.0.1:${ACADEMY_HTTP_PORT:-9984}`. `compose.yaml` hanya memuat konfigurasi production TLS; URL HTTPS kanonis, sertifikat valid, dan `ACADEMY_SECURE_COOKIES=true` wajib sebelum deploy.
+Web uji lokal tersedia pada `http://127.0.0.1:${ACADEMY_HTTP_PORT:-9984}`. Cloudflare Tunnel meneruskan trafik publik ke origin HTTP ini; URL publik tetap HTTPS kanonis dan `ACADEMY_SECURE_COOKIES=true` wajib sebelum deploy.
 
 Setelah akun uji lima role diisi pada `.env`, jalankan gerbang login dan endpoint dasar:
 
