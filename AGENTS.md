@@ -8,3 +8,7 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
 
 If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
 <!-- CODEGRAPH_END -->
+
+## Architecture
+
+- Academy runtime uses the self-hosted backend. Do not add new Supabase code paths; migrate remaining Academy features to backend APIs.

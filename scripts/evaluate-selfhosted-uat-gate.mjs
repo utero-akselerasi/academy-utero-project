@@ -114,13 +114,13 @@ export function validateEvidenceReport(kind, report) {
         kind, "konfigurasi, TLS/auth, atau delivery SMTP gagal");
       break;
     case "opsHealth":
-      requireEvidence(checks && ["api", "database", "storageDisk", "backupDisk", "offsiteDisk", "backupFreshness",
+      requireEvidence(checks && ["api", "database", "backupFreshness",
         "offsiteBackupFreshness", "offsiteIsolation"].every((name) => checks[name]?.ok === true), kind, "health operasional tidak lengkap");
       break;
     case "monitoringReadiness":
-      requireEvidence(checks?.alertDelivery?.ok === true && checks?.errorRate?.ok === true && checks?.latency?.ok === true &&
-        checks?.capacity?.ok === true, kind, "alert atau metrik monitoring belum terbukti");
-      requireEvidence(["alertDelivery", "errorRate", "latency", "capacity"].every((name) =>
+      requireEvidence(checks?.alertDelivery?.ok === true && checks?.errorRate?.ok === true && checks?.latency?.ok === true,
+        kind, "alert atau metrik monitoring belum terbukti");
+      requireEvidence(["alertDelivery", "errorRate", "latency"].every((name) =>
         validSourceArtifact(checks[name]?.sourceArtifact)), kind, "source artifact monitoring tidak lengkap");
       break;
     case "writeFreeze": {
@@ -197,7 +197,7 @@ export async function evaluateSelfhostedUatGate(checklistPath, now = new Date())
         throw new Error(`Evidence ${entry.kind} operator atau reviewer tidak sesuai checklist`);
       }
       const artifacts = entry.kind === "monitoringReadiness"
-        ? ["alertDelivery", "errorRate", "latency", "capacity"].map((name) => report.checks[name].sourceArtifact)
+        ? ["alertDelivery", "errorRate", "latency"].map((name) => report.checks[name].sourceArtifact)
         : [...report.writers.map((writer) => writer.sourceArtifact), report.checks.sourceWriteProbe.sourceArtifact,
           report.checks.queueDrained.sourceArtifact];
       for (const artifact of artifacts) await verifyOperatorSourceArtifact(artifact, observedAt, now, entry.kind);

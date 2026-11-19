@@ -181,6 +181,33 @@ export async function uploadLessonAttachmentAction(formData: FormData) {
     throw new Error("Berkas materi tidak dapat diproses.");
   }
 
+  if (usesLocalBackend()) {
+    const filePath = buildStoragePath(`lessons/${lessonId}`, attachment.ext);
+    const upload = new FormData();
+    upload.set("file", new Blob([new Uint8Array(attachment.buffer)], { type: attachment.contentType }), attachment.displayName);
+    const stored = await backendRequest("/v1/storage/learning", {
+      method: "POST",
+      headers: { "x-object-path": filePath },
+      body: upload,
+    });
+    if (!stored.ok) throw new Error("Gagal mengunggah file.");
+    try {
+      await localLms(`/v1/lms/lessons/${lessonId}/attachments`, "POST", {
+        id: crypto.randomUUID(),
+        name: attachment.displayName,
+        path: filePath,
+        size: attachment.size,
+        type: attachment.contentType,
+      });
+    } catch (error) {
+      await backendRequest(`/v1/storage/learning/${filePath.split("/").map(encodeURIComponent).join("/")}`, { method: "DELETE" });
+      throw error;
+    }
+    revalidatePath("/dashboard/mentor/lms/" + courseId);
+    revalidatePath("/dashboard/intern/lms/" + courseId + "/lessons/" + lessonId);
+    return;
+  }
+
   const supabase = createSupabaseServiceRoleClient();
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -261,6 +288,18 @@ export async function deleteLessonAttachmentAction(formData: FormData) {
   const attachmentId = formData.get("attachmentId") as string;
 
   if (!lessonId || !attachmentId) throw new Error("Lesson ID dan Attachment ID wajib diisi.");
+
+  if (usesLocalBackend()) {
+    const response = await localLms(`/v1/lms/lessons/${lessonId}/attachments/${attachmentId}`, "DELETE");
+    const result = await response.json() as { path?: string };
+    if (result.path) {
+      const removed = await backendRequest(`/v1/storage/learning/${result.path.split("/").map(encodeURIComponent).join("/")}`, { method: "DELETE" });
+      if (!removed.ok && removed.status !== 404) throw new Error("Metadata terhapus, tetapi file attachment gagal dibersihkan.");
+    }
+    revalidatePath("/dashboard/mentor/lms/" + courseId);
+    revalidatePath("/dashboard/intern/lms/" + courseId + "/lessons/" + lessonId);
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -531,6 +570,12 @@ export async function toggleQuizPublishAction(formData: FormData) {
   const isPublished = formData.get("isPublished") === "true";
 
   if (!quizId) throw new Error("Quiz ID tidak valid.");
+
+  if (usesLocalBackend()) {
+    await localLms(`/v1/lms/quizzes/${quizId}/publish`, "PATCH", { isPublished });
+    revalidatePath("/dashboard/mentor/lms/" + courseId);
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -939,6 +984,17 @@ export async function createQuizAction(formData: FormData) {
   const questions = normalkanPertanyaan(mentah);
 
   const nilaiKelulusan = uraikanNilaiKelulusan(passingScore);
+
+  if (usesLocalBackend()) {
+    await localLms(`/v1/lms/courses/${courseId}/quizzes`, "POST", {
+      title,
+      questions,
+      passingScore: nilaiKelulusan,
+      timeLimitMinutes: timeLimitMinutes ? parseInt(timeLimitMinutes) : null,
+    });
+    revalidatePath("/dashboard/mentor/lms/" + courseId);
+    return;
+  }
 
   const db = await createUteroAcademyServiceRoleClient();
 

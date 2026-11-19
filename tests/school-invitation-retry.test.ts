@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  requireSchool: vi.fn(), listUsers: vi.fn(), invite: vi.fn(), from: vi.fn(), redirect: vi.fn(), revalidate: vi.fn(),
+  requireSchool: vi.fn(), listUsers: vi.fn(), invite: vi.fn(), from: vi.fn(), redirect: vi.fn(), revalidate: vi.fn(), schoolBackend: vi.fn(), localMode: false,
 }));
 
 vi.mock("@/features/school-applications/queries", () => ({ requireActiveSchoolPartner: mocks.requireSchool }));
@@ -11,6 +11,8 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
+vi.mock("@/features/school/local", () => ({ schoolBackend: mocks.schoolBackend }));
+vi.mock("@/lib/backend/mode", () => ({ usesLocalBackend: () => mocks.localMode }));
 
 const { retryApplicantInvitationAction } = await import("../features/school-applications/actions") as {
   retryApplicantInvitationAction(formData: FormData): Promise<void>;
@@ -50,8 +52,19 @@ function setup(application: { id: string; email: string; full_name: string; sour
 describe("retryApplicantInvitationAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.localMode = false;
     mocks.requireSchool.mockResolvedValue({ school: { id: "school-1" }, userId: "school-user" });
     mocks.listUsers.mockResolvedValue({ data: { users: [] }, error: null });
+  });
+
+  it("mode lokal mengirim ulang undangan tanpa membuka client Supabase", async () => {
+    mocks.localMode = true;
+    mocks.schoolBackend.mockResolvedValue({ ok: true });
+    await retryApplicantInvitationAction(form());
+    expect(mocks.schoolBackend).toHaveBeenCalledWith("/applications/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/invite", { method: "POST" });
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.redirect).toHaveBeenCalledTimes(1);
+    expect(mocks.redirect).toHaveBeenCalledWith("/dashboard/school/applications?invite=sent");
   });
 
   it("menolak ID invalid sebelum akses privileged", async () => {

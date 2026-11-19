@@ -4,14 +4,14 @@ Validator ini memeriksa konfigurasi lokal sebelum stack production dijalankan. I
 
 ## Menjalankan
 
-Gunakan env operator di luar repository dan berikan path absolut:
+Gunakan satu file root `.env` dan berikan path absolut kepada validator:
 
 ```powershell
-node scripts/validate-selfhosted-production-env.mjs --env-file C:\secure\academy-production.env
+node scripts/validate-selfhosted-production-env.mjs --env-file (Resolve-Path .env).Path
 ```
 
 ```bash
-node scripts/validate-selfhosted-production-env.mjs --env-file /etc/academy/production.env
+node scripts/validate-selfhosted-production-env.mjs --env-file "$(realpath .env)"
 ```
 
 Exit code `0` menghasilkan JSON ringkas dengan `ready: true` dan nama kelompok pemeriksaan. Kesalahan apa pun menghasilkan exit code nonzero. Output gagal hanya menyebut nama variabel atau jenis pemeriksaan, bukan nilainya.
@@ -20,7 +20,7 @@ Exit code `0` menghasilkan JSON ringkas dengan `ready: true` dan nama kelompok p
 
 - Semua konfigurasi runtime inti wajib terisi dan tidak boleh memakai placeholder atau fixture yang dikenal.
 - `NEXT_PUBLIC_APP_URL` dan `PUBLIC_APP_URL` wajib berupa origin HTTPS kanonis yang identik, tanpa kredensial, path, query, fragment, atau trailing slash.
-- `ACADEMY_SECURE_COOKIES=true`; `docker-compose.production.yml` juga wajib memaksa `ACADEMY_SECURE_COOKIES: "true"` pada web dan `SECURE_COOKIES: "true"` pada API.
+- `ACADEMY_SECURE_COOKIES=true`; `compose.yaml` juga wajib memaksa `ACADEMY_SECURE_COOKIES: "true"` pada web dan `SECURE_COOKIES: "true"` pada API.
 - URL migrasi dan API wajib menunjuk database target yang sama dengan user terpisah. Password pada URL wajib cocok dengan variabel password terkait.
 - `SOURCE_DATABASE_URL` optional sebelum cutover. Bila terisi, URL harus valid dan tidak boleh menunjuk host, port, serta database target yang sama.
 - SMTP host, port, user, password, dan alamat pengirim wajib valid secara struktural. Validator tidak mencoba mengirim email.
@@ -28,7 +28,7 @@ Exit code `0` menghasilkan JSON ringkas dengan `ready: true` dan nama kelompok p
 - `ACADEMY_TLS_CERT_DIR` wajib absolut dan memuat `fullchain.pem` serta `privkey.pem` nonkosong.
 - `STORAGE_IMPORT_SOURCE` optional sebelum cutover. Bila terisi, path wajib absolut dan menunjuk direktori yang ada.
 
-Template `docker-compose.production.env.example` hanya referensi nama variabel. Jangan menaruh env production nyata di repository atau meneruskannya melalui argumen command line selain path file.
+Template `.env.example` hanya referensi nama variabel. Jangan menaruh env production nyata di repository atau meneruskannya melalui argumen command line selain path file.
 
 ## Batasan
 

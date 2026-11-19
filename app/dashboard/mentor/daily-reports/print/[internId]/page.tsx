@@ -4,7 +4,7 @@ import { AutoPrint } from "@/features/shared/AutoPrint";
 import { requireAdmin } from "@/features/auth/guards";
 import { resolveStaffInternScope } from "@/features/auth/scope";
 import { usesLocalBackend } from "@/lib/backend/mode";
-import { localInternForPrint, localReports } from "@/features/daily-reports/local";
+import { localInternForPrint } from "@/features/daily-reports/local";
 import { notFound } from "next/navigation";
 
 type Props = {
@@ -46,9 +46,14 @@ export default async function PrintDailyReportPage({ params, searchParams }: Pro
   const schoolName = schoolObj?.name || "-";
 
   // 2. Fetch reports
-  const reports = localMode
-    ? await localReports(internId)
-    : (await getInternDailyReports(internId)).data;
+  const reports = [];
+  const batchSize = 100;
+  for (let page = 1; ; page++) {
+    const { data, error } = await getInternDailyReports(internId, { page, limit: batchSize });
+    if (error) throw error;
+    reports.push(...data);
+    if (data.length < batchSize) break;
+  }
 
   // 3. Filter reports by time
   const filteredReports = reports.filter(r => {

@@ -11,16 +11,6 @@
  * mengizinkan satu di antara proxy.ts dan middleware.ts.
  */
 
-function supabaseOrigin(): string {
-  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!raw) return "";
-  try {
-    return new URL(raw).origin;
-  } catch {
-    return "";
-  }
-}
-
 export function buildContentSecurityPolicy(nonce: string, isDev: boolean): string {
   const directives: string[] = [
     "default-src 'self'",
@@ -32,11 +22,11 @@ export function buildContentSecurityPolicy(nonce: string, isDev: boolean): strin
     // cetak memakai blok @media print inline. Pelonggaran dibatasi ke style
     // saja - style-src tidak bisa mengeksekusi kode.
     "style-src 'self' 'unsafe-inline'",
-    // Gambar bisa dari storage Supabase, cover artikel CMS di host lain, serta
+    // Gambar bisa dari storage lokal, cover artikel CMS di host lain, serta
     // data:/blob: untuk pratinjau unggahan sebelum terkirim.
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    ["connect-src 'self'", supabaseOrigin(), isDev ? "ws: wss:" : ""].filter(Boolean).join(" "),
+    ["connect-src 'self'", isDev ? "ws: wss:" : ""].filter(Boolean).join(" "),
     // Peta OpenStreetMap (kontak & review absensi), video materi YouTube, dan
     // pratinjau PDF dari origin sendiri atau blob.
     "frame-src 'self' blob: https://www.openstreetmap.org https://www.youtube.com https://www.youtube-nocookie.com",

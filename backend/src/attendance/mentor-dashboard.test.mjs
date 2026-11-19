@@ -44,6 +44,9 @@ test("mentor dashboard membatasi intern, absensi, dan izin ke assignment", async
     const scopedReads = calls.filter((entry) => entry.sql.includes("any($1::uuid[])"));
     assert.equal(scopedReads.length, 3);
     for (const entry of scopedReads) assert.deepEqual(entry.values, [[assignedIntern]]);
+    const attendanceRead = calls.find((entry) => entry.sql.includes("from utero_academy.attendances"));
+    assert.ok(attendanceRead.sql.includes("select a.*, a.attendance_date::text as attendance_date"));
+    assert.match(attendanceRead.sql, /order by a.attendance_date desc/);
     assert.equal(calls.some((entry) => entry.values?.includes(otherIntern)), false);
   } finally { await app.close(); }
 });

@@ -1,15 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "*.supabase.co",
-        pathname: "/storage/v1/object/public/**",
-      },
-    ],
-  },
   allowedDevOrigins: [
     "localhost",
     "localhost:3002",
@@ -29,9 +20,9 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: "500mb",
+      bodySizeLimit: "128mb",
     },
-    proxyClientMaxBodySize: "500mb",
+    proxyClientMaxBodySize: "128mb",
   },
 };
 

@@ -78,28 +78,67 @@ export async function getMentorProfileId(userId: string): Promise<string | null>
   return data?.id ?? null;
 }
 
-export async function getInternDailyReports(internProfileId: string) {
-  if (usesLocalBackend()) return { data: await localReports(internProfileId) as DailyReportWithDetails[], error: null };
+type ReportListOptions = { page?: number; status?: string; limit?: number };
+
+export async function getInternDailyReports(internProfileId: string, options: ReportListOptions = {}) {
+  if (usesLocalBackend()) return { data: await localReports(internProfileId, options) as DailyReportWithDetails[], error: null };
   const db = await createUteroAcademyServiceRoleClient();
-  const { data, error } = await db
+  let query = db
     .from("daily_reports")
-    .select("id, intern_id, report_date, today_work, progress, blockers, tomorrow_plan, status, created_at, updated_at, daily_report_attachments(id, report_id, file_path, file_name, mime_type, size_bytes, created_at)")
+    .select("id, intern_id, report_date, today_work, progress, blockers, tomorrow_plan, status, created_at, updated_at")
     .eq("intern_id", internProfileId)
-    .order("report_date", { ascending: false })
-    .returns<DailyReportWithDetails[]>();
+    .order("report_date", { ascending: false });
+
+  if (options.status && options.status !== "all") query = query.eq("status", options.status);
+  if (options.limit) {
+    const page = Math.max(1, options.page ?? 1);
+    query = query.range((page - 1) * options.limit, page * options.limit - 1);
+  }
+  const { data, error } = await query.returns<DailyReport[]>();
 
   if (error || !data) {
     return { data: [], error };
   }
 
-  const withSignedAttachments = await Promise.all(
-    data.map(async (report) => ({
-      ...report,
-      daily_report_attachments: await signAttachments(report.daily_report_attachments),
-    })),
-  );
+  return { data: data.map((report) => ({ ...report, daily_report_attachments: [] })) as DailyReportWithDetails[], error };
+}
 
-  return { data: withSignedAttachments, error };
+export async function getDailyReportDetail(reportId: string, internProfileId: string) {
+  if (usesLocalBackend()) {
+    const reports = await localReports(internProfileId, { reportId, includeAttachments: true });
+    return reports.find((report) => report.id === reportId) ?? null;
+  }
+  const db = await createUteroAcademyServiceRoleClient();
+  const { data, error } = await db.from("daily_reports")
+    .select("id, intern_id, report_date, today_work, progress, blockers, tomorrow_plan, status, created_at, updated_at, daily_report_attachments(id, report_id, file_path, file_name, mime_type, size_bytes, created_at)")
+    .eq("id", reportId).eq("intern_id", internProfileId).maybeSingle<DailyReportWithDetails>();
+  if (error || !data) return null;
+  return { ...data, daily_report_attachments: await signAttachments(data.daily_report_attachments) };
+}
+
+export async function getStaffDailyReportDetail(reportId: string, allowedInternIds: string[] | null) {
+  if (usesLocalBackend()) {
+    const reports = await localReports(null, { reportId, includeAttachments: true });
+    return reports.find((report) => report.id === reportId) ?? null;
+  }
+  const db = await createUteroAcademyServiceRoleClient();
+  let query = db.from("daily_reports")
+    .select("id, intern_id, report_date, today_work, progress, blockers, tomorrow_plan, status, created_at, updated_at, daily_report_attachments(id, report_id, file_path, file_name, mime_type, size_bytes, created_at), intern_profiles(id, user_id, full_name)")
+    .eq("id", reportId);
+  if (allowedInternIds !== null) query = query.in("intern_id", allowedInternIds);
+  const { data, error } = await query.maybeSingle<any>();
+  if (error || !data) return null;
+  const internProfile = Array.isArray(data.intern_profiles) ? data.intern_profiles[0] : data.intern_profiles;
+  const { data: userProfile } = internProfile ? await db.from("user_profiles").select("full_name").eq("id", internProfile.user_id).maybeSingle() : { data: null };
+  return {
+    ...data,
+    daily_report_attachments: await signAttachments(data.daily_report_attachments),
+    intern_profiles: internProfile ? {
+      id: internProfile.id,
+      user_id: internProfile.user_id,
+      user_profiles: { full_name: userProfile?.full_name || internProfile.full_name || "Peserta" },
+    } : null,
+  } as DailyReportWithIntern;
 }
 
 /**
@@ -111,53 +150,39 @@ export async function getInternDailyReports(internProfileId: string) {
  * bimbingannya padahal aksi review-nya sendiri sudah dibatasi
  * resolveStaffInternScope. Bacaan dan tulisan sekarang memakai scope yang sama.
  */
-export async function getMentorDailyReports(allowedInternIds: string[] | null) {
+export async function getMentorDailyReports(allowedInternIds: string[] | null, page = 1, limit = 50) {
   if (usesLocalBackend()) {
-    const reports = await localReports();
-    return { data: allowedInternIds === null ? reports : reports.filter((report) => allowedInternIds.includes(report.intern_id)), error: null };
+    if (allowedInternIds !== null && allowedInternIds.length === 0) return { data: [], error: null };
+    return { data: await localReports(null, { page, limit, internIds: allowedInternIds ?? undefined }), error: null };
   }
   const db = await createUteroAcademyServiceRoleClient();
 
-  let internIds: string[];
-
-  if (allowedInternIds === null) {
-    const { data: activeInterns } = await db
-      .from("intern_profiles")
-      .select("id")
-      .eq("status", "active");
-
-    internIds = (activeInterns || []).map(i => i.id);
-  } else {
-    internIds = allowedInternIds;
-  }
-
-  if (internIds.length === 0) {
+  if (allowedInternIds?.length === 0) {
     return { data: [], error: null };
   }
 
-  const { data: reports, error } = await db
+  let query = db
     .from("daily_reports")
-    .select("id, intern_id, report_date, today_work, progress, blockers, tomorrow_plan, status, created_at, updated_at, daily_report_attachments(id, report_id, file_path, file_name, mime_type, size_bytes, created_at), intern_profiles(id, user_id, full_name)")
-    .in("intern_id", internIds)
+    .select("id, intern_id, report_date, today_work, progress, blockers, tomorrow_plan, status, created_at, updated_at, intern_profiles!inner(id, user_id, full_name, status)")
     .order("report_date", { ascending: false })
-    .returns<any[]>();
+    .order("id", { ascending: false })
+    .range((page - 1) * limit, page * limit - 1);
+  query = allowedInternIds === null
+    ? query.eq("intern_profiles.status", "active")
+    : query.in("intern_id", allowedInternIds);
+  const { data: reports, error } = await query.returns<any[]>();
 
   if (error || !reports) {
     return { data: [], error };
   }
 
-  const { data: userProfiles } = await db
-    .from("user_profiles")
-    .select("id, full_name");
-
-  const profilesMap = new Map();
-  if (userProfiles) {
-    userProfiles.forEach((p) => profilesMap.set(p.id, p));
-  }
-
-  // `Promise.all` atas `map` asinkron, bukan `.map()` biasa: lampiran harus
-  // ditandatangani di sini, dan `.map()` sinkron tidak bisa menunggu.
-  const mappedReports = await Promise.all(reports.map(async (report) => {
+  const userIds = [...new Set(reports.map((report) => {
+    const profile = Array.isArray(report.intern_profiles) ? report.intern_profiles[0] : report.intern_profiles;
+    return profile?.user_id as string | undefined;
+  }).filter((id): id is string => !!id))];
+  const { data: userProfiles } = userIds.length ? await db.from("user_profiles").select("id, full_name").in("id", userIds) : { data: [] };
+  const profilesMap = new Map((userProfiles ?? []).map((profile) => [profile.id, profile]));
+  const mappedReports = reports.map((report) => {
     const ip = report.intern_profiles;
     const internProfileArray = Array.isArray(ip) ? ip[0] : ip;
 
@@ -171,14 +196,14 @@ export async function getMentorDailyReports(allowedInternIds: string[] | null) {
 
     return {
       ...report,
-      daily_report_attachments: await signAttachments(report.daily_report_attachments),
+      daily_report_attachments: [],
       intern_profiles: internProfileArray ? {
         id: internProfileArray.id,
         user_id: internProfileArray.user_id,
         user_profiles: userProfilesData
       } : null
     };
-  }));
+  });
 
   return { data: mappedReports as DailyReportWithIntern[], error: null };
 }

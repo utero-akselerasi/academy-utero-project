@@ -11,6 +11,8 @@ export function validDate(value) {
 }
 
 export function parseCoordinates(body) {
+  if (typeof body?.latitude === "string" && !body.latitude.trim()) return null;
+  if (typeof body?.longitude === "string" && !body.longitude.trim()) return null;
   const latitude = Number(body?.latitude);
   const longitude = Number(body?.longitude);
   if (body?.latitude === null || body?.latitude === undefined || body?.longitude === null || body?.longitude === undefined) return null;

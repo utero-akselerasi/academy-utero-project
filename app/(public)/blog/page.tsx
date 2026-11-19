@@ -1,5 +1,5 @@
 import { getCmsData } from "@/features/cms/queries";
-import { artikelApiConfigured, getArtikelArticles, getLocalCmsArticles } from "@/lib/artikel/api";
+import { artikelApiSelected, getArtikelArticles, getLocalCmsArticles } from "@/lib/artikel/api";
 import { usesLocalBackend } from "@/lib/backend/server";
 import { Newspaper, ArrowRight, Calendar } from "lucide-react";
 import Link from "next/link";
@@ -19,13 +19,13 @@ export default async function BlogListPage({ searchParams }: { searchParams: Pro
   let loadFailed = false;
 
   try {
-    if (usesLocalBackend()) {
-      const result = await getLocalCmsArticles({ page, limit });
+    if (artikelApiSelected()) {
+      const result = await getArtikelArticles({ category: query.category, page, limit });
       articles = result.articles;
       total = result.meta.total;
       limit = result.meta.limit;
-    } else if (artikelApiConfigured()) {
-      const result = await getArtikelArticles({ category: query.category, page, limit });
+    } else if (usesLocalBackend()) {
+      const result = await getLocalCmsArticles({ page, limit });
       articles = result.articles;
       total = result.meta.total;
       limit = result.meta.limit;
@@ -33,7 +33,7 @@ export default async function BlogListPage({ searchParams }: { searchParams: Pro
       const result = await getCmsData(siteId);
       articles = result?.articles?.filter((article) => article.status === "published") || [];
     }
-  } catch (error) {
+  } catch {
     loadFailed = true;
   }
 

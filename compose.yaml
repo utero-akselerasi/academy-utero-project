@@ -1,0 +1,631 @@
+name: academy-selfhosted
+networks:
+  backend_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${ACADEMY_BACKEND_SUBNET:-10.254.89.0/24}
+  carubra-network:
+    external: true
+  utero-id-network:
+    external: true
+  uteroindonesia-network:
+    external: true
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+        required: true
+    environment:
+      - API_PORT=3001
+      - DATABASE_URL=${ACADEMY_API_DATABASE_URL:?Set ACADEMY_API_DATABASE_URL}
+      - PUBLIC_APP_URL=${PUBLIC_APP_URL:?Set PUBLIC_APP_URL to the canonical HTTPS
+        URL}
+      - SECURE_COOKIES=true
+      - SMTP_FROM=${SMTP_FROM:?Set SMTP_FROM for production email}
+      - SMTP_HOST=${SMTP_HOST:?Set SMTP_HOST for production email}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - STORAGE_ROOT=/srv/storage
+      - STORAGE_SIGNING_SECRET=${ACADEMY_STORAGE_SIGNING_SECRET:?Set ACADEMY_STORAGE_SIGNING_SECRET}
+    expose:
+      - "3001"
+    healthcheck:
+      interval: 30s
+      retries: 3
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      timeout: 5s
+    logging:
+      driver: json-file
+      options:
+        max-file: ${ACADEMY_LOG_MAX_FILES:-5}
+        max-size: ${ACADEMY_LOG_MAX_SIZE:-10m}
+    networks:
+      backend_network: null
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - bind:
+          create_host_path: true
+        source: ./data/storage
+        target: /srv/storage
+        type: bind
+  backup:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - sh
+      - backend/scripts/backup-selfhosted.sh
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: true
+    environment:
+      BACKUP_NAME: ${BACKUP_NAME:-}
+      BACKUP_ROOT: /backups
+      DATABASE_URL: ${ACADEMY_MIGRATION_DATABASE_URL:?Set ACADEMY_MIGRATION_DATABASE_URL}
+      STORAGE_ROOT: /srv/storage
+    networks:
+      backend_network: null
+    profiles:
+      - operations
+    restart: 'no'
+    user: '0:0'
+    volumes:
+      - bind:
+          create_host_path: true
+        read_only: true
+        source: ./data/storage
+        target: /srv/storage
+        type: bind
+      - bind:
+          create_host_path: true
+        source: ./data/backups
+        target: /backups
+        type: bind
+  backup-offsite:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - sh
+      - backend/scripts/replicate-backup-offsite.sh
+    environment:
+      ALLOW_SAME_DEVICE_FOR_TEST: ${ALLOW_SAME_DEVICE_FOR_TEST:-false}
+      BACKUP_NAME: ${BACKUP_NAME:-}
+      BACKUP_ROOT: /backups
+      OFFSITE_ROOT: /offsite
+    network_mode: none
+    profiles:
+      - operations
+    restart: 'no'
+    user: '0:0'
+    volumes:
+      - bind:
+          create_host_path: true
+        read_only: true
+        source: ./data/backups
+        target: /backups
+        type: bind
+      - source: ${ACADEMY_OFFSITE_BACKUP_ROOT:-./data/offsite-backups}
+        target: /offsite
+        type: volume
+        volume: {}
+  backup-prune:
+    command:
+      - sh
+      - /scripts/prune-selfhosted-backups.sh
+    environment:
+      CONFIRM_PRUNE: ${CONFIRM_PRUNE:-}
+      RETENTION_DAYS: ${RETENTION_DAYS:-30}
+      RETENTION_MINIMUM_KEEP: ${RETENTION_MINIMUM_KEEP:-7}
+      RETENTION_ROOT: /backups
+    image: alpine:3.22
+    network_mode: none
+    profiles:
+      - operations
+    restart: 'no'
+    volumes:
+      - bind:
+          create_host_path: true
+        read_only: true
+        source: ./backend/scripts
+        target: /scripts
+        type: bind
+      - bind:
+          create_host_path: true
+        source: ./data/backups
+        target: /backups
+        type: bind
+  backup-verify:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - sh
+      - backend/scripts/verify-selfhosted-backup.sh
+    environment:
+      BACKUP_NAME: ${BACKUP_NAME:-}
+      BACKUP_ROOT: /backups
+    network_mode: none
+    profiles:
+      - operations
+    restart: 'no'
+    user: '0:0'
+    volumes:
+      - bind:
+          create_host_path: true
+        read_only: true
+        source: ./data/backups
+        target: /backups
+        type: bind
+  bootstrap-super-admin:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - node
+      - backend/scripts/bootstrap-super-admin.mjs
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+        required: true
+    environment:
+      BOOTSTRAP_SUPER_ADMIN_EMAIL: ${BOOTSTRAP_SUPER_ADMIN_EMAIL:-}
+      BOOTSTRAP_SUPER_ADMIN_PASSWORD: ${BOOTSTRAP_SUPER_ADMIN_PASSWORD:-}
+      CONFIRM_BOOTSTRAP_SUPER_ADMIN: ${CONFIRM_BOOTSTRAP_SUPER_ADMIN:-}
+      CONFIRM_EMPTY_DATABASE_BOOTSTRAP: ${CONFIRM_EMPTY_DATABASE_BOOTSTRAP:-}
+      DATABASE_URL: ${ACADEMY_MIGRATION_DATABASE_URL:?Set ACADEMY_MIGRATION_DATABASE_URL}
+    networks:
+      backend_network: null
+    profiles:
+      - migration
+    restart: 'no'
+  db-copy:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - sh
+      - backend/scripts/copy-database.sh
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+        required: true
+    environment:
+      CONFIRM_DATABASE_COPY: ${CONFIRM_DATABASE_COPY:-}
+      SOURCE_DATABASE_URL: ${SOURCE_DATABASE_URL:-}
+      TARGET_DATABASE_URL: ${ACADEMY_MIGRATION_DATABASE_URL:?Set ACADEMY_MIGRATION_DATABASE_URL}
+    networks:
+      backend_network: null
+    profiles:
+      - migration
+    restart: 'no'
+  identity-verify:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - node
+      - backend/scripts/verify-user-profiles.mjs
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+        required: true
+    environment:
+      IDENTITY_VERIFY_OUTPUT: /evidence/identity-only.json
+      IDENTITY_VERIFY_TARGET: ${IDENTITY_VERIFY_TARGET:-uat}
+      SOURCE_DATABASE_URL: ${SOURCE_DATABASE_URL:-}
+      TARGET_DATABASE_URL: ${ACADEMY_MIGRATION_DATABASE_URL:?Set ACADEMY_MIGRATION_DATABASE_URL}
+    networks:
+      backend_network: null
+    profiles:
+      - migration
+    restart: 'no'
+    volumes:
+      - bind:
+          create_host_path: true
+        source: ./data/ops-evidence
+        target: /evidence
+        type: bind
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - node
+      - backend/scripts/migrate.mjs
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: true
+    environment:
+      DATABASE_URL: ${ACADEMY_MIGRATION_DATABASE_URL:?Set ACADEMY_MIGRATION_DATABASE_URL}
+    networks:
+      backend_network: null
+    restart: 'no'
+  migration-verify:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - node
+      - backend/scripts/verify-migration.mjs
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+        required: true
+    environment:
+      - MIGRATION_VERIFY_TARGET=production
+      - OPS_EVIDENCE_ROOT=/evidence
+      - SOURCE_DATABASE_URL=${SOURCE_DATABASE_URL:-}
+      - SOURCE_STORAGE_ROOT=/import
+      - TARGET_DATABASE_URL=${ACADEMY_MIGRATION_DATABASE_URL:?Set ACADEMY_MIGRATION_DATABASE_URL}
+      - TARGET_STORAGE_ROOT=/srv/storage
+    networks:
+      backend_network: null
+    profiles:
+      - migration
+    restart: 'no'
+    volumes:
+      - read_only: true
+        source: ${STORAGE_IMPORT_SOURCE:-./storage-import}
+        target: /import
+        type: volume
+        volume: {}
+      - bind:
+          create_host_path: true
+        read_only: true
+        source: ./data/storage
+        target: /srv/storage
+        type: bind
+      - bind:
+          create_host_path: true
+        source: ./data/ops-evidence
+        target: /evidence
+        type: bind
+  nginx:
+    depends_on:
+      web:
+        condition: service_healthy
+        required: true
+    healthcheck:
+      interval: 30s
+      retries: 3
+      start_period: 10s
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1/healthz || exit 1
+      timeout: 5s
+    image: nginx:1.27.5-alpine3.21@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+    logging:
+      driver: json-file
+      options:
+        max-file: ${ACADEMY_LOG_MAX_FILES:-5}
+        max-size: ${ACADEMY_LOG_MAX_SIZE:-10m}
+    networks:
+      backend_network: null
+      carubra-network:
+        aliases:
+          - academy-utero
+      utero-id-network:
+        aliases:
+          - academy-utero
+      uteroindonesia-network:
+        aliases:
+          - academy-utero
+    ports:
+      - ${ACADEMY_HTTP_BIND_ADDRESS:-0.0.0.0}:${ACADEMY_HTTP_PORT:-80}:80
+      - ${ACADEMY_HTTPS_BIND_ADDRESS:-0.0.0.0}:${ACADEMY_HTTPS_PORT:-443}:443
+    read_only: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    volumes:
+      - bind:
+          create_host_path: true
+        read_only: true
+        source: ./nginx.conf
+        target: /etc/nginx/nginx.conf
+        type: bind
+      - read_only: true
+        source: ${ACADEMY_TLS_CERT_DIR:?Set ACADEMY_TLS_CERT_DIR}
+        target: /etc/nginx/tls
+        type: bind
+        bind:
+          create_host_path: false
+      - read_only: true
+        source: ${ACADEMY_ACME_CHALLENGE_DIR:-./data/acme}
+        target: /var/www/acme
+        type: bind
+        bind:
+          create_host_path: true
+  ops-health:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - node
+      - backend/scripts/ops-health.mjs
+    depends_on:
+      api:
+        condition: service_healthy
+        required: true
+    environment:
+      - ACADEMY_HEALTH_URL=http://api:3001/health/ready
+      - BACKUP_ROOT=/backups
+      - DATABASE_URL=${ACADEMY_API_DATABASE_URL:?Set ACADEMY_API_DATABASE_URL}
+      - OFFSITE_ROOT=/offsite
+      - OPS_HEALTH_OUTPUT=${OPS_HEALTH_OUTPUT:-}
+      - OPS_HEALTH_TARGET=production
+      - OPS_HEALTH_TIMEOUT_MS=${OPS_HEALTH_TIMEOUT_MS:-5000}
+      - OPS_MAXIMUM_BACKUP_AGE_HOURS=${OPS_MAXIMUM_BACKUP_AGE_HOURS:-26}
+    networks:
+      backend_network: null
+    profiles:
+      - operations
+    restart: 'no'
+    user: '0:0'
+    volumes:
+      - bind:
+          create_host_path: true
+        read_only: true
+        source: ./data/backups
+        target: /backups
+        type: bind
+      - read_only: true
+        source: ${ACADEMY_OFFSITE_BACKUP_ROOT:-./data/offsite-backups}
+        target: /offsite
+        type: volume
+        volume: {}
+      - bind:
+          create_host_path: true
+        source: ./data/ops-evidence
+        target: /evidence
+        type: bind
+  postgres:
+    environment:
+      ACADEMY_API_PASSWORD: ${ACADEMY_API_PASSWORD:?Set ACADEMY_API_PASSWORD}
+      POSTGRES_DB: academy
+      POSTGRES_PASSWORD: ${ACADEMY_POSTGRES_PASSWORD:?Set ACADEMY_POSTGRES_PASSWORD}
+      POSTGRES_USER: postgres
+    healthcheck:
+      interval: 10s
+      retries: 5
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres -d academy
+      timeout: 5s
+    image: postgres:17.6-alpine3.22@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    logging:
+      driver: json-file
+      options:
+        max-file: ${ACADEMY_LOG_MAX_FILES:-5}
+        max-size: ${ACADEMY_LOG_MAX_SIZE:-10m}
+    networks:
+      backend_network: null
+    restart: unless-stopped
+    volumes:
+      - source: postgres_data
+        target: /var/lib/postgresql/data
+        type: volume
+        volume: {}
+      - bind:
+          create_host_path: true
+        read_only: true
+        source: ./backend/docker-init/01-create-api-role.sh
+        target: /docker-entrypoint-initdb.d/01-create-api-role.sh
+        type: bind
+  rbac-verify:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - node
+      - backend/scripts/verify-rbac.mjs
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+        required: true
+    environment:
+      - DATABASE_URL=${ACADEMY_MIGRATION_DATABASE_URL:?Set ACADEMY_MIGRATION_DATABASE_URL}
+      - RBAC_VERIFY_OUTPUT=/evidence/rbacVerification.json
+      - RBAC_VERIFY_TARGET=production
+    networks:
+      backend_network: null
+    profiles:
+      - operations
+    restart: 'no'
+    volumes:
+      - bind:
+          create_host_path: true
+        source: ./data/ops-evidence
+        target: /evidence
+        type: bind
+  restore:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - sh
+      - backend/scripts/restore-selfhosted.sh
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: true
+    environment:
+      - BACKUP_ROOT=/backups
+      - CONFIRM_RESTORE=${CONFIRM_RESTORE:-}
+      - DATABASE_URL=${ACADEMY_MIGRATION_DATABASE_URL:?Set ACADEMY_MIGRATION_DATABASE_URL}
+      - OPS_EVIDENCE_ROOT=/evidence
+      - RESTORE_BACKUP_NAME=${RESTORE_BACKUP_NAME:-}
+      - RESTORE_EVIDENCE_TARGET=production
+      - STORAGE_ROOT=/srv/storage
+    networks:
+      backend_network: null
+    profiles:
+      - operations
+    restart: 'no'
+    user: '0:0'
+    volumes:
+      - bind:
+          create_host_path: true
+        source: ./data
+        target: /srv
+        type: bind
+      - bind:
+          create_host_path: true
+        source: ./data/backups
+        target: /backups
+        type: bind
+      - bind:
+          create_host_path: true
+        source: ./data/ops-evidence
+        target: /evidence
+        type: bind
+  role-smoke:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - node
+      - backend/scripts/smoke-roles.mjs
+    depends_on:
+      api:
+        condition: service_healthy
+        required: true
+    environment:
+      - ACADEMY_API_BASE_URL=http://api:3001
+      - ROLE_SMOKE_OUTPUT=/evidence/roleSmoke.json
+      - ROLE_SMOKE_TARGET=production
+      - SMOKE_ADMIN_EMAIL=${SMOKE_ADMIN_EMAIL:-}
+      - SMOKE_ADMIN_PASSWORD=${SMOKE_ADMIN_PASSWORD:-}
+      - SMOKE_APPLICANT_EMAIL=${SMOKE_APPLICANT_EMAIL:-}
+      - SMOKE_APPLICANT_PASSWORD=${SMOKE_APPLICANT_PASSWORD:-}
+      - SMOKE_DEFAULT_PASSWORD=${SMOKE_DEFAULT_PASSWORD:-}
+      - SMOKE_INTERN_EMAIL=${SMOKE_INTERN_EMAIL:-}
+      - SMOKE_INTERN_PASSWORD=${SMOKE_INTERN_PASSWORD:-}
+      - SMOKE_SCHOOL_EMAIL=${SMOKE_SCHOOL_EMAIL:-}
+      - SMOKE_SCHOOL_PASSWORD=${SMOKE_SCHOOL_PASSWORD:-}
+      - SMOKE_SUPER_ADMIN_EMAIL=${SMOKE_SUPER_ADMIN_EMAIL:-}
+      - SMOKE_SUPER_ADMIN_PASSWORD=${SMOKE_SUPER_ADMIN_PASSWORD:-}
+    networks:
+      backend_network: null
+    profiles:
+      - operations
+    restart: 'no'
+    volumes:
+      - bind:
+          create_host_path: true
+        source: ./data/ops-evidence
+        target: /evidence
+        type: bind
+  storage-import:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - node
+      - backend/scripts/import-storage.mjs
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+        required: true
+    environment:
+      CONFIRM_STORAGE_IMPORT: ${CONFIRM_STORAGE_IMPORT:-}
+      DATABASE_URL: ${ACADEMY_MIGRATION_DATABASE_URL:?Set ACADEMY_MIGRATION_DATABASE_URL}
+      STORAGE_IMPORT_SOURCE: /import
+      STORAGE_ROOT: /srv/storage
+    networks:
+      backend_network: null
+    profiles:
+      - migration
+    restart: 'no'
+    volumes:
+      - read_only: true
+        source: ${STORAGE_IMPORT_SOURCE:-./storage-import}
+        target: /import
+        type: volume
+        volume: {}
+      - bind:
+          create_host_path: true
+        source: ./data/storage
+        target: /srv/storage
+        type: bind
+  user-profile-copy:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - node
+      - backend/scripts/copy-user-profiles.mjs
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+        required: true
+    environment:
+      CONFIRM_USER_PROFILE_COPY: ${CONFIRM_USER_PROFILE_COPY:-}
+      SOURCE_DATABASE_URL: ${SOURCE_DATABASE_URL:-}
+      TARGET_DATABASE_URL: ${ACADEMY_MIGRATION_DATABASE_URL:?Set ACADEMY_MIGRATION_DATABASE_URL}
+    networks:
+      backend_network: null
+    profiles:
+      - migration
+    restart: 'no'
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.selfhosted
+    depends_on:
+      api:
+        condition: service_healthy
+        required: true
+    environment:
+      - ACADEMY_API_INTERNAL_URL=http://api:3001
+      - ACADEMY_SECURE_COOKIES=true
+      - ARTIKEL_API_KEY=${ARTIKEL_API_KEY:-}
+      - ARTIKEL_API_URL=${ARTIKEL_API_URL:-https://cms.carubra.com}
+      - ARTIKEL_DEFAULT_CATEGORY=${ARTIKEL_DEFAULT_CATEGORY:-global,news,carubra,academy}
+      - ARTIKEL_SOURCE=${ARTIKEL_SOURCE:-local}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:?Set NEXT_PUBLIC_APP_URL to the
+        canonical HTTPS URL}
+      - NODE_ENV=production
+    expose:
+      - "3000"
+    healthcheck:
+      interval: 30s
+      retries: 3
+      start_period: 40s
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      timeout: 5s
+    logging:
+      driver: json-file
+      options:
+        max-file: ${ACADEMY_LOG_MAX_FILES:-5}
+        max-size: ${ACADEMY_LOG_MAX_SIZE:-10m}
+    networks:
+      backend_network: null
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  postgres_data: null

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getArtikelArticles } from "@/lib/artikel/api";
+import { ArtikelApiError, getArtikelArticles } from "@/lib/artikel/api";
 
 export async function GET(request: Request) {
   const searchParams = new URL(request.url).searchParams;
@@ -10,5 +10,9 @@ export async function GET(request: Request) {
     const result = await getArtikelArticles({ category, page, limit });
     return NextResponse.json({ data: result.articles, meta: result.meta });
   }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Gagal memuat artikel." }, { status: 502 }); }
+  catch (error) {
+    const rateLimited = error instanceof ArtikelApiError && error.status === 429;
+    const headers = rateLimited && error.retryAfterSeconds !== undefined ? { "Retry-After": String(error.retryAfterSeconds) } : undefined;
+    return NextResponse.json({ error: "Gagal memuat artikel." }, { status: rateLimited ? 429 : 502, headers });
+  }
 }

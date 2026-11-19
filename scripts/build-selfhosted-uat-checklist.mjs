@@ -5,7 +5,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { evaluateSelfhostedUatGate, REQUIRED_UAT_EVIDENCE } from "./evaluate-selfhosted-uat-gate.mjs";
 
-const usage = `Bangun checklist UAT self-hosted dari tepat 12 evidence JSON dalam satu direktori.
+const usage = `Bangun checklist UAT self-hosted dari tepat 11 evidence JSON dalam satu direktori.
   node scripts/build-selfhosted-uat-checklist.mjs --evidence-dir /secure/evidence --operator operator-a --reviewer reviewer-b --output /secure/evidence/uat-checklist.json
 
 evidence-dir dan output wajib path absolut, output wajib berada langsung dalam evidence-dir,

@@ -91,3 +91,33 @@ test("CMS write menolak tanpa permission dan memvalidasi payload", async () => {
   assert.equal(invalid.json().error, "invalid_cms_content");
   await allowed.close();
 });
+
+test("landing settings menyimpan array sebagai JSON valid", async () => {
+  const writes = [];
+  const app = await fixture({ id: itemId, roles: ["admin"], permissions: ["cms.write"] }, async (statement, values) => {
+    writes.push({ statement, values });
+    return { rows: [], rowCount: 1 };
+  });
+  const payload = {
+    heroTitle: "Academy Utero",
+    heroDescription: "Platform pengembangan talenta",
+    heroImagePath: "",
+    skills: [{ name: "Graphic Design", desc: "Komunikasi visual" }],
+    expertisers: [{ name: "Siti", role: "Mentor", avatar: "/api/storage/gallery/expert/siti.png" }],
+    partnerships: [{ name: "Utero", logo_url: "/api/storage/gallery/partner/utero.png" }],
+    aboutText: "Tentang kami",
+    contactEmail: "academy@example.com",
+    contactPhone: "081234567890",
+    contactAddress: "Malang",
+    termsContent: "Ketentuan",
+  };
+  const response = await app.inject({ method: "PUT", url: "/v1/cms/landing", payload });
+  assert.equal(response.statusCode, 200);
+  const write = writes.find(({ statement }) => statement.includes("insert into utero_academy.landing_page_settings"));
+  assert.ok(write);
+  assert.match(write.statement, /\$4::jsonb.*\$5::jsonb.*\$11::jsonb/s);
+  assert.deepEqual(JSON.parse(write.values[3]), payload.skills);
+  assert.deepEqual(JSON.parse(write.values[4]), payload.expertisers);
+  assert.deepEqual(JSON.parse(write.values[10]), payload.partnerships);
+  await app.close();
+});

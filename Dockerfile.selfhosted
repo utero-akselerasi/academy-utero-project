@@ -12,7 +12,6 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
-ENV ACADEMY_BACKEND_MODE=local
 ENV ACADEMY_API_INTERNAL_URL=http://api:3001
 RUN npm run build
 
@@ -26,9 +25,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-ENV ACADEMY_BACKEND_MODE=local
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=production-dependencies --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --chown=nextjs:nodejs package.json next.config.ts tsconfig.json ./
 USER nextjs

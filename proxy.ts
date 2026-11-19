@@ -1,15 +1,12 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { updateSession } from "@/lib/supabase/middleware";
-import { usesLocalBackend } from "@/lib/backend/mode";
 import { applySecurityHeaders, buildContentSecurityPolicy } from "@/lib/security-headers";
 
 /**
- * Penyegaran sesi Supabase + header keamanan respons.
+ * Proxy header keamanan untuk runtime backend mandiri.
  *
  * Header keamanan dipasang di sini karena Next.js 16 hanya mengizinkan satu di
- * antara proxy.ts dan middleware.ts, dan penyegaran sesi sudah lebih dulu ada
- * di sini.
+ * antara proxy.ts dan middleware.ts.
  *
  * Proxy ini SENGAJA tidak menegakkan otorisasi. Otorisasi ada di setiap page,
  * Server Action, dan route handler lewat features/auth/guards.ts - memindahkannya
@@ -27,9 +24,7 @@ export async function proxy(request: NextRequest) {
   const forwarded = { "x-nonce": nonce, "content-security-policy": csp };
   const requestHeaders = new Headers(request.headers);
   for (const [name, value] of Object.entries(forwarded)) requestHeaders.set(name, value);
-  const response = usesLocalBackend()
-    ? NextResponse.next({ request: { headers: requestHeaders } })
-    : await updateSession(request, forwarded);
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
 
   applySecurityHeaders(response.headers, csp, isDev);
 
@@ -39,11 +34,8 @@ export async function proxy(request: NextRequest) {
 /**
  * `api/health` dikecualikan dengan sengaja.
  *
- * `updateSession()` memanggil `supabase.auth.getUser()` — satu permintaan
- * jaringan ke Supabase — untuk setiap path yang cocok. Kalau healthcheck
- * container ikut lewat sini, gangguan sesaat di Supabase akan membuat Docker
- * menganggap aplikasi mati lalu me-restart-nya, padahal restart tidak
- * memperbaiki Supabase. Yang didapat cuma loop restart saat gangguan.
+ * Healthcheck dikecualikan agar hanya menguji proses Next.js tanpa bergantung
+ * pada database atau API internal.
  *
  * Endpoint itu memasang header keamanannya sendiri; lihat catatan di sana.
  */

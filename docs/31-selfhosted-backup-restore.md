@@ -2,26 +2,24 @@
 
 Runbook ini mencakup PostgreSQL dan storage internal project. Backup disimpan di `./data/backups`; file aplikasi tetap berada di `./data/storage`. Database aktif berada di Docker volume `postgres_data`.
 
-Seluruh perintah di bawah harus memakai project Compose yang sama dengan aplikasi aktif. Untuk production gunakan `--env-file C:\secure\academy-production.env -f docker-compose.backend.yml -f docker-compose.selfhosted.yml -f docker-compose.production.yml` pada **setiap** perintah, termasuk job operations. Contoh `backend/.env` di bawah hanya berlaku untuk stack self-hosted lokal, bukan production. Jangan restore ke database live sebagai drill; gunakan instance terisolasi dan snapshot satu generasi.
+Seluruh perintah di bawah harus memakai project Compose yang sama dengan aplikasi aktif. Untuk production gunakan `--env-file .env -f compose.yaml` pada **setiap** perintah, termasuk job operations. Contoh `.env` di bawah hanya berlaku untuk stack self-hosted lokal, bukan production. Jangan restore ke database live sebagai drill; gunakan instance terisolasi dan snapshot satu generasi.
 
 ## Backup
 
 Hentikan trafik tulis saat backup agar snapshot database dan storage konsisten. Saat maintenance, hentikan tiga service aplikasi terlebih dahulu.
 
 ```powershell
-docker compose --env-file backend/.env `
-  -f docker-compose.backend.yml `
-  -f docker-compose.selfhosted.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   stop nginx web api
 
 $env:BACKUP_NAME = "academy-before-release-20261014"
-docker compose --env-file backend/.env `
-  -f docker-compose.backend.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   --profile operations run --no-deps --rm backup
 
-docker compose --env-file backend/.env `
-  -f docker-compose.backend.yml `
-  -f docker-compose.selfhosted.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   up -d api web nginx
 ```
 
@@ -45,8 +43,8 @@ Set `ACADEMY_OFFSITE_BACKUP_ROOT` ke mount disk/NFS yang berada di perangkat ata
 ```powershell
 $env:BACKUP_NAME = "academy-before-release-20261014"
 $env:ACADEMY_OFFSITE_BACKUP_ROOT = "Z:\academy-backups"
-docker compose --env-file backend/.env `
-  -f docker-compose.backend.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   --profile operations run --no-deps --rm backup-offsite
 ```
 
@@ -56,7 +54,7 @@ Verifikasi ulang tanpa membuat backup:
 
 ```powershell
 $env:BACKUP_NAME = "academy-before-release-20261014"
-docker compose --env-file backend/.env -f docker-compose.backend.yml `
+docker compose --env-file .env -f compose.yaml `
   --profile operations run --no-deps --rm backup-verify
 ```
 
@@ -67,10 +65,10 @@ Dry-run adalah default. Minimal tujuh backup terbaru dipertahankan walau sudah m
 ```powershell
 $env:RETENTION_DAYS = "30"
 $env:RETENTION_MINIMUM_KEEP = "7"
-docker compose --env-file backend/.env -f docker-compose.backend.yml --profile operations run --no-deps --rm backup-prune
+docker compose --env-file .env -f compose.yaml --profile operations run --no-deps --rm backup-prune
 
 $env:CONFIRM_PRUNE = "prune-expired-backups"
-docker compose --env-file backend/.env -f docker-compose.backend.yml --profile operations run --no-deps --rm backup-prune
+docker compose --env-file .env -f compose.yaml --profile operations run --no-deps --rm backup-prune
 ```
 
 ## Restore Drill
@@ -78,24 +76,21 @@ docker compose --env-file backend/.env -f docker-compose.backend.yml --profile o
 Restore bersifat destruktif. Jalankan hanya setelah API dan web dihentikan. Jangan gunakan `down -v` karena perintah itu menghapus volume PostgreSQL.
 Target baru untuk disaster recovery wajib menjalankan service `migrate` sekali sebelum restore agar role PostgreSQL `anon`, `authenticated`, `service_role`, dan `academy_api` tersedia. Restore melakukan preflight role dan berhenti sebelum mutasi bila bootstrap belum dilakukan. Pada target production yang sudah aktif, role tersebut sudah tersedia dari migrasi awal.
 
-Untuk target recovery kosong, gunakan tiga file Compose production dan env operator yang sama dengan command restore di bawah; jalankan `up -d postgres`, lalu `run --no-deps --rm migrate` sebelum `run --no-deps --rm restore`. Jangan jalankan bootstrap ini untuk mencoba "memperbaiki" database production yang sudah berisi data tanpa audit operator. Hasil rehearsal terisolasi dan batas evidencenya dicatat pada bagian **Hasil Drill Terisolasi**.
+Untuk target recovery kosong, gunakan file Compose production tunggal `compose.yaml` dan env operator yang sama dengan command restore di bawah; jalankan `up -d postgres`, lalu `run --no-deps --rm migrate` sebelum `run --no-deps --rm restore`. Jangan jalankan bootstrap ini untuk mencoba "memperbaiki" database production yang sudah berisi data tanpa audit operator. Hasil rehearsal terisolasi dan batas evidencenya dicatat pada bagian **Hasil Drill Terisolasi**.
 
 ```powershell
-docker compose --env-file backend/.env `
-  -f docker-compose.backend.yml `
-  -f docker-compose.selfhosted.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   stop nginx web api
 
 $env:RESTORE_BACKUP_NAME = "academy-before-release-20261014"
 $env:CONFIRM_RESTORE = "restore-local-academy"
-docker compose --env-file backend/.env `
-  -f docker-compose.backend.yml `
-  -f docker-compose.selfhosted.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   --profile operations run --no-deps --rm restore
 
-docker compose --env-file backend/.env `
-  -f docker-compose.backend.yml `
-  -f docker-compose.selfhosted.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   up -d --force-recreate api web nginx
 ```
 
@@ -105,7 +100,7 @@ Jika terjadi kegagalan setelah database target selesai dipulihkan, script otomat
 
 Evidence audit `./data/ops-evidence/restore-*.env` baru ditulis secara atomik setelah probe database pascarestore bernilai `1`; restore gagal atau rollback tidak boleh meninggalkan evidence sukses. Setelah itu restore menerbitkan `./data/ops-evidence/backupRestore.json` untuk gate UAT. Kedua evidence dibuat melalui temporary file pada direktori yang sama, diberi mode `600`, lalu di-rename atomik. JSON memakai `gate: backupRestore`, `status: PASS`, check `database`, `storage`, dan `safetyBackup` bernilai `ok: true`, serta `finishedAt`/`expiresAt` dengan masa berlaku tepat 24 jam.
 
-Target evidence default adalah `local` melalui `RESTORE_EVIDENCE_TARGET`. Overlay `docker-compose.production.yml` memaksa target `production`; gunakan tiga file Compose production saat restore candidate agar evidence diterima evaluator production. Jangan mengubah target secara manual untuk membuat drill lokal terlihat seperti production.
+Target evidence default adalah `local` melalui `RESTORE_EVIDENCE_TARGET`. Overlay `compose.yaml` memaksa target `production`; gunakan file Compose production tunggal `compose.yaml` saat restore candidate agar evidence diterima evaluator production. Jangan mengubah target secara manual untuk membuat drill lokal terlihat seperti production.
 
 ## Hasil Drill Terisolasi
 
@@ -118,9 +113,8 @@ Ini membuktikan mekanisme restore/rollback fixture, bukan RTO/RPO production, me
 ## Verifikasi
 
 ```powershell
-docker compose --env-file backend/.env `
-  -f docker-compose.backend.yml `
-  -f docker-compose.selfhosted.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   ps
 
 Invoke-WebRequest http://127.0.0.1:9982/api/health

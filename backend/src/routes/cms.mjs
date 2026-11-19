@@ -1,9 +1,42 @@
+import { createHash, randomUUID } from "node:crypto";
+import { createWriteStream } from "node:fs";
+import { link, mkdir, rm } from "node:fs/promises";
+import path from "node:path";
+import { Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { requireIdentity, requirePermission } from "../auth/identity.mjs";
 import { parseCmsCreate, parseLandingSettings, validId } from "../cms/input.mjs";
 import { nextOrder, readCmsContent } from "../cms/queries.mjs";
-import { normalizeObjectPath } from "../storage/path.mjs";
+import { getBucket } from "../storage/buckets.mjs";
+import { verifyContentType } from "../storage/content.mjs";
+import { normalizeObjectPath, resolveObjectFile } from "../storage/path.mjs";
 
 const kinds = new Set(["faqs", "testimonials", "galleries", "articles"]);
+const testimonialPhotoTypes = new Map([
+  ["image/jpeg", "jpg"],
+  ["image/png", "png"],
+  ["image/webp", "webp"],
+]);
+const testimonialPhotoPath = /^testimonial\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/i;
+
+function multipartField(fields, name) {
+  const field = fields?.[name];
+  return field && !Array.isArray(field) && field.type === "field" ? String(field.value) : "";
+}
+
+async function createInternTestimonial(client, identity, siteId, quote, photo = null) {
+  const profile = await client.query("select id, full_name, status, major from utero_academy.intern_profiles where user_id = $1", [identity.id]);
+  if (profile.rows[0]?.status !== "completed") return null;
+  const item = profile.rows[0];
+  if (photo) {
+    await client.query(
+      `insert into academy_storage.objects (bucket_id, name, owner_id, original_name, mime_type, byte_size, sha256)
+       values ('gallery', $1, $2, $3, $4, $5, $6)`,
+      [photo.path, identity.id, photo.originalName, photo.mimeType, photo.byteSize, photo.sha256],
+    );
+  }
+  return (await client.query("insert into utero_academy.testimonials (site_id, name, role, quote, photo_path, order_index, status, intern_id) values ($1,$2,$3,$4,$5,$6,'draft',$7) returning *", [siteId, item.full_name, `Alumni Magang - ${item.major || "Utero Academy"}`, quote, photo?.path || null, await nextOrder(client, "testimonials", siteId), item.id])).rows[0];
+}
 
 async function ownedImage(client, identity, bucket, objectPath) {
   if (!objectPath) return true;
@@ -18,7 +51,7 @@ async function ownedImage(client, identity, bucket, objectPath) {
   return Boolean(result.rows[0]);
 }
 
-export async function cmsRoutes(app, { db }) {
+export async function cmsRoutes(app, { db, storageRoot = path.resolve(process.env.STORAGE_ROOT?.trim() || "/srv/storage") }) {
   app.get("/v1/cms/site/default", async (_request, reply) => {
     const result = await db.apiTransaction((client) => client.query("select id, name, slug, domain, created_at, updated_at from utero_academy.cms_sites where slug = 'utero-academy'"));
     if (!result.rows[0]) return reply.code(404).send({ error: "site_not_found" });
@@ -100,16 +133,76 @@ export async function cmsRoutes(app, { db }) {
   app.post("/v1/cms/testimonials/intern", async (request, reply) => {
     const identity = requireIdentity(request, reply);
     if (!identity) return;
-    const quote = typeof request.body?.quote === "string" ? request.body.quote.trim() : "";
-    if (!validId(request.body?.siteId) || !quote || quote.length > 5_000) return reply.code(400).send({ error: "invalid_testimonial" });
-    const created = await db.transaction(identity, async (client) => {
-      const profile = await client.query("select id, full_name, status, major from utero_academy.intern_profiles where user_id = $1", [identity.id]);
-      if (profile.rows[0]?.status !== "completed") return null;
-      const item = profile.rows[0];
-      return (await client.query("insert into utero_academy.testimonials (site_id, name, role, quote, photo_path, order_index, status, intern_id) values ($1,$2,$3,$4,$5,$6,'draft',$7) returning *", [request.body.siteId, item.full_name, `Alumni Magang - ${item.major || "Utero Academy"}`, quote, request.body.photoPath || null, await nextOrder(client, "testimonials", request.body.siteId), item.id])).rows[0];
+    if (!request.isMultipart()) {
+      const quote = typeof request.body?.quote === "string" ? request.body.quote.trim() : "";
+      if (!validId(request.body?.siteId) || !quote || quote.length > 5_000) return reply.code(400).send({ error: "invalid_testimonial" });
+      const created = await db.transaction(identity, (client) => createInternTestimonial(client, identity, request.body.siteId, quote));
+      if (!created) return reply.code(403).send({ error: "internship_not_completed" });
+      return reply.code(201).send({ item: created });
+    }
+
+    const bucket = getBucket("gallery");
+    const requestedPath = request.headers["x-object-path"];
+    let resolved;
+    try { resolved = resolveObjectFile(storageRoot, "gallery", typeof requestedPath === "string" ? requestedPath : ""); }
+    catch { return reply.code(400).send({ error: "invalid_image_path" }); }
+    if (resolved.normalized !== requestedPath || !testimonialPhotoPath.test(resolved.normalized)) {
+      return reply.code(400).send({ error: "invalid_image_path" });
+    }
+
+    const file = await request.file({ limits: { files: 1, fileSize: 5 * 1024 * 1024 } });
+    const siteId = multipartField(file?.fields, "siteId");
+    const quote = multipartField(file?.fields, "quote").trim();
+    const expectedExt = testimonialPhotoTypes.get(file?.mimetype);
+    if (!file || !validId(siteId) || !quote || quote.length > 5_000 || !bucket.mime.includes(file.mimetype) ||
+        !expectedExt || path.posix.extname(resolved.normalized).toLowerCase() !== `.${expectedExt}`) {
+      return reply.code(400).send({ error: "invalid_testimonial" });
+    }
+
+    await mkdir(path.dirname(resolved.target), { recursive: true });
+    const temporary = `${resolved.target}.${randomUUID()}.upload`;
+    const digest = createHash("sha256");
+    let byteSize = 0;
+    let sample = Buffer.alloc(0);
+    const meter = new Transform({
+      transform(chunk, _encoding, callback) {
+        byteSize += chunk.length;
+        digest.update(chunk);
+        if (sample.length < 4100) sample = Buffer.concat([sample, chunk.subarray(0, 4100 - sample.length)]);
+        callback(null, chunk);
+      },
     });
-    if (!created) return reply.code(403).send({ error: "internship_not_completed" });
-    return reply.code(201).send({ item: created });
+    let linked = false;
+    try {
+      await pipeline(file.file, meter, createWriteStream(temporary, { flags: "wx", mode: 0o600 }));
+      if (file.file.truncated || byteSize > 5 * 1024 * 1024) return reply.code(413).send({ error: "file_too_large" });
+      if (!(await verifyContentType(sample, file.mimetype))) return reply.code(415).send({ error: "unsupported_media_type" });
+      try {
+        await link(temporary, resolved.target);
+        linked = true;
+      } catch (error) {
+        if (error.code === "EEXIST") return reply.code(409).send({ error: "object_exists" });
+        throw error;
+      }
+      const created = await db.transaction(identity, (client) => createInternTestimonial(client, identity, siteId, quote, {
+        path: resolved.normalized,
+        originalName: String(file.filename || "testimonial").slice(0, 255),
+        mimeType: file.mimetype,
+        byteSize,
+        sha256: digest.digest("hex"),
+      }));
+      if (!created) {
+        await rm(resolved.target, { force: true });
+        linked = false;
+        return reply.code(403).send({ error: "internship_not_completed" });
+      }
+      return reply.code(201).send({ item: created });
+    } catch (error) {
+      if (linked) await rm(resolved.target, { force: true });
+      throw error;
+    } finally {
+      await rm(temporary, { force: true });
+    }
   });
 
   app.put("/v1/cms/landing", async (request, reply) => {
@@ -123,9 +216,9 @@ export async function cmsRoutes(app, { db }) {
     }
     await db.transaction(identity, (client) => client.query(
       `insert into utero_academy.landing_page_settings (id, hero_title, hero_description, hero_image_path, skills, expertisers, about_text, contact_email, contact_phone, contact_address, terms_content, partnerships)
-       values ('00000000-0000-0000-0000-000000000002',$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       values ('00000000-0000-0000-0000-000000000002',$1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9,$10,$11::jsonb)
        on conflict (id) do update set hero_title=excluded.hero_title, hero_description=excluded.hero_description, hero_image_path=excluded.hero_image_path, skills=excluded.skills, expertisers=excluded.expertisers, about_text=excluded.about_text, contact_email=excluded.contact_email, contact_phone=excluded.contact_phone, contact_address=excluded.contact_address, terms_content=excluded.terms_content, partnerships=excluded.partnerships, updated_at=now()`,
-      [value.heroTitle, value.heroDescription, value.heroImagePath, value.skills, value.expertisers, value.aboutText, value.contactEmail, value.contactPhone, value.contactAddress, value.termsContent, value.partnerships]));
+      [value.heroTitle, value.heroDescription, value.heroImagePath, JSON.stringify(value.skills), JSON.stringify(value.expertisers), value.aboutText, value.contactEmail, value.contactPhone, value.contactAddress, value.termsContent, JSON.stringify(value.partnerships)]));
     return { ok: true };
   });
 }

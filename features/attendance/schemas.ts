@@ -1,14 +1,14 @@
 import { z } from "zod";
 
 export const checkInSchema = z.object({
-  latitude: z.number(),
-  longitude: z.number(),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
   wifiSsid: z.string().optional(),
 });
 
 export const checkOutSchema = z.object({
-  latitude: z.number(),
-  longitude: z.number(),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
   wifiSsid: z.string().optional(),
 });
 

@@ -18,6 +18,8 @@ export type DailyReportFormState = {
   message: string;
 };
 
+export type ReviewReportState = DailyReportFormState;
+
 export async function submitDailyReportAction(_: DailyReportFormState, formData: FormData): Promise<DailyReportFormState> {
   if (usesLocalBackend()) { await requireUser(); return localSubmit(formData); }
   // Aksi peserta: kepemilikan ditentukan lewat intern_profiles.user_id.
@@ -45,6 +47,18 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
   const googleDriveLink = formData.get("googleDriveLink") as string;
   const files = formData.getAll("attachment") as File[];
   const reportId = formData.get("reportId") as string;
+  if (files.filter((file) => file.size > 0).length > 10) {
+    return { ok: false, message: "Maksimal 10 lampiran per laporan." };
+  }
+
+  let attachments;
+  try {
+    attachments = await Promise.all(files.filter((file) => file.size > 0).map((file) => validateUpload(file, ["image", "document"])));
+  } catch (error) {
+    if (error instanceof UploadValidationError) return { ok: false, message: `Lampiran ditolak: ${error.message}` };
+    console.error("Gagal memvalidasi lampiran daily-report:", error);
+    return { ok: false, message: "Lampiran tidak dapat diproses." };
+  }
   
 
 
@@ -116,40 +130,22 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
 
   // Upload file-file lampiran ke storage Supabase.
   // Tipe/ekstensi/MIME diambil dari isi berkas, bukan dari klien.
-  for (const file of files) {
-    if (file && file.size > 0) {
-      let attachment;
-      try {
-        attachment = await validateUpload(file, ["image", "document"]);
-      } catch (error) {
-        if (error instanceof UploadValidationError) {
-          return { ok: false, message: `Lampiran ditolak: ${error.message}` };
-        }
-        console.error("Gagal memvalidasi lampiran daily-report:", error);
-        return { ok: false, message: "Lampiran tidak dapat diproses." };
-      }
-
+  if (attachments.length > 0) {
+    const serviceRoleSupabase = createSupabaseServiceRoleClient();
+    const uploaded = await Promise.all(attachments.map(async (attachment) => {
       const filePath = buildStoragePath(finalReportId, attachment.ext);
-      const serviceRoleSupabase = createSupabaseServiceRoleClient();
       const { error: uploadError } = await serviceRoleSupabase.storage
         .from("daily-report")
         .upload(filePath, attachment.buffer, { contentType: attachment.contentType, upsert: false });
       if (uploadError) {
         console.error("Gagal upload attachment daily-report:", uploadError);
-      } else {
-        // Object path, bukan URL publik. `daily-report` memang sudah privat di
-        // seed `0002_storage_buckets.sql` — 0007 yang memaksanya publik. Setelah
-        // 0032a mengembalikannya, URL publik di kolom ini akan mati, jadi
-        // pembacaannya lewat `resolveStorageUrl()` di `queries.ts`.
-        await db.from("daily_report_attachments").insert({
-          report_id: finalReportId,
-          file_path: filePath,
-          file_name: attachment.displayName,
-          mime_type: attachment.contentType,
-          size_bytes: attachment.size
-        });
+        return null;
       }
-    }
+      return { report_id: finalReportId, file_path: filePath, file_name: attachment.displayName,
+        mime_type: attachment.contentType, size_bytes: attachment.size };
+    }));
+    const rows = uploaded.filter((item): item is NonNullable<typeof item> => item !== null);
+    if (rows.length > 0) await db.from("daily_report_attachments").insert(rows);
   }
 
   // Link Google Drive disimpan sebagai attachment ber-`mime_type: "url"`.
@@ -298,14 +294,14 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
   return { ok: true, message: reportId ? "Laporan harian berhasil diperbarui." : "Laporan harian berhasil dikirim." };
 }
 
-export async function reviewDailyReportAction(formData: FormData) {
+export async function reviewDailyReportAction(_: ReviewReportState, formData: FormData): Promise<ReviewReportState> {
   if (usesLocalBackend()) { await requireAdmin(); return localReview(formData); }
   // Review laporan adalah pekerjaan staff. Guard lama hanya mengandalkan
   // keberadaan mentor_profiles, yang bukan bukti otorisasi.
   const user = await requireAdmin();
   const mentorProfileId = await getMentorProfileId(user.id);
   if (!mentorProfileId) {
-    throw new Error("Profil pembimbing belum disiapkan. Hubungi super admin.");
+    return { ok: false, message: "Profil pembimbing belum disiapkan. Hubungi super admin." };
   }
   const parsed = reviewReportSchema.safeParse({
     reportId: formData.get("reportId"),
@@ -313,7 +309,7 @@ export async function reviewDailyReportAction(formData: FormData) {
     note: formData.get("note"),
   });
   if (!parsed.success) {
-    throw new Error("Data review tidak valid.");
+    return { ok: false, message: "Data review tidak valid." };
   }
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -326,18 +322,18 @@ export async function reviewDailyReportAction(formData: FormData) {
 
   if (targetError) {
     console.error("Gagal membaca daily report:", targetError);
-    throw new Error("Gagal memverifikasi data laporan.");
+    return { ok: false, message: "Gagal memverifikasi data laporan." };
   }
   if (!targetReport) {
-    throw new Error("Laporan tidak ditemukan.");
+    return { ok: false, message: "Laporan tidak ditemukan." };
   }
 
   const scope = await resolveStaffInternScope(user.id);
   if (scope.kind === "setup_required") {
-    throw new Error("Profil pembimbing belum disiapkan. Hubungi super admin.");
+    return { ok: false, message: "Profil pembimbing belum disiapkan. Hubungi super admin." };
   }
   if (scope.kind === "scoped" && !scope.internIds.includes(targetReport.intern_id as string)) {
-    throw new Error("Kamu tidak membimbing peserta ini.");
+    return { ok: false, message: "Kamu tidak membimbing peserta ini." };
   }
 
   const { error: reviewError } = await db.from("daily_report_reviews").insert({
@@ -348,7 +344,7 @@ export async function reviewDailyReportAction(formData: FormData) {
   });
   if (reviewError) {
     console.error("Gagal insert review:", reviewError);
-    throw new Error("Review belum berhasil disimpan.");
+    return { ok: false, message: "Review belum berhasil disimpan." };
   }
   const { error: updateError } = await db.from("daily_reports").update({
     status: parsed.data.status,
@@ -356,7 +352,7 @@ export async function reviewDailyReportAction(formData: FormData) {
   }).eq("id", parsed.data.reportId);
   if (updateError) {
     console.error("Gagal update status report:", updateError);
-    throw new Error("Status laporan belum berhasil diperbarui.");
+    return { ok: false, message: "Status laporan belum berhasil diperbarui." };
   }
 
   // Notifikasi revisi jika diminta
@@ -386,4 +382,5 @@ export async function reviewDailyReportAction(formData: FormData) {
   }
 
   revalidatePath("/dashboard/mentor/daily-reports");
+  return { ok: true, message: "Review berhasil disimpan." };
 }

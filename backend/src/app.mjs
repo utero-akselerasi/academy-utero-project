@@ -47,7 +47,7 @@ export async function buildApp({ db, config }) {
   await app.register(lmsRoutes, { db });
   await app.register(attendanceRoutes, { db, config });
   await app.register(dailyReportRoutes, { db, config });
-  await app.register(cmsRoutes, { db });
+  await app.register(cmsRoutes, { db, storageRoot: config.storageRoot });
   await app.register(assessmentsRoutes, { db });
   await app.register(certificatesRoutes, { db, config });
   await app.register(schoolRoutes, { db, config });

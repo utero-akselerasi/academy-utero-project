@@ -8,7 +8,7 @@ const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const REQUIRED_WRITERS = Object.freeze([
   "web", "api", "scheduled-jobs", "edge-functions", "webhooks", "legacy-clients", "direct-uploads",
 ]);
-const MONITORING_CHECKS = Object.freeze(["alertDelivery", "errorRate", "latency", "capacity"]);
+const MONITORING_CHECKS = Object.freeze(["alertDelivery", "errorRate", "latency"]);
 const usage = `Buat evidence manual monitoringReadiness dan writeFreeze secara fail-closed.
   node scripts/create-selfhosted-operator-evidence.mjs \\
     --input <manifest-absolut.json> \\

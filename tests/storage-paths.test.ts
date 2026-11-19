@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { isImagePath, isPdfPath, isPublicBucket, resolveStorageUrl, toObjectPath } from "@/lib/storage-urls";
 
-const storageMocks = vi.hoisted(() => ({ from: vi.fn(), createSignedUrl: vi.fn() }));
+const storageMocks = vi.hoisted(() => ({ from: vi.fn(), createSignedUrl: vi.fn(), backendRequest: vi.fn() }));
+vi.mock("@/lib/backend/server", () => ({ usesLocalBackend: () => true, backendRequest: storageMocks.backendRequest }));
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServiceRoleClient: () => ({ storage: {
     from: (bucket: string) => {
@@ -43,15 +44,14 @@ const HTTPS_BASE = "https://supabase.carubra.com/storage/v1/object/public/avatar
 describe("resolveStorageUrl — copy-first", () => {
   it("menandatangani URL legacy hanya di academy-private", async () => {
     storageMocks.from.mockClear();
-    storageMocks.createSignedUrl.mockReset().mockResolvedValue({
-      data: { signedUrl: "https://supabase.carubra.com/storage/v1/object/sign/academy-private/uid/foto.jpg?token=new" },
-      error: null,
-    });
+    storageMocks.backendRequest.mockReset().mockResolvedValue({ ok: true, json: async () => ({ token: "local-token" }) });
     expect(await resolveStorageUrl("academy-private", HTTPS_BASE + "uid/foto.jpg")).toContain(
-      "/object/sign/academy-private/uid/foto.jpg",
+      "/api/storage/academy-private/uid/foto.jpg?token=local-token",
     );
-    expect(storageMocks.from).toHaveBeenCalledExactlyOnceWith("academy-private");
-    expect(storageMocks.createSignedUrl).toHaveBeenCalledWith("uid/foto.jpg", 3600);
+    expect(storageMocks.backendRequest).toHaveBeenCalledWith("/v1/storage/sign", expect.objectContaining({
+      method: "POST", body: JSON.stringify({ bucket: "academy-private", path: "uid/foto.jpg", expiresIn: 3600 }),
+    }));
+    expect(storageMocks.from).not.toHaveBeenCalled();
   });
 });
 

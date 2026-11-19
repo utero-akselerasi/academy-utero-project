@@ -203,18 +203,36 @@ export async function createUserManualAction(formData: FormData) {
   const phone = formData.get("phone") as string;
   const roleId = formData.get("roleId") as string;
 
-  if (!email || !password || !fullName) {
-    throw new Error("Email, password, dan nama lengkap wajib diisi.");
+  if (!email || !password || !fullName || !roleId) {
+    return { ok: false, message: "Email, password, nama lengkap, dan role wajib diisi." };
+  }
+  if (password.length < 12 || password.length > 128) {
+    return { ok: false, message: "Password harus 12-128 karakter." };
   }
 
   if (usesLocalBackend()) {
-    const response = await backendRequest("/v1/super-admin/users", {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password, fullName, phone, roleId }),
-    });
-    if (!response.ok) throw new Error("Gagal membuat user pada backend lokal.");
+    let response: Response;
+    try {
+      response = await backendRequest("/v1/super-admin/users", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password, fullName, phone, roleId }),
+      });
+    } catch (error) {
+      console.error("Backend pembuatan user tidak tersedia:", error);
+      return { ok: false, message: "Server user tidak dapat dihubungi. Coba lagi." };
+    }
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      const messages: Record<string, string> = {
+        invalid_user: "Data user tidak valid. Periksa email, nama, password (minimal 12 karakter), telepon, dan role.",
+        invalid_role: "Role tidak tersedia. Pilih role lain.",
+        account_unavailable: "Email sudah digunakan. Gunakan email lain.",
+      };
+      if (response.status >= 500) console.error("Backend gagal membuat user:", response.status, body.error);
+      return { ok: false, message: messages[body.error ?? ""] ?? (response.status === 429 ? "Terlalu banyak percobaan. Coba lagi nanti." : "Gagal membuat user. Coba lagi atau hubungi admin.") };
+    }
     revalidatePath("/dashboard/super-admin/users");
-    return;
+    return { ok: true, message: "User berhasil dibuat." };
   }
 
   const db = await createUteroAcademyServiceRoleClient();
@@ -298,6 +316,7 @@ export async function createUserManualAction(formData: FormData) {
   }
 
   revalidatePath("/dashboard/super-admin/users");
+  return { ok: true, message: "User berhasil dibuat." };
 }
 
 export async function updateUserAdminAction(formData: FormData) {
@@ -659,12 +678,14 @@ export async function updateSchoolAction(formData: FormData) {
   revalidatePath("/dashboard/super-admin/users");
 }
 
-export async function updateSchoolPartnershipAction(formData: FormData) {
+export type SchoolPartnershipState = { ok: boolean; message: string };
+
+export async function updateSchoolPartnershipAction(_: SchoolPartnershipState, formData: FormData): Promise<SchoolPartnershipState> {
   const user = await requireSuperAdmin();
   const parsed = z.object({
     schoolId: z.string().uuid(),
     partnerStatus: z.enum(["prospect", "verified", "active_partner", "suspended", "ended"]),
-    referralCode: z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{6,32}$/, "Kode unik 6–32 huruf, angka, atau tanda hubung.").or(z.literal("")),
+    referralCode: z.string().trim().toUpperCase().refine((value) => !value || /^[A-Z0-9-]{6,32}$/.test(value), "Kode unik 6–32 huruf, angka, atau tanda hubung."),
     referralQuota: z.union([z.literal(""), z.coerce.number().int().min(1).max(100000)]),
     referralExpiresAt: z.union([z.literal(""), z.string().date()]),
   }).safeParse({
@@ -672,20 +693,32 @@ export async function updateSchoolPartnershipAction(formData: FormData) {
     referralCode: formData.get("referralCode"), referralQuota: formData.get("referralQuota"),
     referralExpiresAt: formData.get("referralExpiresAt"),
   });
-  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Data kemitraan tidak valid.");
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Data kemitraan tidak valid." };
   if (usesLocalBackend()) {
-    const response = await backendRequest(`/v1/super-admin/schools/${encodeURIComponent(parsed.data.schoolId)}/partnership`, {
-      method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(parsed.data),
-    });
-    if (!response.ok) throw new Error("Kemitraan belum berhasil disimpan pada backend lokal.");
+    let response: Response;
+    try {
+      response = await backendRequest(`/v1/super-admin/schools/${encodeURIComponent(parsed.data.schoolId)}/partnership`, {
+        method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(parsed.data),
+      });
+    } catch (error) {
+      console.error("Backend kemitraan sekolah tidak tersedia:", error);
+      return { ok: false, message: "Server kemitraan tidak dapat dihubungi. Coba lagi." };
+    }
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      const message = body.error === "school_not_found" ? "Instansi tidak ditemukan." :
+        body.error === "invalid_partnership" ? "Data kemitraan tidak valid." :
+        response.status === 409 ? "Kode sekolah sudah digunakan." : "Kemitraan belum berhasil disimpan.";
+      return { ok: false, message };
+    }
     revalidatePath("/dashboard/super-admin/schools");
-    return;
+    return { ok: true, message: "Kemitraan berhasil disimpan." };
   }
   const db = await createUteroAcademyServiceRoleClient();
   const { data: previous, error: readError } = await db.from("schools")
     .select("partner_status, referral_code, referral_quota, referral_expires_at")
     .eq("id", parsed.data.schoolId).single();
-  if (readError || !previous) throw new Error("Sekolah belum ditemukan.");
+  if (readError || !previous) return { ok: false, message: "Instansi belum ditemukan." };
   const { error } = await db.from("schools").update({
     partner_status: parsed.data.partnerStatus,
     referral_code: parsed.data.referralCode || null,
@@ -694,9 +727,10 @@ export async function updateSchoolPartnershipAction(formData: FormData) {
     verified_by: ["verified", "active_partner"].includes(parsed.data.partnerStatus) ? user.id : null,
     verified_at: ["verified", "active_partner"].includes(parsed.data.partnerStatus) ? new Date().toISOString() : null,
   }).eq("id", parsed.data.schoolId);
-  if (error) throw new Error(`Kemitraan belum berhasil disimpan: ${error.message}`);
+  if (error) return { ok: false, message: "Kemitraan belum berhasil disimpan." };
   await writeAuditLog(user.id, "update_school_partnership", "schools", parsed.data.schoolId, previous, parsed.data);
   revalidatePath("/dashboard/super-admin/schools");
+  return { ok: true, message: "Kemitraan berhasil disimpan." };
 }
 
 export async function deleteSchoolAction(formData: FormData) {

@@ -12,6 +12,7 @@ out/
 .env.develop
 .env.production.build
 .env.production
+.env.staging
 
 # logs
 *.log
@@ -65,3 +66,8 @@ Thumbs.db
 /data/
 /backend/.env
 /backend/node_modules/
+
+# Single canonical runtime env; example is tracked
+/.env.*
+!/.env.example
+/backend/.env*

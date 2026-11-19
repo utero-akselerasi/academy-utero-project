@@ -6,10 +6,13 @@ const mocks = vi.hoisted(() => ({
   requireApplicant: vi.fn(),
   getApplicantAttempt: vi.fn(),
   createDatabase: vi.fn(),
+  backendRequest: vi.fn(),
+  backendError: "Tes sudah ditutup.",
 }));
 
 vi.mock("@/features/auth/guards", () => ({ requireApplicant: mocks.requireApplicant }));
 vi.mock("@/features/selection/applicant", () => ({ getApplicantAttempt: mocks.getApplicantAttempt }));
+vi.mock("@/lib/backend/server", () => ({ usesLocalBackend: () => true, backendRequest: mocks.backendRequest }));
 vi.mock("@/lib/supabase/server", () => ({
   createUteroAcademyServiceRoleClient: mocks.createDatabase,
   createSupabaseServiceRoleClient: vi.fn(),
@@ -35,6 +38,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireApplicant.mockResolvedValue({ id: "applicant-1" });
   mocks.getApplicantAttempt.mockResolvedValue(attemptData());
+  mocks.backendError = "Tes sudah ditutup.";
+  mocks.backendRequest.mockImplementation(async (route: string) => {
+    if (route === `/v1/registration/selection/${assignmentId}`) {
+      return { ok: true, json: async () => ({ attempt: { id: "attempt-1" } }) };
+    }
+    return { ok: false, json: async () => ({ error: mocks.backendError }) };
+  });
 });
 
 describe("jendela paket tes pada server action", () => {
@@ -73,6 +83,7 @@ describe("jendela paket tes pada server action", () => {
   });
 
   it("menolak jawaban sebelum available_from", async () => {
+    mocks.backendError = "Tes belum dibuka.";
     mocks.getApplicantAttempt.mockResolvedValue({
       ...attemptData(),
       test: { available_from: new Date(Date.now() + 60000).toISOString(), available_until: null },

@@ -43,24 +43,49 @@ export async function dailyReportRoutes(app, { db, config }) {
     if (!identity) return;
     const requested = request.query?.internId;
     if (requested && !validId(requested)) return apiError(reply, 400, "invalid_intern_id");
+    const reportId = request.query?.reportId;
+    if (reportId && !validId(reportId)) return apiError(reply, 400, "invalid_report_id");
+    const requestedInternIds = request.query?.internIds?.split(",");
+    if (requestedInternIds?.some((id) => !validId(id)) || (requestedInternIds && requestedInternIds.length > 1000)) return apiError(reply, 400, "invalid_intern_ids");
+    const status = request.query?.status;
+    if (status && !["submitted", "approved", "revision_requested"].includes(status)) return apiError(reply, 400, "invalid_status");
+    const page = Math.max(1, Number.parseInt(request.query?.page || "1", 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(request.query?.limit || (reportId ? "1" : "50"), 10) || 50));
+    const includeAttachments = request.query?.includeAttachments === "true";
     const result = await db.transaction(identity, async (client) => {
       const scope = await reportReadScope(client, identity, requested);
       if (scope === undefined) return undefined;
       if (scope === null) return null;
       const global = !Array.isArray(scope) && scope.global;
-      const where = global ? "" : "where dr.intern_id = any($1::uuid[])";
-      const values = global ? [] : [scope];
       if (Array.isArray(scope) && scope.length === 0) return [];
+      const allowedIds = requestedInternIds
+        ? (global ? requestedInternIds : scope.filter((id) => requestedInternIds.includes(id)))
+        : scope;
+      if (Array.isArray(allowedIds) && allowedIds.length === 0) return [];
+      const clauses = [];
+      const values = [];
+      if (Array.isArray(allowedIds)) { values.push(allowedIds); clauses.push(`dr.intern_id = any($${values.length}::uuid[])`); }
+      if (reportId) { values.push(reportId); clauses.push(`dr.id = $${values.length}`); }
+      if (status) { values.push(status); clauses.push(`dr.status = $${values.length}`); }
+      values.push(limit, (page - 1) * limit);
+      const where = clauses.length ? `where ${clauses.join(" and ")}` : "";
       const reports = await client.query(
         `select dr.*, dr.report_date::text as report_date, json_build_object('id',ip.id,'user_id',ip.user_id,'full_name',ip.full_name,
           'user_profiles',json_build_object('full_name',coalesce(up.full_name,ip.full_name))) intern_profiles
          from utero_academy.daily_reports dr join utero_academy.intern_profiles ip on ip.id=dr.intern_id
-         left join utero_academy.user_profiles up on up.id=ip.user_id ${where} order by dr.report_date desc`, values,
+         left join utero_academy.user_profiles up on up.id=ip.user_id ${where}
+         order by dr.report_date desc, dr.id desc limit $${values.length - 1} offset $${values.length}`, values,
       );
-      if (!reports.rows.length) return [];
+      if (!reports.rows.length || !includeAttachments) return reports.rows.map((report) => ({ ...report, daily_report_attachments: [] }));
       const ids = reports.rows.map((row) => row.id);
       const attachments = await client.query("select * from utero_academy.daily_report_attachments where report_id = any($1::uuid[]) order by created_at", [ids]);
-      return reports.rows.map((report) => ({ ...report, daily_report_attachments: attachments.rows.filter((item) => item.report_id === report.id) }));
+      const attachmentsByReport = new Map();
+      for (const attachment of attachments.rows) {
+        const items = attachmentsByReport.get(attachment.report_id) || [];
+        items.push(attachment);
+        attachmentsByReport.set(attachment.report_id, items);
+      }
+      return reports.rows.map((report) => ({ ...report, daily_report_attachments: attachmentsByReport.get(report.id) || [] }));
     });
     if (result === undefined) return apiError(reply, 403, "forbidden");
     if (result === null) return apiError(reply, 404, "intern_not_found");
@@ -111,11 +136,21 @@ export async function dailyReportRoutes(app, { db, config }) {
           );
           report = inserted.rows[0];
         }
+        const storedAttachments = [];
         for (const upload of input.attachments) {
           const filePath = await storeDomainObject({ db, config, identity, bucketName: "daily-report", prefix: report.id, upload, cleanups });
+          storedAttachments.push({ filePath, upload });
+        }
+        if (storedAttachments.length) {
+          const values = [];
+          const rows = storedAttachments.map(({ filePath, upload }, index) => {
+            const offset = index * 5;
+            values.push(report.id, filePath, upload.fileName, upload.mimeType, upload.buffer.length);
+            return `($${offset + 1},$${offset + 2},$${offset + 3},$${offset + 4},$${offset + 5})`;
+          });
           await client.query(
-            "insert into utero_academy.daily_report_attachments (report_id,file_path,file_name,mime_type,size_bytes) values ($1,$2,$3,$4,$5)",
-            [report.id, filePath, upload.fileName, upload.mimeType, upload.buffer.length],
+            `insert into utero_academy.daily_report_attachments (report_id,file_path,file_name,mime_type,size_bytes) values ${rows.join(",")}`,
+            values,
           );
         }
         if (input.driveLink) {
@@ -146,7 +181,20 @@ export async function dailyReportRoutes(app, { db, config }) {
       if (!report.rows[0]) return "not_found";
       const denied = await requireScopedIntern(client, identity, report.rows[0].intern_id);
       if (denied) return denied;
-      const mentor = await client.query("select id from utero_academy.mentor_profiles where user_id=$1", [identity.id]);
+      let mentor = await client.query("select id from utero_academy.mentor_profiles where user_id=$1", [identity.id]);
+      if (!mentor.rows[0] && identity.roles.includes("super_admin")) {
+        mentor = await client.query(
+          `with inserted as (
+             insert into utero_academy.mentor_profiles(user_id) values($1)
+             on conflict(user_id) do nothing returning id
+           )
+           select id from inserted
+           union all
+           select id from utero_academy.mentor_profiles where user_id=$1
+           limit 1`,
+          [identity.id],
+        );
+      }
       if (!mentor.rows[0]) return "setup_required";
       await client.query("insert into utero_academy.daily_report_reviews (report_id,mentor_id,status,note) values ($1,$2,$3,$4)", [request.params.id, mentor.rows[0].id, request.body.status, note]);
       await client.query("update utero_academy.daily_reports set status=$2,updated_at=now() where id=$1", [request.params.id, request.body.status]);

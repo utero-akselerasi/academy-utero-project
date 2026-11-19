@@ -11,7 +11,7 @@ export type BackendIdentity = {
 const SESSION_COOKIE = "utero_session";
 
 export function usesLocalBackend() {
-  return process.env.ACADEMY_BACKEND_MODE === "local";
+  return true;
 }
 
 function backendUrl(path: string) {

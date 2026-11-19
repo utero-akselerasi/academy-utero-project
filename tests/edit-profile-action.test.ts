@@ -1,32 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  rpc: vi.fn(), update: vi.fn(), remove: vi.fn(), upload: vi.fn(),
-  read: vi.fn(), domainUpdate: vi.fn(), getUser: vi.fn(), hasRole: vi.fn(), validate: vi.fn(), storageFrom: vi.fn(),
+  backendRequest: vi.fn(), getUser: vi.fn(), validate: vi.fn(), revalidatePath: vi.fn(),
 }));
 
 vi.mock("@/features/auth/guards", () => ({ requireUser: mocks.getUser }));
-vi.mock("@/features/auth/roles", () => ({ userHasAnyRole: mocks.hasRole }));
-vi.mock("@/lib/supabase/server", () => ({
-  createUteroAcademyServiceRoleClient: async () => ({ from: () => ({
-    select: () => ({ eq: () => ({ maybeSingle: mocks.read }) }),
-    update: () => ({ eq: () => ({ not: mocks.domainUpdate, then: (resolve: (value: unknown) => unknown) => resolve({ error: null }) }) }),
-  }) }),
-  createUteroAcademyClient: async () => ({ rpc: mocks.rpc, from: () => ({
-    update: mocks.update,
-  }) }),
-  createSupabaseServiceRoleClient: () => ({ storage: { from: (bucket: string) => {
-    mocks.storageFrom(bucket);
-    return { upload: mocks.upload, remove: mocks.remove };
-  } } }),
-}));
+vi.mock("@/lib/backend/server", () => ({ usesLocalBackend: () => true, backendRequest: mocks.backendRequest }));
 vi.mock("@/lib/uploads", () => ({
   validateUpload: mocks.validate,
   buildStoragePath: () => "test-user/12345678-1234-4234-8234-123456789abc.png",
   UploadValidationError: class UploadValidationError extends Error {},
 }));
-vi.mock("@/lib/storage-urls", () => ({ toObjectPath: (path: string | null) => path }));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
 import { updateProfileAction } from "@/features/auth/edit-profile-action";
 
@@ -44,59 +29,49 @@ function validForm(withAvatar = false) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.getUser.mockResolvedValue({ id: "test-user", email: "sari@example.com" });
-  mocks.read.mockResolvedValueOnce({ data: { avatar_path: "test-user/old.png" }, error: null })
-    .mockResolvedValueOnce({ data: { id: "intern-1" }, error: null })
-    .mockResolvedValueOnce({ data: null, error: null });
-  mocks.rpc.mockResolvedValue({ error: null });
-  mocks.upload.mockResolvedValue({ error: null });
-  mocks.remove.mockResolvedValue({ error: null });
-  mocks.domainUpdate.mockResolvedValue({ error: null });
+  mocks.backendRequest.mockImplementation(async (route: string) => ({
+    ok: true, json: async () => route === "/v1/profile" ? { internProfile: { id: "intern-1" } } : {},
+  }));
   mocks.validate.mockResolvedValue({ buffer: new Uint8Array([1]), contentType: "image/png", ext: "png" });
 });
 
 describe("updateProfileAction peserta", () => {
-  it("menolak biodata kosong tanpa unggah dan tanpa update", async () => {
+  it("menolak biodata kosong sebelum unggah atau update", async () => {
     const form = validForm();
     form.set("address", " ");
     expect((await updateProfileAction({ ok: false, message: "" }, form)).ok).toBe(false);
-    expect(mocks.rpc).not.toHaveBeenCalled();
-    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.backendRequest).toHaveBeenCalledTimes(1);
+    expect(mocks.backendRequest).toHaveBeenCalledWith("/v1/profile");
   });
 
-  it("gagal atomik ketika RPC gagal dan membuang avatar baru", async () => {
-    mocks.rpc.mockResolvedValue({ error: { message: "database unavailable" } });
-    const result = await updateProfileAction({ ok: false, message: "" }, validForm(true));
-    expect(result.ok).toBe(false);
-    expect(mocks.remove).toHaveBeenCalledWith(["test-user/12345678-1234-4234-8234-123456789abc.png"]);
-    expect(mocks.remove).not.toHaveBeenCalledWith(["test-user/old.png"]);
-  });
-
-  it("menyimpan lewat RPC tanpa menghapus avatar lama selama copy-first", async () => {
-    const result = await updateProfileAction({ ok: false, message: "" }, validForm(true));
-    expect(result.ok).toBe(true);
-    expect(mocks.rpc).toHaveBeenCalledWith("update_own_intern_biodata", expect.objectContaining({
-      p_full_name: "Sari", p_school_name: "SMK Utero", p_avatar_path: "test-user/12345678-1234-4234-8234-123456789abc.png",
+  it("menghapus hanya avatar baru ketika update backend gagal", async () => {
+    mocks.backendRequest.mockImplementation(async (route: string, options?: RequestInit) => ({
+      ok: !(route === "/v1/profile" && options?.method === "PATCH"),
+      status: 500,
+      json: async () => ({ internProfile: { id: "intern-1" } }),
     }));
-    expect(mocks.remove).not.toHaveBeenCalled();
-    expect(mocks.storageFrom).toHaveBeenCalledWith("academy-private");
-    expect(mocks.storageFrom).not.toHaveBeenCalledWith("avatars");
+    expect((await updateProfileAction({ ok: false, message: "" }, validForm(true))).ok).toBe(false);
+    expect(mocks.backendRequest).toHaveBeenCalledWith(
+      "/v1/storage/academy-private/test-user/12345678-1234-4234-8234-123456789abc.png", { method: "DELETE" },
+    );
+    expect(mocks.backendRequest).not.toHaveBeenCalledWith(expect.stringContaining("old.png"), expect.anything());
   });
 
-  it("tidak menghapus objek legacy avatars setelah avatar baru berhasil disimpan", async () => {
-    mocks.read.mockReset();
-    mocks.read.mockResolvedValueOnce({ data: { avatar_path: "https://supabase.carubra.com/storage/v1/object/public/avatars/test-user/old.png" }, error: null })
-      .mockResolvedValueOnce({ data: { id: "intern-1" }, error: null })
-      .mockResolvedValueOnce({ data: null, error: null });
+  it("menyimpan biodata lewat backend dan hanya mengunggah avatar baru", async () => {
     expect((await updateProfileAction({ ok: false, message: "" }, validForm(true))).ok).toBe(true);
-    expect(mocks.remove).not.toHaveBeenCalled();
+    expect(mocks.backendRequest).toHaveBeenCalledWith("/v1/storage/academy-private", expect.objectContaining({
+      method: "POST", headers: { "x-object-path": "test-user/12345678-1234-4234-8234-123456789abc.png" },
+    }));
+    expect(mocks.backendRequest).toHaveBeenCalledWith("/v1/profile", expect.objectContaining({
+      method: "PATCH", body: expect.stringContaining('"avatarPath":"test-user/12345678-1234-4234-8234-123456789abc.png"'),
+    }));
+    expect(mocks.backendRequest).not.toHaveBeenCalledWith(expect.stringContaining("old.png"), expect.anything());
   });
 
   it("tidak mengaktifkan onboarding saat peserta menyimpan biodata", async () => {
-    mocks.read.mockReset();
-    mocks.read.mockResolvedValueOnce({ data: { avatar_path: null }, error: null })
-      .mockResolvedValueOnce({ data: { id: "intern-1", status: "pending", start_date: "2020-01-01", end_date: "2099-01-01" }, error: null })
-      .mockResolvedValueOnce({ data: null, error: null });
     expect((await updateProfileAction({ ok: false, message: "" }, validForm())).ok).toBe(true);
-    expect(mocks.domainUpdate).not.toHaveBeenCalled();
+    expect(mocks.backendRequest).toHaveBeenCalledWith("/v1/profile", expect.objectContaining({
+      method: "PATCH", body: expect.not.stringContaining("onboarding_status"),
+    }));
   });
 });

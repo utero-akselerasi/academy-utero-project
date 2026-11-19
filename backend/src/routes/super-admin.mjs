@@ -201,6 +201,7 @@ export async function superAdminRoutes(app, { db, config }) {
           JSON.stringify({ sub: user.id, email: parsed.value.email, email_verified: true })]);
         await client.query("insert into utero_academy.user_profiles(id,full_name,phone,is_active) values($1,$2,$3,true)", [user.id, parsed.value.fullName, phone]);
         await client.query("insert into utero_academy.user_roles(user_id,role_id) values($1,$2)", [user.id, role.id]);
+        await client.query("set local role authenticated");
         if (role.code === "intern") await client.query("insert into utero_academy.intern_profiles(user_id,full_name,email,phone,status) values($1,$2,$3,$4,'active')", [user.id, parsed.value.fullName, parsed.value.email, phone]);
         if (role.code === "admin") await client.query("insert into utero_academy.mentor_profiles(user_id) values($1) on conflict(user_id) do nothing", [user.id]);
         await audit(client, "create_user", "user_profiles", user.id, null, { email: parsed.value.email, fullName: parsed.value.fullName, roleId, roleCode: role.code });
@@ -358,5 +359,27 @@ export async function superAdminRoutes(app, { db, config }) {
       from utero_academy.audit_logs l left join utero_academy.user_profiles p on p.id = l.actor_id
       order by l.created_at desc limit 500`));
     return { logs: result.rows };
+  });
+
+  app.post("/v1/super-admin/audit-logs", async (request, reply) => {
+    const identity = requireIdentity(request, reply);
+    if (!identity) return;
+    const action = cleanText(request.body?.action, 160, { required: true });
+    const resourceType = cleanText(request.body?.resourceType, 160, { required: true });
+    const resourceId = request.body?.resourceId ?? null;
+    if (!action || !resourceType || (resourceId !== null && !UUID.test(resourceId))) {
+      return reply.code(400).send({ error: "invalid_audit_log" });
+    }
+    await db.transaction(identity, async (client) => {
+      await client.query("select utero_academy.append_audit_log($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb)", [
+        action,
+        resourceType,
+        resourceId,
+        request.body?.previousValue == null ? null : JSON.stringify(request.body.previousValue),
+        request.body?.nextValue == null ? null : JSON.stringify(request.body.nextValue),
+        JSON.stringify(request.body?.metadata ?? {}),
+      ]);
+    });
+    return reply.code(204).send();
   });
 }

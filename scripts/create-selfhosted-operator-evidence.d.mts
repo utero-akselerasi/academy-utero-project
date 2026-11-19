@@ -10,7 +10,7 @@ export interface OperatorEvidenceManifest {
   operator: string;
   reviewer: string;
   reviewedAt: string;
-  monitoring: Record<"alertDelivery" | "errorRate" | "latency" | "capacity", SourceArtifactDescriptor>;
+  monitoring: Record<"alertDelivery" | "errorRate" | "latency", SourceArtifactDescriptor>;
   writers: Array<{ name: string; state: "frozen" | "inactive"; artifact: SourceArtifactDescriptor }>;
   sourceWriteProbe: { blocked: true; artifact: SourceArtifactDescriptor };
   queueDrained: { pending: 0; artifact: SourceArtifactDescriptor };

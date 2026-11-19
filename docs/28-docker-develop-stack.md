@@ -1,3 +1,5 @@
+> Arsip: stack develop/proxy terpisah sudah dipensiunkan. Repo sekarang hanya menyediakan stack production di `compose.yaml`; langkah deploy di bawah tidak berlaku.
+
 # Stack Docker aplikasi develop
 
 Production tetap memakai `docker-compose.yml`: project `website-academy-utero`, container `utero_academy_web` / `utero_academy_nginx`, port host `9982`, dan Supabase `https://supabase.carubra.space` (`20.20.20.3`). Container production lama wajib dibangun ulang dengan marker target sebelum dianggap benar; audit 14 Oktober menemukan image lama belum memiliki `.supabase-build-target.json` dan masih terikat endpoint develop. Jangan gabungkan file Compose production dengan develop atau menjalankan `docker compose down` tanpa `-f`.

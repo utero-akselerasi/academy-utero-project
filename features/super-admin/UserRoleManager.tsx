@@ -54,6 +54,8 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
 
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [createUserError, setCreateUserError] = useState("");
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [editingProfile, setEditingProfile] = useState<UserProfile | null>(null);
   const [changingRoleUser, setChangingRoleUser] = useState<UserProfile | null>(null);
   const [resetPasswordUser, setResetPasswordUser] = useState<UserProfile | null>(null);
@@ -450,13 +452,21 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
             </div>
 
             <form
-              action={async (formData) => {
-                try {
-                  await createUserManualAction(formData);
-                  setIsModalOpen(false);
-                } catch (err) {
-                  alert(err instanceof Error ? err.message : "Gagal membuat user.");
-                }
+               action={async (formData) => {
+                 setCreateUserError("");
+                 setIsCreatingUser(true);
+                 try {
+                   const result = await createUserManualAction(formData);
+                   if (!result.ok) {
+                     setCreateUserError(result.message);
+                     return;
+                   }
+                   setIsModalOpen(false);
+                 } catch (err) {
+                   setCreateUserError(err instanceof Error ? err.message : "Gagal membuat user.");
+                 } finally {
+                   setIsCreatingUser(false);
+                 }
               }}
               className="p-6 space-y-4"
             >
@@ -472,7 +482,7 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
 
               <div className="form-field">
                 <label className="form-label text-xs" htmlFor="manualPassword">Password *</label>
-                <input className="form-input text-sm" id="manualPassword" name="password" type="password" placeholder="Minimal 6 karakter..." required />
+                 <input className="form-input text-sm" id="manualPassword" name="password" type="password" placeholder="Minimal 12 karakter..." minLength={12} maxLength={128} required />
               </div>
 
               <div className="form-field">
@@ -482,8 +492,8 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
 
               <div className="form-field">
                 <label className="form-label text-xs" htmlFor="manualRole">Default Role</label>
-                <select className="form-input text-sm bg-white" id="manualRole" name="roleId">
-                  <option value="">Tanpa Role (Bisa diset nanti)</option>
+                 <select className="form-input text-sm bg-white" id="manualRole" name="roleId" required defaultValue="">
+                   <option value="" disabled>Pilih role</option>
                   {roles.filter(role => isSuperAdmin || ["intern", "school"].includes(role.code)).map((role) => (
                     <option key={role.id} value={role.id}>
                       {role.name}
@@ -492,20 +502,23 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                 </select>
               </div>
 
-              <div className="flex gap-2 justify-end pt-4 border-t border-slate-100">
+               {createUserError && <p role="alert" className="text-sm font-semibold text-red-700">{createUserError}</p>}
+               <div className="flex gap-2 justify-end pt-4 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                   onClick={() => { setCreateUserError(""); setIsModalOpen(false); }}
+                   disabled={isCreatingUser}
                   className="button-secondary text-sm font-semibold"
                 >
                   Batal
                 </button>
-                <button 
-                  type="submit" 
-                  className="button-primary text-sm font-semibold flex items-center gap-1"
-                >
-                  <Plus size={16} aria-hidden="true" />
-                  <span>Buat Akun</span>
+                 <button
+                   type="submit"
+                   disabled={isCreatingUser}
+                   className="button-primary text-sm font-semibold flex items-center gap-1"
+                 >
+                   <Plus size={16} aria-hidden="true" />
+                   <span>{isCreatingUser ? "Menyimpan..." : "Buat Akun"}</span>
                 </button>
               </div>
             </form>

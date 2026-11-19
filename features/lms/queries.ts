@@ -34,6 +34,12 @@ async function signLessonAttachments(attachments: unknown) {
  * diikutinya - termasuk course berstatus draft.
  */
 export async function internIsEnrolled(internProfileId: string, courseId: string) {
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/lms/courses/${courseId}/enrollment?internId=${encodeURIComponent(internProfileId)}`);
+    if (!response.ok) return false;
+    const body = await response.json() as { enrolled: boolean };
+    return body.enrolled === true;
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   const { data, error } = await db

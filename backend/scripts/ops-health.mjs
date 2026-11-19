@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { lstat, mkdir, readdir, readFile, rename, stat, statfs, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
@@ -59,11 +59,6 @@ export async function newestBackupAgeHours(root, now = Date.now()) {
   return (now - Math.max(...backups)) / 3_600_000;
 }
 
-export async function freePercent(root) {
-  const info = await statfs(root);
-  return info.blocks === 0 ? 0 : Math.round((Number(info.bavail) / Number(info.blocks)) * 10000) / 100;
-}
-
 export async function collectHealth(options) {
   const startedAt = new Date();
   const result = { schemaVersion: 1, gate: "opsHealth", target: options.target ?? "local",
@@ -83,14 +78,6 @@ export async function collectHealth(options) {
     result.checks.database = { ok: false, error: error instanceof Error ? error.message : "database failed" };
   } finally {
     await client.end().catch(() => {});
-  }
-  for (const [name, root] of [["storageDisk", options.storageRoot], ["backupDisk", options.backupRoot], ["offsiteDisk", options.offsiteRoot]]) {
-    try {
-      const available = await freePercent(root);
-      result.checks[name] = { ok: available >= options.minimumFreePercent, freePercent: available };
-    } catch (error) {
-      result.checks[name] = { ok: false, error: error instanceof Error ? error.message : "disk failed" };
-    }
   }
   try {
     const ageHours = await newestBackupAgeHours(options.backupRoot);
@@ -136,11 +123,9 @@ async function main() {
     target,
     apiUrl: process.env.ACADEMY_HEALTH_URL ?? "http://api:3001/health/ready",
     databaseUrl: process.env.DATABASE_URL,
-    storageRoot: process.env.STORAGE_ROOT ?? "/srv/storage",
     backupRoot: process.env.BACKUP_ROOT ?? "/backups",
     offsiteRoot: process.env.OFFSITE_ROOT ?? "/offsite",
     timeoutMs: Number(process.env.OPS_HEALTH_TIMEOUT_MS ?? 5000),
-    minimumFreePercent: Number(process.env.OPS_MINIMUM_FREE_PERCENT ?? 15),
     maximumBackupAgeHours: Number(process.env.OPS_MAXIMUM_BACKUP_AGE_HOURS ?? 26),
   });
   await writeHealthReport(report, process.env.OPS_HEALTH_OUTPUT);

@@ -13,13 +13,16 @@ export default async function AdminCmsPage() {
   const { data: site, error: siteErr } = await getDefaultSite();
 
   if (siteErr || !site) {
+    const missingSite = !siteErr || (siteErr instanceof Error && siteErr.message === "site_not_found");
     return (
       <main className="mx-auto max-w-6xl px-4 py-12">
         <div className="surface p-8 text-center border border-red-200 bg-red-50/50 rounded-xl">
           <BookOpen className="mx-auto text-red-500 mb-3" size={40} />
-          <h2 className="text-xl font-bold text-red-950">Website CMS Belum Aktif</h2>
+          <h2 className="text-xl font-bold text-red-950">{missingSite ? "Website CMS Belum Aktif" : "Website CMS Tidak Dapat Dimuat"}</h2>
           <p className="mt-2 text-sm text-red-700 max-w-md mx-auto leading-relaxed">
-            Situs web default Utero Academy belum diinisialisasi di database. Jalankan DDL SQL untuk membuat site.
+            {missingSite
+              ? "Situs web default Utero Academy belum diinisialisasi di database. Jalankan migrasi database backend untuk membuat site."
+              : "Gagal terhubung ke layanan CMS. Periksa koneksi backend dan log server."}
           </p>
         </div>
       </main>

@@ -7,10 +7,16 @@ import { revalidatePath } from "next/cache";
 import { usesLocalBackend } from "@/lib/backend/server";
 import { localCmsRequest, uploadLocalCmsFile } from "./local-api";
 
+function validatedUploadFile(asset: { buffer: Uint8Array; displayName: string; contentType: string }) {
+  const bytes = new ArrayBuffer(asset.buffer.byteLength);
+  new Uint8Array(bytes).set(asset.buffer);
+  return new File([bytes], asset.displayName, { type: asset.contentType });
+}
+
 async function uploadCmsAsset(file: File, bucket: "gallery" | "article", prefix: string) {
   const asset = await validateUpload(file, ["image"]);
   const filePath = buildStoragePath(prefix, asset.ext);
-  await uploadLocalCmsFile(bucket, filePath, file);
+  await uploadLocalCmsFile(bucket, filePath, validatedUploadFile(asset));
   return filePath;
 }
 
@@ -407,8 +413,33 @@ export async function submitInternTestimonialAction(formData: FormData) {
   const user = await requireUser();
   if (usesLocalBackend()) {
     const file = formData.get("photo") as File;
-    if (file?.size) throw new Error("Unggah foto testimoni peserta belum tersedia pada backend lokal.");
-    await localCmsRequest("/v1/cms/testimonials/intern", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ siteId: formData.get("siteId"), quote: formData.get("quote") }) });
+    const siteId = formData.get("siteId") as string;
+    const quote = formData.get("quote") as string;
+    if (file?.size) {
+      let photo;
+      try {
+        photo = await validateUpload(file, ["image"]);
+      } catch (error) {
+        if (error instanceof UploadValidationError) throw new Error(error.message);
+        console.error("Gagal memvalidasi foto testimoni peserta:", error);
+        throw new Error("Foto testimoni tidak dapat diproses.");
+      }
+      if (!["image/jpeg", "image/png", "image/webp"].includes(photo.contentType)) {
+        throw new Error("Format foto testimoni tidak didukung.");
+      }
+      const photoPath = buildStoragePath("testimonial", photo.ext);
+      const payload = new FormData();
+      payload.set("siteId", siteId);
+      payload.set("quote", quote);
+      payload.set("photo", validatedUploadFile(photo));
+      await localCmsRequest("/v1/cms/testimonials/intern", {
+        method: "POST",
+        headers: { "x-object-path": photoPath },
+        body: payload,
+      });
+    } else {
+      await localCmsRequest("/v1/cms/testimonials/intern", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ siteId, quote }) });
+    }
     revalidatePath("/dashboard/intern/certificate");
     revalidatePath("/dashboard/admin/cms");
     return;

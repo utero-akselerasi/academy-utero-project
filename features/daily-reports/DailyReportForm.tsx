@@ -209,7 +209,7 @@ export function DailyReportForm({ editReport }: Props) {
             id="attachment"
             name="attachment"
             type="file"
-            accept="image/*,application/pdf"
+            accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,.docx"
             className="hidden"
             multiple
             onChange={handleFileChange}
@@ -307,4 +307,3 @@ export function DailyReportForm({ editReport }: Props) {
     </form>
   );
 }
-

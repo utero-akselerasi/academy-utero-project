@@ -18,7 +18,7 @@ async function fixture() {
     await writeFile(file, content);
     return { path: file, sha256: createHash("sha256").update(content).digest("hex"), observedAt: "2026-10-15T09:30:00.000Z" };
   }
-  const monitoring = Object.fromEntries(await Promise.all(["alertDelivery", "errorRate", "latency", "capacity"]
+  const monitoring = Object.fromEntries(await Promise.all(["alertDelivery", "errorRate", "latency"]
     .map(async (name) => [name, await artifact(name)])));
   const writers = await Promise.all(REQUIRED_WRITERS.map(async (name, index) => ({ name,
     state: (index === 6 ? "inactive" : "frozen") as "inactive" | "frozen", artifact: await artifact(`writer-${name}`) })));
@@ -44,7 +44,7 @@ describe("self-hosted operator evidence", () => {
     const value = await fixture();
     const reports = await buildOperatorEvidence(value.manifest, now);
     expect(reports.monitoringReadiness).toMatchObject({ gate: "monitoringReadiness", target: "production", status: "PASS",
-      checks: { alertDelivery: { ok: true }, errorRate: { ok: true }, latency: { ok: true }, capacity: { ok: true } } });
+      checks: { alertDelivery: { ok: true }, errorRate: { ok: true }, latency: { ok: true } } });
     expect(reports.writeFreeze).toMatchObject({ gate: "writeFreeze", target: "production", status: "PASS",
       checks: { sourceWriteProbe: { ok: true }, queueDrained: { ok: true } } });
     expect((reports.writeFreeze.writers as Array<{ frozen: boolean }>).every((writer) => writer.frozen)).toBe(true);

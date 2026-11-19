@@ -1,10 +1,10 @@
 import { ImagePreview } from "@/features/daily-reports/ImagePreview";
 import { DailyReportForm } from "@/features/daily-reports/DailyReportForm";
-import { getInternDailyReports, getInternProfileId } from "@/features/daily-reports/queries";
+import { getDailyReportDetail, getInternDailyReports, getInternProfileId } from "@/features/daily-reports/queries";
 import { ReportStatusBadge } from "@/features/daily-reports/ReportStatusBadge";
 import { requireIntern } from "@/features/auth/guards";
 import Link from "next/link";
-import { FileText, Eye, Edit3, PlusCircle, ArrowLeft } from "lucide-react";
+import { Eye, Edit3, PlusCircle } from "lucide-react";
 import { RouteModal } from "@/components/ui/route-modal";
 
 function formatDate(value: string) {
@@ -20,11 +20,13 @@ function isImageAttachment(att: { mime_type?: string | null; file_name: string }
 }
 
 type PageProps = {
-  searchParams: Promise<{ editReportId?: string; detailReportId?: string; status?: string; showForm?: string }>;
+  searchParams: Promise<{ editReportId?: string; detailReportId?: string; status?: string; showForm?: string; page?: string }>;
 };
 
+const PAGE_SIZE = 30;
+
 export default async function InternDailyReportsPage({ searchParams }: PageProps) {
-  const { editReportId, detailReportId, status: statusFilter, showForm } = await searchParams;
+  const { editReportId, detailReportId, status: statusFilter, showForm, page: pageParam } = await searchParams;
   
   // Guard peran di page, bukan hanya di layout.
   const user = await requireIntern();
@@ -40,19 +42,22 @@ export default async function InternDailyReportsPage({ searchParams }: PageProps
     );
   }
   
-  const { data: reports, error } = await getInternDailyReports(internProfileId);
+  const currentFilter = statusFilter || "all";
+  const currentPage = Math.max(1, Number.parseInt(pageParam || "1", 10) || 1);
+  const { data: reports, error } = await getInternDailyReports(internProfileId, {
+    page: currentPage,
+    limit: PAGE_SIZE,
+    status: currentFilter,
+  });
   if (error) {
     console.error("=== DEBUG INTERN DAILY REPORT ERROR ===", error);
   }
   
-  // Filter laporan berdasarkan status
-  const currentFilter = statusFilter || "all";
-  const filteredReports = currentFilter === "all" 
-    ? reports 
-    : reports.filter(r => r.status === currentFilter);
-
-  const editReport = editReportId ? reports.find(r => r.id === editReportId) : undefined;
-  const detailReport = detailReportId ? reports.find(r => r.id === detailReportId) : undefined;
+  const requestedReportId = editReportId || detailReportId;
+  const requestedReport = requestedReportId ? await getDailyReportDetail(requestedReportId, internProfileId) : null;
+  const editReport = editReportId ? requestedReport ?? undefined : undefined;
+  const detailReport = detailReportId ? requestedReport ?? undefined : undefined;
+  const filteredReports = reports;
   const isFormOpen = showForm === "true" || !!editReportId;
 
   return (
@@ -95,7 +100,7 @@ export default async function InternDailyReportsPage({ searchParams }: PageProps
           ].map(tab => (
             <Link
               key={tab.value}
-              href={`/dashboard/intern/daily-reports?status=${tab.value}`}
+              href={`/dashboard/intern/daily-reports?status=${tab.value}&page=1`}
               className={`px-3 py-1.5 rounded-md font-bold transition-all ${
                 currentFilter === tab.value
                   ? "bg-white text-teal-700 shadow-sm"
@@ -175,6 +180,15 @@ export default async function InternDailyReportsPage({ searchParams }: PageProps
             </div>
           </div>
         )}
+        <nav aria-label="Halaman laporan" className="flex items-center justify-end gap-3 text-sm">
+          {currentPage > 1 && (
+            <Link className="button-secondary" href={`/dashboard/intern/daily-reports?status=${currentFilter}&page=${currentPage - 1}`}>Sebelumnya</Link>
+          )}
+          <span>Halaman {currentPage}</span>
+          {reports.length === PAGE_SIZE && (
+            <Link className="button-secondary" href={`/dashboard/intern/daily-reports?status=${currentFilter}&page=${currentPage + 1}`}>Berikutnya</Link>
+          )}
+        </nav>
       </div>
 
       {/* POPUP MODAL FORM INPUT / EDIT DAILY REPORT

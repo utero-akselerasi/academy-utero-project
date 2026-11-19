@@ -116,8 +116,10 @@ function validateSmtp(env) {
 }
 
 export function validateComposeCookieOverrides(composeText) {
-  const web = /web:[\s\S]*?ACADEMY_SECURE_COOKIES:\s*["']true["']/m.test(composeText);
-  const api = /api:[\s\S]*?SECURE_COOKIES:\s*["']true["']/m.test(composeText);
+  const service = (name) => new RegExp(`(?:^|\\n)  ${name}:\\r?\\n([\\s\\S]*?)(?=\\r?\\n  [A-Za-z0-9_-]+:|$)`).exec(composeText)?.[1] ?? "";
+  const hasTrueValue = (text, key) => new RegExp(`^\\s+(?:-\\s+)?${key}(?:\\s*:\\s*|=)["']?true["']?\\s*$`, "m").test(text);
+  const web = hasTrueValue(service("web"), "ACADEMY_SECURE_COOKIES");
+  const api = hasTrueValue(service("api"), "SECURE_COOKIES");
   if (!web || !api) fail("Compose production wajib memaksa secure cookies untuk web dan API");
   return true;
 }
@@ -189,7 +191,7 @@ export async function validateSelfhostedProductionEnv(env, options = {}) {
 
   await validateFilesystem(env);
   validateComposeCookieOverrides(options.composeText ?? await readFile(
-    new URL("../docker-compose.production.yml", import.meta.url), "utf8"));
+    new URL("../compose.yaml", import.meta.url), "utf8"));
   return { ready: true, checks: [...CHECKS] };
 }
 

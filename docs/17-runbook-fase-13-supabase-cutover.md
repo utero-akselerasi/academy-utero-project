@@ -1,3 +1,5 @@
+> Arsip historis (12 Oktober 2026). Runbook ini merujuk stack Supabase dan file Compose/env yang sudah dipensiunkan; jangan jalankan perintah deployment di bawah. Production sekarang hanya memakai `compose.yaml` dan `.env`.
+
 # Runbook fase 13: pemisahan develop dan production
 
 Status: 12 Oktober 2026. Cutover production masih **NO-GO**. Dokumen ini tidak memberi izin menjalankan migrasi pada server live.

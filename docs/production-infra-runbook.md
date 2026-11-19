@@ -44,7 +44,7 @@ Image production memakai tag versi eksplisit dan digest OCI image index agar byt
 
 ## Environment
 
-Salin `docker-compose.production.env.example` ke lokasi aman di host, misalnya `/etc/academy/production.env`, lalu isi seluruh nilai wajib. Batasi permission file agar hanya operator deployment dapat membacanya.
+Salin `.env.example` ke lokasi aman di host, misalnya `.env`, lalu isi seluruh nilai wajib. Batasi permission file agar hanya operator deployment dapat membacanya.
 
 Nilai berikut wajib konsisten:
 
@@ -62,27 +62,23 @@ Variabel `SOURCE_DATABASE_URL`, `STORAGE_IMPORT_SOURCE`, dan kedua `CONFIRM_*` h
 
 ## Validasi Tanpa Menjalankan Stack
 
-Sebelum Compose, cek konsistensi env tanpa mencetak secret memakai `node scripts/validate-selfhosted-production-env.mjs --env-file C:\secure\academy-production.env`. Setelah stack production tersedia lewat hostname nyata, jalankan `node scripts/selfhosted-production-preflight.mjs --base-url https://academy.example.com --output C:\secure\evidence\tls-preflight.json` dengan mengganti contoh domain. Kedua validator tidak membuktikan data sumber atau memberikan izin DNS cutover; ikuti `docs/33-selfhosted-uat-performance-gate.md`.
+Sebelum Compose, cek konsistensi env tanpa mencetak secret memakai `node scripts/validate-selfhosted-production-env.mjs --env-file .env`. Setelah stack production tersedia lewat hostname nyata, jalankan `node scripts/selfhosted-production-preflight.mjs --base-url https://academy.example.com --output C:\secure\evidence\tls-preflight.json` dengan mengganti contoh domain. Kedua validator tidak membuktikan data sumber atau memberikan izin DNS cutover; ikuti `docs/33-selfhosted-uat-performance-gate.md`.
 
 Setelah env lolos dan mailbox smoke khusus tersedia, ikuti `docs/37-selfhosted-smtp-smoke.md`. Perintah SMTP memerlukan token konfirmasi eksplisit karena benar-benar mengirim satu email; evidence PASS tetap harus dikonfirmasi diterima oleh operator/reviewer.
 
 Jalankan dari root repository dengan file environment produksi:
 
 ```powershell
-docker compose --env-file C:\secure\academy-production.env `
-  -f docker-compose.backend.yml `
-  -f docker-compose.selfhosted.yml `
-  -f docker-compose.production.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   config --quiet
 ```
 
 Periksa hasil render dan pastikan hanya Nginx memiliki `ports`:
 
 ```powershell
-docker compose --env-file C:\secure\academy-production.env `
-  -f docker-compose.backend.yml `
-  -f docker-compose.selfhosted.yml `
-  -f docker-compose.production.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   config
 ```
 
@@ -90,7 +86,7 @@ Uji sintaks Nginx tanpa menjalankan aplikasi:
 
 ```powershell
 docker run --rm `
-  -v "${PWD}\nginx.production.conf:/etc/nginx/nginx.conf:ro" `
+  -v "${PWD}\nginx.conf:/etc/nginx/nginx.conf:ro" `
   -v "C:\secure\academy-tls:/etc/nginx/tls:ro" `
   nginx:1.27.5-alpine3.21@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 nginx -t
 ```
@@ -104,30 +100,24 @@ Next.js sudah mengirim CSP bernonce pada respons halaman; Nginx tidak menambahka
 Build dan start hanya setelah validasi konfigurasi lulus:
 
 ```powershell
-docker compose --env-file C:\secure\academy-production.env `
-  -f docker-compose.backend.yml `
-  -f docker-compose.selfhosted.yml `
-  -f docker-compose.production.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   up -d --build
 ```
 
 Pada host Linux, gunakan bentuk setara berikut:
 
 ```sh
-docker compose --env-file /etc/academy/production.env \
-  -f docker-compose.backend.yml \
-  -f docker-compose.selfhosted.yml \
-  -f docker-compose.production.yml \
+docker compose --env-file .env \
+  -f compose.yaml \
   up -d --build
 ```
 
 Pemeriksaan minimum sebelum perubahan DNS atau cutover:
 
 ```powershell
-docker compose --env-file C:\secure\academy-production.env `
-  -f docker-compose.backend.yml `
-  -f docker-compose.selfhosted.yml `
-  -f docker-compose.production.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   ps
 
 curl.exe -I http://127.0.0.1/healthz
@@ -157,16 +147,12 @@ Jangan mengandalkan firewall saja. Pemeriksaan `docker compose config` juga haru
 Nginx membaca `/etc/nginx/tls/fullchain.pem` dan `/etc/nginx/tls/privkey.pem` dari mount read-only. Proses penerbitan atau renewal sertifikat dikelola operator di host. Setelah file diperbarui secara atomik, validasi lalu reload Nginx:
 
 ```powershell
-docker compose --env-file C:\secure\academy-production.env `
-  -f docker-compose.backend.yml `
-  -f docker-compose.selfhosted.yml `
-  -f docker-compose.production.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   exec nginx nginx -t
 
-docker compose --env-file C:\secure\academy-production.env `
-  -f docker-compose.backend.yml `
-  -f docker-compose.selfhosted.yml `
-  -f docker-compose.production.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   exec nginx nginx -s reload
 ```
 
@@ -174,6 +160,6 @@ Jangan reload bila `nginx -t` gagal. Pantau tanggal kedaluwarsa sertifikat dan j
 
 ## Rollback Infrastruktur
 
-Rollback image menggunakan tag atau digest image terakhir yang sudah diverifikasi, lalu jalankan kembali Compose dengan tiga file yang sama. Jangan menghapus volume PostgreSQL atau direktori storage. Perintah seperti `docker compose down -v` dilarang karena menghapus data persisten.
+Rollback image menggunakan tag atau digest image terakhir yang sudah diverifikasi, lalu jalankan kembali `compose.yaml`. Jangan menghapus volume PostgreSQL atau direktori storage. Perintah seperti `docker compose down -v` dilarang karena menghapus data persisten.
 
 Rollback DNS, database, dan data mengikuti runbook cutover terpisah. Konfigurasi ini tidak memberi izin untuk publish atau cutover.

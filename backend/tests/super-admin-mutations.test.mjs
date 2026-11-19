@@ -51,8 +51,10 @@ test("create school memakai transaksi RLS super-admin dan audit", async () => {
 
 test("create user memisahkan parameter text dan uuid untuk auth identity", async () => {
   let identityValues;
+  const queries = [];
   const db = { async apiTransaction(callback) {
     return callback({ async query(sql, values) {
+      queries.push(sql);
       if (sql.includes("from utero_academy.roles")) return { rows: [{ id: targetId, code: "school" }], rowCount: 1 };
       if (sql.includes("select 1 from auth.users")) return { rows: [], rowCount: 0 };
       if (sql.includes("insert into auth.users")) return { rows: [{ id: targetId }], rowCount: 1 };
@@ -67,8 +69,42 @@ test("create user memisahkan parameter text dan uuid untuk auth identity", async
   assert.equal(response.statusCode, 201);
   assert.deepEqual(identityValues?.slice(0, 2), [targetId, targetId]);
   assert.equal(identityValues?.length, 3);
+  const roleSwitch = queries.indexOf("set local role authenticated");
+  const domainInsert = queries.findIndex((sql) => sql.includes("insert into utero_academy.mentor_profiles") || sql.includes("insert into utero_academy.intern_profiles"));
+  const auditWrite = queries.findIndex((sql) => sql.includes("append_audit_log"));
+  assert.ok(roleSwitch >= 0);
+  assert.ok(domainInsert < 0 || roleSwitch < domainInsert);
+  assert.ok(roleSwitch < auditWrite);
   await app.close();
 });
+
+for (const roleCode of ["intern", "admin"]) {
+  test(`create user ` + roleCode + ` memindahkan role DB sebelum provisioning profil`, async () => {
+    let authenticated = false;
+    let domainInserted = false;
+    const db = { async apiTransaction(callback) {
+      return callback({ async query(sql) {
+        if (sql.includes("from utero_academy.roles")) return { rows: [{ id: targetId, code: roleCode }] };
+        if (sql.includes("select 1 from auth.users")) return { rows: [], rowCount: 0 };
+        if (sql.includes("insert into auth.users")) return { rows: [{ id: targetId }] };
+        if (sql === "set local role authenticated") authenticated = true;
+        if (sql.includes("insert into utero_academy.intern_profiles") || sql.includes("insert into utero_academy.mentor_profiles")) {
+          assert.equal(authenticated, true);
+          domainInserted = true;
+        }
+        if (sql.includes("append_audit_log")) assert.equal(authenticated, true);
+        return { rows: [], rowCount: 1 };
+      } });
+    } };
+    const app = await build({ id: actorId, roles: ["super_admin"] }, db);
+    const response = await app.inject({ method: "POST", url: "/v1/super-admin/users", payload: {
+      fullName: "User Uji", email: roleCode + "@example.test", password: "password-kuat-123", roleId: targetId,
+    } });
+    assert.equal(response.statusCode, 201);
+    assert.equal(domainInserted, true);
+    await app.close();
+  });
+}
 
 test("link school contact memakai transaksi RLS super-admin", async () => {
   const identity = { id: actorId, userId: actorId, roles: ["super_admin"] };

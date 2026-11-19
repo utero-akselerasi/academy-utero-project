@@ -4,7 +4,7 @@ import { UploadValidationError } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
 import { attendanceSettingsSchema, checkInSchema, checkOutSchema, reviewAttendanceSchema } from "./schemas";
 import { type FormState } from "./actions";
-import { type Attendance, type AttendanceWithIntern } from "./types";
+import { type Attendance, type AttendanceWithIntern, type Permit } from "./types";
 
 export type MentorAttendanceDashboard = {
   setupRequired: boolean;
@@ -21,7 +21,7 @@ export type AttendanceExportData = {
 };
 
 async function send(path: string, method: string, body: unknown) {
-  const response = await backendRequest(path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const response = await backendRequest(path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(60_000) });
   return { response, data: await response.json() as Record<string, any> };
 }
 
@@ -33,6 +33,7 @@ function upload(file: File) {
 }
 
 export async function localCheckIn(formData: FormData): Promise<FormState> {
+  if (!formData.get("latitude") || !formData.get("longitude")) return { ok: false, message: "Akses lokasi diperlukan untuk check-in." };
   const parsed = checkInSchema.safeParse({ latitude: Number(formData.get("latitude")), longitude: Number(formData.get("longitude")), wifiSsid: formData.get("wifiSsid") || undefined });
   if (!parsed.success) return { ok: false, message: "Format koordinat lokasi tidak valid." };
   try {
@@ -52,14 +53,27 @@ export async function localCheckIn(formData: FormData): Promise<FormState> {
 }
 
 export async function localCheckOut(formData: FormData): Promise<FormState> {
+  if (!formData.get("latitude") || !formData.get("longitude")) return { ok: false, message: "Akses lokasi diperlukan untuk check-out." };
   const parsed = checkOutSchema.safeParse({ latitude: Number(formData.get("latitude")), longitude: Number(formData.get("longitude")), wifiSsid: formData.get("wifiSsid") || undefined });
   if (!parsed.success) return { ok: false, message: "Format koordinat lokasi tidak valid." };
   try {
     const selfie = validateBase64Image(String(formData.get("selfieBase64") || ""));
+    const proof = formData.get("outOfRangeProof");
+    const outOfRangeProof = proof instanceof File && proof.size ? await upload(proof) : undefined;
     const { response, data } = await send("/v1/attendance/check-out", "POST", {
       ...parsed.data, selfieDataUrl: `data:${selfie.contentType};base64,${Buffer.from(selfie.buffer).toString("base64")}`,
+      outOfRangeReason: formData.get("outOfRangeReason"), outOfRangeProof,
     });
-    if (!response.ok) return { ok: false, message: data.error === "outside_geofence" ? "Absen ditolak. Lokasi di luar radius kantor." : "Gagal check-out. Pastikan sudah check-in." };
+    if (!response.ok) {
+      const isOutOfRange = data.error === "out_of_range_proof_required";
+      return {
+        ok: false,
+        message: isOutOfRange
+          ? "Kamu di luar jangkauan kantor. Isi alasan dan unggah bukti kegiatan luar."
+          : "Gagal check-out. Pastikan sudah check-in dan belum check-out.",
+        isOutOfRange,
+      };
+    }
     revalidatePath("/dashboard/intern/attendance");
     return { ok: true, message: "Check-out berhasil disimpan." };
   } catch (error) { return { ok: false, message: error instanceof UploadValidationError ? error.message : "Gagal memproses check-out." }; }
@@ -68,11 +82,16 @@ export async function localCheckOut(formData: FormData): Promise<FormState> {
 export async function localPermit(formData: FormData): Promise<FormState> {
   const file = formData.get("certificate");
   try {
-    const { response } = await send("/v1/attendance/permits", "POST", {
+    const { response, data } = await send("/v1/attendance/permits", "POST", {
       permitType: formData.get("permitType"), startDate: formData.get("startDate"), endDate: formData.get("endDate"),
       reason: formData.get("reason"), certificate: file instanceof File && file.size ? await upload(file) : undefined,
     });
-    if (!response.ok) return { ok: false, message: "Pengajuan izin gagal. Periksa tanggal, alasan, dan surat dokter." };
+    if (!response.ok) return {
+      ok: false,
+      message: data.error === "permit_exists"
+        ? "Sudah ada pengajuan izin pada rentang tanggal tersebut."
+        : "Pengajuan izin gagal. Periksa tanggal, alasan, dan surat dokter.",
+    };
     revalidatePath("/dashboard/intern/attendance");
     return { ok: true, message: "Pengajuan izin/sakit berhasil dikirim." };
   } catch (error) { return { ok: false, message: error instanceof UploadValidationError ? error.message : "Gagal memproses lampiran." }; }
@@ -120,6 +139,12 @@ export async function localTodayAttendance(): Promise<Attendance | null> {
   const response = await backendRequest("/v1/attendance/today");
   if (!response.ok) throw new Error("Gagal membaca absensi hari ini.");
   return ((await response.json()) as { attendance: Attendance | null }).attendance;
+}
+
+export async function localMyPermits(): Promise<Permit[]> {
+  const response = await backendRequest("/v1/attendance/permits");
+  if (!response.ok) throw new Error("Gagal membaca pengajuan izin.");
+  return ((await response.json()) as { permits: Permit[] }).permits;
 }
 
 export async function localMentorAttendanceDashboard(): Promise<MentorAttendanceDashboard> {

@@ -13,10 +13,10 @@ import {
 const compose = `services:
   web:
     environment:
-      ACADEMY_SECURE_COOKIES: "true"
+      - ACADEMY_SECURE_COOKIES=true
   api:
     environment:
-      SECURE_COOKIES: "true"`;
+      - SECURE_COOKIES=true`;
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "academy-production-env-"));
@@ -73,7 +73,9 @@ describe("validate self-hosted production environment", () => {
       await expect(validateSelfhostedProductionEnv({ ...env, PUBLIC_APP_URL: "http://academy.utero.id" }, { composeText: compose })).rejects.toThrow("HTTPS kanonis");
       await expect(validateSelfhostedProductionEnv({ ...env, NEXT_PUBLIC_APP_URL: "https://other.utero.id" }, { composeText: compose })).rejects.toThrow("origin yang sama");
       await expect(validateSelfhostedProductionEnv({ ...env, ACADEMY_SECURE_COOKIES: "false" }, { composeText: compose })).rejects.toThrow("wajib true");
-      expect(() => validateComposeCookieOverrides(compose.replace('SECURE_COOKIES: "true"', "SECURE_COOKIES: ${SECURE_COOKIES}"))).toThrow("memaksa secure cookies");
+      expect(() => validateComposeCookieOverrides(compose.replace("- SECURE_COOKIES=true", "- SECURE_COOKIES=${SECURE_COOKIES}"))).toThrow("memaksa secure cookies");
+      expect(() => validateComposeCookieOverrides(compose.replace("- SECURE_COOKIES=true", "- SECURE_COOKIES=false"))).toThrow("memaksa secure cookies");
+      expect(validateComposeCookieOverrides(compose.replace("- SECURE_COOKIES=true", 'SECURE_COOKIES: "true"'))).toBe(true);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 

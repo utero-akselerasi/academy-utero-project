@@ -1,4 +1,5 @@
 import { randomInt } from "node:crypto";
+import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 
 /**
@@ -62,6 +63,15 @@ const MAX_NUMBER_ATTEMPTS = 8;
  * membuat sertifikat hilang tanpa ada yang tahu.
  */
 export async function generateCourseCertificate(internProfileId: string, courseId: string) {
+  if (usesLocalBackend()) {
+    const response = await backendRequest(`/v1/lms/courses/${courseId}/certificate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ internId: internProfileId }),
+    });
+    if (!response.ok) throw new Error("Progres tersimpan, namun sertifikat penyelesaian course gagal diterbitkan.");
+    return;
+  }
   const db = await createUteroAcademyServiceRoleClient();
 
   // Cek apakah sudah ada sertifikat untuk course ini.

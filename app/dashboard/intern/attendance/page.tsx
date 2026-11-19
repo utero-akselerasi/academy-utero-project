@@ -1,12 +1,13 @@
 import { CheckInForm } from "@/features/attendance/CheckInForm";
 import { CheckOutForm } from "@/features/attendance/CheckOutForm";
 import { PermitForm } from "@/features/attendance/PermitForm";
-import { getInternAttendances, getTodayAttendance } from "@/features/attendance/queries";
+import { getInternAttendances, getMyPermits, getTodayAttendance } from "@/features/attendance/queries";
 import { getInternProfileId } from "@/features/daily-reports/queries";
 import { AttendanceStatusBadge } from "@/features/attendance/AttendanceStatusBadge";
 import { requireIntern } from "@/features/auth/guards";
 import { resolveStorageUrl } from "@/lib/storage-urls";
 import Link from "next/link";
+import { jakartaDateString } from "@/lib/time";
 
 type Props = {
   searchParams: Promise<{ mode?: string }>;
@@ -38,8 +39,15 @@ export default async function InternAttendancePage({ searchParams }: Props) {
     );
   }
 
-  const todayData = await getTodayAttendance(internProfileId);
-  const { data: history } = await getInternAttendances(internProfileId);
+  const [todayData, attendanceResult, permits] = await Promise.all([
+    getTodayAttendance(internProfileId),
+    getInternAttendances(internProfileId),
+    getMyPermits(),
+  ]);
+  const history = attendanceResult.data;
+  const today = jakartaDateString();
+  const pendingPermits = permits.filter((permit) => permit.status === "pending");
+  const pendingToday = pendingPermits.find((permit) => permit.start_date <= today && permit.end_date >= today);
 
   // Selfie dan surat dokter ada di bucket privat `academy-private`, jadi harus
   // ditandatangani di server. Ditandatangani sekali per baris secara paralel —
@@ -90,6 +98,11 @@ export default async function InternAttendancePage({ searchParams }: Props) {
             </div>
           ) : !hasCheckedIn ? (
             <div className="space-y-4">
+              {pendingToday && (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  Pengajuan izin/sakit hari ini menunggu review. Jika tetap hadir, kamu masih bisa check-in.
+                </p>
+              )}
               <div className="flex bg-slate-200/80 p-1 rounded-lg text-xs font-bold shrink-0">
                 <Link
                   href="/dashboard/intern/attendance?mode=present"
@@ -109,7 +122,17 @@ export default async function InternAttendancePage({ searchParams }: Props) {
                 </Link>
               </div>
 
-              {mode === "present" ? <CheckInForm /> : <PermitForm />}
+              {mode === "present" ? (
+                <CheckInForm />
+              ) : pendingToday ? (
+                <div className="surface p-6 text-center bg-amber-50 border border-amber-200 rounded-xl space-y-3">
+                  <h3 className="font-bold text-slate-950">Pengajuan Sudah Terkirim</h3>
+                  <p className="text-sm text-slate-600">Tunggu review mentor sebelum mengajukan izin lain pada rentang yang sama.</p>
+                  <AttendanceStatusBadge status="pending" />
+                </div>
+              ) : (
+                <PermitForm />
+              )}
             </div>
           ) : !hasCheckedOut ? (
             <CheckOutForm />
@@ -123,6 +146,23 @@ export default async function InternAttendancePage({ searchParams }: Props) {
         </div>
 
         <div>
+          {pendingPermits.length > 0 && (
+            <section className="mb-6">
+              <h2 className="mb-3 text-lg font-bold text-slate-950">Pengajuan Menunggu Review</h2>
+              <div className="grid gap-3">
+                {pendingPermits.map((permit) => (
+                  <article key={permit.id} className="surface p-4 flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-bold text-slate-950">{permit.permit_type === "sick" ? "Sakit" : "Izin Mandiri"}</p>
+                      <p className="text-xs text-slate-500">{formatDate(permit.start_date)} - {formatDate(permit.end_date)}</p>
+                      <p className="mt-1 text-sm text-slate-600 italic">"{permit.reason}"</p>
+                    </div>
+                    <AttendanceStatusBadge status="pending" />
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
           <h2 className="mb-4 text-lg font-bold text-slate-950">Riwayat Absensi</h2>
           <div className="grid gap-3">
             {history.map((record, index) => (

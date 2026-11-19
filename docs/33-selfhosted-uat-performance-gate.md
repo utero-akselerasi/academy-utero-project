@@ -22,12 +22,11 @@ Batas keras: 500 request, concurrency 10, timeout 15 detik, maksimal 10 path. Pr
 
 ## Checklist evidence
 
-Semua laporan wajib JSON dengan `gate`, `target: "production"`, `status: "PASS"`, `finishedAt`, dan `expiresAt`. Checklist menyimpan path absolut, ukuran byte, dan SHA-256 setiap file. Operator dan reviewer harus berbeda.
+Evaluator mewajibkan tepat 11 evidence berikut. Semua laporan wajib JSON dengan `gate`, `target: "production"`, `status: "PASS"`, `finishedAt`, dan `expiresAt`. Checklist menyimpan path absolut, ukuran byte, dan SHA-256 setiap file. Operator dan reviewer harus berbeda.
 
 | Evidence | Bukti minimum |
 | --- | --- |
-| `migrationVerification` | checksum tabel/Auth, FK, hitungan sumber-target tanpa selisih |
-| `storageVerification` | manifest bucket/path/size/SHA-256 dan owner tanpa selisih |
+| `identityOnlyMigration` | jumlah/checksum profil dan identitas email sumber-target cocok; tanpa password hash, email terkonfirmasi, sesi, role assignment, data domain, storage lama, atau avatar lama |
 | `rbacVerification` | role/permission sama, tanpa orphan atau scope rusak |
 | `roleSmoke` | lima role lulus positif/negatif dan seluruh cookie sesi production memakai `Secure` |
 | `readonlyUatPerformance` | keluaran probe script ini dalam budget |
@@ -35,34 +34,30 @@ Semua laporan wajib JSON dengan `gate`, `target: "production"`, `status: "PASS"`
 | `rollbackRehearsal` | rehearsal terukur, RTO dan langkah operator tercatat |
 | `tlsPreflight` | sertifikat, chain, hostname, header keamanan, dan HTTP redirect lulus |
 | `smtpSmoke` | email verifikasi/reset diterima tanpa secret di log |
-| `opsHealth` | probe production API/DB, kapasitas disk, backup lokal dan off-host terbaru, serta isolasi device off-host lulus |
-| `monitoringReadiness` | alert API, DB, disk, storage, error rate, latency tersedia |
+| `opsHealth` | probe production API/DB, backup lokal dan off-host terbaru, serta isolasi device off-host lulus |
+| `monitoringReadiness` | alert delivery, error rate, dan latency tersedia |
 | `writeFreeze` | semua writer/upload sumber dibekukan dan diverifikasi |
 
 `role-smoke` pada stack production menulis evidence atomik ke `./data/ops-evidence/roleSmoke.json` dengan
-`target: "production"`. Jalankan memakai ketiga file Compose production agar override target dan output aktif:
+`target: "production"`. Jalankan memakai kefile Compose production tunggal `compose.yaml` agar override target dan output aktif:
 
 ```powershell
-docker compose --env-file C:\secure\academy-production.env `
-  -f docker-compose.backend.yml `
-  -f docker-compose.selfhosted.yml `
-  -f docker-compose.production.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   --profile operations run --no-deps --rm role-smoke
 ```
 
-`migration-verify` memakai override production `MIGRATION_VERIFY_TARGET=production` dan menulis `migration-verification.json` serta `storage-verification.json` ke `./data/ops-evidence`. Kedua laporan baru dinyatakan PASS bila tidak ada mismatch, tabel/FK terverifikasi, dan semua byte objek dibandingkan. Jalankan setelah import final memakai tiga file Compose pada runbook cutover, kemudian tempatkan salinan evidence yang direview bersama checklist di satu direktori aman. Jangan mengganti target lokal menjadi production secara manual pada JSON fixture.
+Ikuti `docs/35-selfhosted-identity-only.md` untuk menghasilkan `identityOnlyMigration` setelah import identitas final, sebelum bootstrap dan pemberian role. Tempatkan evidence production yang direview bersama checklist di satu direktori aman. Laporan lama `migrationVerification` dan `storageVerification` bukan bagian dari 11 evidence wajib dan jangan dimasukkan ke direktori builder. Jangan mengganti target lokal menjadi production secara manual pada JSON fixture.
 
 Jalankan verifikasi RBAC read-only dengan override production; hasil atomik ditulis ke `./data/ops-evidence/rbacVerification.json`:
 
 ```powershell
-docker compose --env-file C:\secure\academy-production.env `
-  -f docker-compose.backend.yml `
-  -f docker-compose.selfhosted.yml `
-  -f docker-compose.production.yml `
+docker compose --env-file .env `
+  -f compose.yaml `
   --profile operations run --no-deps --rm rbac-verify
 ```
 
-Evidence lain yang masih manual harus berisi struktur minimum yang diuji evaluator: `backupRestore` memuat `checks.database/storage/safetyBackup.ok: true`; `rollbackRehearsal` memuat `rtoSeconds`, marker DB/storage, dan readiness HTTP 200; `monitoringReadiness` memuat alert delivery, error rate, latency, capacity; `writeFreeze` memuat writer `web`, `api`, `scheduled-jobs`, `edge-functions`, `webhooks`, `legacy-clients`, `direct-uploads` dalam status beku, probe sumber, dan antrean kosong. Writer yang tidak dipakai harus diverifikasi nonaktif, bukan dihilangkan. Field yang lengkap saja belum membuktikan kejadian: reviewer wajib mencocokkan log, snapshot, dan persetujuan operator.
+Evidence lain yang masih manual harus berisi struktur minimum yang diuji evaluator: `backupRestore` memuat `checks.database/storage/safetyBackup.ok: true`; `rollbackRehearsal` memuat `rtoSeconds`, marker DB/storage, dan readiness HTTP 200; `monitoringReadiness` memuat alert delivery, error rate, dan latency; `writeFreeze` memuat writer `web`, `api`, `scheduled-jobs`, `edge-functions`, `webhooks`, `legacy-clients`, `direct-uploads` dalam status beku, probe sumber, dan antrean kosong. Writer yang tidak dipakai harus diverifikasi nonaktif, bukan dihilangkan. Field yang lengkap saja belum membuktikan kejadian: reviewer wajib mencocokkan log, snapshot, dan persetujuan operator.
 
 Gunakan CLI berikut untuk membuat dua evidence manual tersebut. CLI hanya menerima `target: "production"`, mewajibkan operator dan reviewer berbeda, dan gagal tertutup bila source artifact hilang, symlink, hash berubah, timestamp di masa depan, atau lebih tua dari 24 jam. Output ditulis atomik dengan mode `0600`.
 
@@ -85,8 +80,7 @@ Manifest input memakai struktur berikut. Setiap `path` wajib absolut dan menunju
   "monitoring": {
     "alertDelivery": { "path": "C:\\secure-evidence\\sources\\alert.log", "sha256": "<64 hex>", "observedAt": "2026-10-15T09:30:00.000Z" },
     "errorRate": { "path": "C:\\secure-evidence\\sources\\error-rate.json", "sha256": "<64 hex>", "observedAt": "2026-10-15T09:30:00.000Z" },
-    "latency": { "path": "C:\\secure-evidence\\sources\\latency.json", "sha256": "<64 hex>", "observedAt": "2026-10-15T09:30:00.000Z" },
-    "capacity": { "path": "C:\\secure-evidence\\sources\\capacity.json", "sha256": "<64 hex>", "observedAt": "2026-10-15T09:30:00.000Z" }
+    "latency": { "path": "C:\\secure-evidence\\sources\\latency.json", "sha256": "<64 hex>", "observedAt": "2026-10-15T09:30:00.000Z" }
   },
   "writers": [
     { "name": "web", "state": "frozen", "artifact": { "path": "C:\\secure-evidence\\sources\\web.log", "sha256": "<64 hex>", "observedAt": "2026-10-15T09:30:00.000Z" } }
@@ -98,7 +92,7 @@ Manifest input memakai struktur berikut. Setiap `path` wajib absolut dan menunju
 
 Array `writers` wajib berisi tepat tujuh nama yang disebutkan sebelumnya, masing-masing tepat sekali. Gunakan `state: "inactive"` untuk writer yang memang tidak digunakan; artifact tetap wajib membuktikan kondisi nonaktif tersebut.
 
-Bangun checklist langsung dari tepat 12 file evidence JSON dalam satu direktori aman. Manifest sumber bernama `operator-review.json` boleh berada di direktori yang sama dan dikecualikan dari hitungan; JSON tambahan lain tetap ditolak. Nama file evidence boleh berbeda, tetapi setiap `gate` wajib unik dan harus cocok dengan daftar evidence di atas. Output harus berada dalam direktori yang sama; builder menghitung ukuran dan SHA-256, menulis atomik dengan mode `0600`, lalu menjalankan evaluator sebelum memublikasikan checklist:
+Bangun checklist langsung dari tepat 11 file evidence JSON dalam satu direktori aman. Manifest sumber bernama `operator-review.json` boleh berada di direktori yang sama dan dikecualikan dari hitungan; JSON tambahan lain tetap ditolak. Nama file evidence boleh berbeda, tetapi setiap `gate` wajib unik dan harus cocok dengan daftar evidence di atas. Output harus berada dalam direktori yang sama; builder menghitung ukuran dan SHA-256, menulis atomik dengan mode `0600`, lalu menjalankan evaluator sebelum memublikasikan checklist:
 
 ```powershell
 node scripts/build-selfhosted-uat-checklist.mjs `

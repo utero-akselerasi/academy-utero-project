@@ -5,6 +5,8 @@ import { permitDates } from "./permit-dates.mjs";
 
 test("attendance input rejects invalid coordinates and calendar dates", () => {
   assert.equal(parseCoordinates({ latitude: 91, longitude: 112 }), null);
+  assert.equal(parseCoordinates({ latitude: "", longitude: "" }), null);
+  assert.equal(parseCoordinates({ latitude: "-6.2", longitude: "106.8" })?.latitude, -6.2);
   assert.equal(validDate("2026-02-30"), false);
   assert.equal(validDate("2026-02-28"), true);
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ReportStatusBadge } from "./ReportStatusBadge";
 import { ReviewReportForm } from "./ReviewReportForm";
 import { ImagePreview } from "./ImagePreview";
@@ -55,6 +55,21 @@ export function MentorReportsManager({ reports }: Props) {
   const [timeFilter, setTimeFilter] = useState<"all" | "weekly" | "monthly">("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
+  const [activeReport, setActiveReport] = useState<DailyReportWithIntern | null>(null);
+  const [detailError, setDetailError] = useState(false);
+
+  useEffect(() => {
+    if (!activeReportId) return;
+    const controller = new AbortController();
+    fetch(`/api/daily-reports/${encodeURIComponent(activeReportId)}`, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error("Gagal memuat laporan.");
+        return response.json() as Promise<{ report: DailyReportWithIntern }>;
+      })
+      .then(({ report }) => setActiveReport(report))
+      .catch((error) => { if (error.name !== "AbortError") setDetailError(true); });
+    return () => controller.abort();
+  }, [activeReportId]);
 
   // Group reports by intern
   const internsMap = new Map<string, {
@@ -114,8 +129,6 @@ export function MentorReportsManager({ reports }: Props) {
       })
     : [];
 
-  const activeReport = activeReportId ? reports.find(r => r.id === activeReportId) : null;
-
   return (
     <div className="space-y-6">
       {/* Grid Profil Intern */}
@@ -151,8 +164,8 @@ export function MentorReportsManager({ reports }: Props) {
               }}
               aria-label={
                 intern.pendingCount > 0
-                  ? `${intern.name}, ${intern.reportsCount} laporan harian, ${intern.pendingCount} menunggu review`
-                  : `${intern.name}, ${intern.reportsCount} laporan harian`
+                  ? `${intern.name}, ${intern.reportsCount} laporan pada halaman ini, ${intern.pendingCount} menunggu review`
+                  : `${intern.name}, ${intern.reportsCount} laporan pada halaman ini`
               }
               className="surface p-3 sm:p-5 bg-white border border-slate-200 rounded-2xl hover:border-teal-500 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between items-center text-center gap-2 sm:gap-3 relative group"
             >
@@ -182,7 +195,7 @@ export function MentorReportsManager({ reports }: Props) {
               </span>
 
               <span className="w-full bg-slate-50 border border-slate-100 p-1.5 sm:p-2 rounded-xl text-center text-[10px] sm:text-xs font-bold text-slate-600 mt-1 sm:mt-2" aria-hidden="true">
-                {intern.reportsCount} Laporan Harian
+                {intern.reportsCount} Laporan pada Halaman Ini
               </span>
             </button>
           ))}
@@ -297,7 +310,7 @@ export function MentorReportsManager({ reports }: Props) {
                       key={report.id}
                       type="button"
                       className="w-full text-left p-4 border border-slate-150 rounded-xl bg-slate-50/50 hover:bg-slate-50 hover:border-teal-300 transition-all cursor-pointer flex justify-between items-start gap-4"
-                      onClick={() => setActiveReportId(report.id)}
+                      onClick={() => { setActiveReport(null); setDetailError(false); setActiveReportId(report.id); }}
                     >
                       <span className="space-y-1">
                         <span className="flex items-center gap-2">
@@ -340,7 +353,12 @@ export function MentorReportsManager({ reports }: Props) {
         mengembalikan fokus ke kartu laporan yang diklik di dalam dialog riwayat —
         bukan ke awal dokumen.
       */}
-      {activeReport && (
+      {activeReportId && !activeReport && (
+        <Modal open onClose={() => setActiveReportId(null)} title="Detail laporan">
+          <div className="p-6 text-sm">{detailError ? "Gagal memuat laporan. Tutup dan coba lagi." : "Memuat detail laporan..."}</div>
+        </Modal>
+      )}
+      {activeReportId && activeReport && (
         <Modal
           open
           onClose={() => setActiveReportId(null)}

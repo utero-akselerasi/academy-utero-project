@@ -57,7 +57,6 @@ test("collectHealth gagal tertutup saat API dan database tidak tersedia", async 
     backupRoot: root,
     offsiteRoot: root,
     timeoutMs: 100,
-    minimumFreePercent: 0,
     maximumBackupAgeHours: 24,
   });
   assert.equal(report.ok, false);
@@ -69,6 +68,9 @@ test("collectHealth gagal tertutup saat API dan database tidak tersedia", async 
   assert.equal(report.checks.backupFreshness.ok, false);
   assert.equal(report.checks.offsiteBackupFreshness.ok, false);
   assert.equal(report.checks.offsiteIsolation.ok, false);
+  assert.equal(Object.hasOwn(report.checks, "storageDisk"), false);
+  assert.equal(Object.hasOwn(report.checks, "backupDisk"), false);
+  assert.equal(Object.hasOwn(report.checks, "offsiteDisk"), false);
 });
 
 test("collectHealth mempertahankan target production pada evidence", async () => {
@@ -81,7 +83,6 @@ test("collectHealth mempertahankan target production pada evidence", async () =>
     backupRoot: root,
     offsiteRoot: root,
     timeoutMs: 100,
-    minimumFreePercent: 0,
     maximumBackupAgeHours: 24,
   });
   assert.equal(report.gate, "opsHealth");

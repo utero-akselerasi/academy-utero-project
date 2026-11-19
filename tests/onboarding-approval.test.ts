@@ -2,8 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ requireAdmin: vi.fn(), rpc: vi.fn(), revalidatePath: vi.fn() }));
+const mocks = vi.hoisted(() => ({ requireAdmin: vi.fn(), rpc: vi.fn(), backendRequest: vi.fn(), revalidatePath: vi.fn() }));
 vi.mock("@/features/auth/guards", () => ({ requireAdmin: mocks.requireAdmin }));
+vi.mock("@/lib/backend/server", () => ({ usesLocalBackend: () => true, backendRequest: mocks.backendRequest }));
 vi.mock("@/lib/supabase/server", () => ({ createUteroAcademyClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
@@ -18,6 +19,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireAdmin.mockResolvedValue({ id: "11111111-1111-4111-8111-111111111111" });
   mocks.rpc.mockResolvedValue({ error: null });
+  mocks.backendRequest.mockResolvedValue({ ok: true, json: async () => ({}) });
 });
 
 describe("approval onboarding admin", () => {
@@ -33,14 +35,15 @@ describe("approval onboarding admin", () => {
     expect(migration).toContain("revoke all on function utero_academy.approve_application_onboarding(uuid)");
   });
 
-  it("server action memanggil RPC terautentikasi", async () => {
+  it("server action memanggil backend terautentikasi", async () => {
     const form = new FormData();
     form.set("id", "22222222-2222-4222-8222-222222222222");
     await approveApplicationOnboardingAction(form);
     expect(mocks.requireAdmin).toHaveBeenCalledOnce();
-    expect(mocks.rpc).toHaveBeenCalledWith("approve_application_onboarding", {
-      p_application_id: "22222222-2222-4222-8222-222222222222",
-    });
+    expect(mocks.backendRequest).toHaveBeenCalledWith(
+      "/v1/admin/applications/22222222-2222-4222-8222-222222222222/approve-onboarding", { method: "POST" },
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/dashboard/admin/pendaftaran");
   });
 

@@ -5,7 +5,12 @@ import { MentorReportsManager } from "@/features/daily-reports/MentorReportsMana
 import Link from "next/link";
 import { usesLocalBackend } from "@/lib/backend/mode";
 
-export default async function MentorDailyReportsPage() {
+type PageProps = { searchParams: Promise<{ page?: string }> };
+
+export default async function MentorDailyReportsPage({ searchParams }: PageProps) {
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, Number.parseInt(pageParam || "1", 10) || 1);
+  const pageSize = 50;
   const user = await requireAdmin();
 
   // Bacaan dibatasi scope yang sama dengan aksi review-nya: admin hanya melihat
@@ -25,6 +30,8 @@ export default async function MentorDailyReportsPage() {
 
   const { data: reports, error } = await getMentorDailyReports(
     !scope || scope.kind === "global" ? null : scope.internIds,
+    page,
+    pageSize,
   );
 
   const pendingCount = (reports || []).filter((r) => r.status === "submitted").length;
@@ -40,10 +47,10 @@ export default async function MentorDailyReportsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <span className="status-pill">{(reports || []).length} laporan</span>
+          <span className="status-pill">{(reports || []).length} laporan pada halaman {page}</span>
           {pendingCount > 0 ? (
             <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800 animate-pulse">
-              {pendingCount} menunggu review
+              {pendingCount} menunggu review pada halaman ini
             </span>
           ) : null}
         </div>
@@ -56,6 +63,11 @@ export default async function MentorDailyReportsPage() {
       ) : null}
 
       <MentorReportsManager reports={reports || []} />
+      <nav aria-label="Halaman laporan mentor" className="mt-6 flex items-center justify-end gap-3 text-sm">
+        {page > 1 && <Link className="button-secondary" href={`/dashboard/mentor/daily-reports?page=${page - 1}`}>Sebelumnya</Link>}
+        <span>Halaman {page}</span>
+        {(reports || []).length === pageSize && <Link className="button-secondary" href={`/dashboard/mentor/daily-reports?page=${page + 1}`}>Berikutnya</Link>}
+      </nav>
     </main>
   );
 }

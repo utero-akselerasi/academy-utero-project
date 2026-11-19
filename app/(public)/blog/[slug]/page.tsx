@@ -1,13 +1,13 @@
 import { ArticleAddons } from "@/features/public/article-addons/ArticleAddons";
 import { normalizeArticleAddons } from "@/features/public/article-addons/normalize";
-import { artikelApiConfigured, getArtikelArticle } from "@/lib/artikel/api";
+import { artikelApiSelected, getArtikelArticle } from "@/lib/artikel/api";
 import { resolveStorageUrl } from "@/lib/storage-urls";
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar, User } from "lucide-react";
 import Link from "next/link";
-import { sanitizeRichText } from "@/lib/sanitize";
 import { usesLocalBackend } from "@/lib/backend/server";
+import { formatArticleContent } from "@/lib/artikel/content";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -20,11 +20,11 @@ export default async function BlogDetailPage({ params }: Props) {
   let article: any;
   let authorName = "Admin Utero";
 
-  if (usesLocalBackend()) {
+  if (artikelApiSelected()) {
+    article = await getArtikelArticle(slug);
+  } else if (usesLocalBackend()) {
     article = await getArtikelArticle(slug);
     authorName = article?.author_name || authorName;
-  } else if (artikelApiConfigured()) {
-    article = await getArtikelArticle(slug);
   } else {
     const db = await createUteroAcademyServiceRoleClient();
     const result = await db.from("articles").select("id, title, content, cover_path, created_at, author_id").eq("slug", slug).eq("status", "published").maybeSingle();
@@ -49,29 +49,31 @@ export default async function BlogDetailPage({ params }: Props) {
 
   const body = typeof article.content === "string" ? article.content : article.content?.text || "";
   const addons = article.addons?.length ? normalizeArticleAddons(article.addons) : normalizeArticleAddons(article.content);
+  const richBody = typeof body === "string" && body.trim().startsWith("<") ? formatArticleContent(body, article.title) : null;
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12 space-y-6">
-      <div className="mb-4"><Link href="/blog" className="button-secondary text-xs flex items-center gap-1.5 w-fit border border-slate-200"><ArrowLeft size={14} /> Kembali ke Blog</Link></div>
-      <div className="space-y-4">
-        <div className="flex flex-wrap gap-4 items-center text-xs text-slate-400 font-bold">
-          <span className="flex items-center gap-1"><Calendar size={12} /><span>{formatDate(article.published_at || article.created_at)}</span></span>
-          <span className="flex items-center gap-1"><User size={12} /><span>{authorName}</span></span>
+    <main className="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6 sm:py-12">
+      <Link href="/blog" className="button-secondary w-fit gap-2 text-sm"><ArrowLeft aria-hidden="true" size={16} /> Kembali ke Blog</Link>
+
+      <header className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
+        {article.category?.name ? <p className="w-fit rounded-full bg-red-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-red-700">{article.category.name}</p> : null}
+        <h1 className="text-3xl font-black leading-[1.15] tracking-tight text-slate-950 sm:text-4xl md:text-5xl">{article.title}</h1>
+        {article.excerpt ? <p className="max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">{article.excerpt}</p> : null}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 pt-5 text-sm font-semibold text-slate-500">
+          <span className="flex items-center gap-2"><Calendar aria-hidden="true" size={15} /><span>{formatDate(article.published_at || article.created_at)}</span></span>
+          <span className="flex items-center gap-2"><User aria-hidden="true" size={15} /><span>{authorName}</span></span>
         </div>
-        <h1 className="text-3xl md:text-4xl font-extrabold text-slate-950 leading-tight">{article.title}</h1>
-      </div>
-      {article.cover_path && <div className="w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50"><img src={article.cover_path} alt={article.title} className="w-full h-auto max-h-[450px] object-cover mx-auto" /></div>}
-      <ArticleAddons addons={addons} placement="before_content" />
-      <article className="prose prose-slate max-w-none text-slate-700 text-sm leading-relaxed pt-4">
-        {typeof body === "string" && body.trim().startsWith("<") ? (
-          // Body artikel ditulis staf lewat editor kaya dan dibaca publik, jadi
-          // harus disanitasi di server sebelum masuk innerHTML.
-          <div dangerouslySetInnerHTML={{ __html: sanitizeRichText(body) }} />
-        ) : (
-          <div className="whitespace-pre-wrap">{body}</div>
-        )}
-      </article>
-      <ArticleAddons addons={addons} placement="after_content" />
+      </header>
+
+      {article.cover_path ? <figure className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-100 shadow-sm"><img src={article.cover_path} alt={article.title} className="max-h-[520px] w-full object-cover" /></figure> : null}
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9 md:p-12">
+        <ArticleAddons addons={addons} placement="before_content" />
+        <article className="article-content">
+          {richBody !== null ? <div dangerouslySetInnerHTML={{ __html: richBody }} /> : <div className="whitespace-pre-wrap">{body}</div>}
+        </article>
+        <ArticleAddons addons={addons} placement="after_content" />
+      </section>
     </main>
   );
 }

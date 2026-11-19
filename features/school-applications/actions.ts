@@ -148,15 +148,19 @@ async function linkApplicant(applicationId: string, userId: string) {
 
 export async function retryApplicantInvitationAction(formData: FormData): Promise<void> {
   if (usesLocalBackend()) {
-      await requireActiveSchoolPartner();
-      const applicationId = formData.get("applicationId");
-      if (typeof applicationId !== "string") redirect("/dashboard/school/applications?invite=failed");
-      try {
-        await schoolBackend(`/applications/${encodeURIComponent(applicationId)}/invite`, { method: "POST" });
-        redirect("/dashboard/school/applications?invite=sent");
-      } catch {
-        redirect("/dashboard/school/applications?invite=failed");
-      }
+    const applicationId = formData.get("applicationId");
+    if (typeof applicationId !== "string" || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(applicationId)) {
+      return redirect("/dashboard/school/applications?invite=failed");
+    }
+    await requireActiveSchoolPartner();
+    let outcome = "sent";
+    try {
+      await schoolBackend(`/applications/${encodeURIComponent(applicationId)}/invite`, { method: "POST" });
+    } catch {
+      outcome = "failed";
+    }
+    revalidatePath("/dashboard/school/applications");
+    return redirect(`/dashboard/school/applications?invite=${outcome}`);
   }
   let outcome = "failed";
   try {

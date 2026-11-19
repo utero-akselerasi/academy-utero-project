@@ -38,7 +38,7 @@ export async function attendanceRoutes(app, { db, config }) {
       const internIds = interns.rows.map((row) => row.id);
       if (!internIds.length) return { setupRequired: false, settings: settings.rows[0] ?? null, interns: [], attendances: [], pendingPermits: [] };
       const [attendances, permits] = await Promise.all([
-        client.query("select *, attendance_date::text as attendance_date from utero_academy.attendances where intern_id = any($1::uuid[]) order by attendance_date desc", [internIds]),
+        client.query("select a.*, a.attendance_date::text as attendance_date from utero_academy.attendances a where a.intern_id = any($1::uuid[]) order by a.attendance_date desc", [internIds]),
         client.query(
           `select p.*, p.start_date::text as start_date, p.end_date::text as end_date, json_build_object('full_name', ip.full_name) intern_profiles
            from utero_academy.permits p join utero_academy.intern_profiles ip on ip.id = p.intern_id
@@ -124,6 +124,23 @@ export async function attendanceRoutes(app, { db, config }) {
     return row;
   });
 
+  app.get("/v1/attendance/permits", async (request, reply) => {
+    const identity = requirePermission(request, reply, ["attendance.submit"]);
+    if (!identity) return;
+    const permits = await db.transaction(identity, async (client) => {
+      const internId = await activeInternProfile(client, identity);
+      if (!internId) return null;
+      const result = await client.query(
+        `select p.*, p.start_date::text as start_date, p.end_date::text as end_date
+         from utero_academy.permits p where p.intern_id = $1 order by p.created_at desc`,
+        [internId],
+      );
+      return result.rows;
+    });
+    if (!permits) return apiError(reply, 409, "intern_profile_inactive");
+    return { permits };
+  });
+
   app.post("/v1/attendance/check-in", { bodyLimit: 30 * 1024 * 1024 }, async (request, reply) => {
     const identity = requirePermission(request, reply, ["attendance.submit"]);
     if (!identity) return;
@@ -172,7 +189,7 @@ export async function attendanceRoutes(app, { db, config }) {
     }
   });
 
-  app.post("/v1/attendance/check-out", { bodyLimit: 15 * 1024 * 1024 }, async (request, reply) => {
+  app.post("/v1/attendance/check-out", { bodyLimit: 30 * 1024 * 1024 }, async (request, reply) => {
     const identity = requirePermission(request, reply, ["attendance.submit"]);
     if (!identity) return;
     const coordinates = parseCoordinates(request.body);
@@ -186,13 +203,26 @@ export async function attendanceRoutes(app, { db, config }) {
         const settings = await client.query("select * from utero_academy.attendance_settings where id = $1", [SETTINGS_ID]);
         const geofence = resolveGeofence(settings.rows[0]);
         if (geofence.kind === "misconfigured") return { error: "geofence_misconfigured" };
-        if (geofence.kind === "active" && distanceMeters(coordinates.latitude, coordinates.longitude, geofence.latitude, geofence.longitude) > geofence.radiusMeters) return { error: "outside_geofence" };
+        let outOfRange = false;
+        let proofPath = null;
+        let reason = null;
+        if (geofence.kind === "active" && distanceMeters(coordinates.latitude, coordinates.longitude, geofence.latitude, geofence.longitude) > geofence.radiusMeters) {
+          outOfRange = true;
+          reason = typeof request.body?.outOfRangeReason === "string" ? request.body.outOfRangeReason.trim() : "";
+          const proof = parseUpload(request.body?.outOfRangeProof);
+          if (reason.length < 5 || !proof) return { error: "out_of_range_proof_required" };
+          proofPath = await storeDomainObject({ db, config, identity, bucketName: "academy-private", prefix: `${identity.id}/attendance-proof`, upload: proof, cleanups });
+        }
         const selfiePath = await storeDomainObject({ db, config, identity, bucketName: "academy-private", prefix: `${identity.id}/attendance`, upload: { ...selfie, fileName: `check-out-${jakartaDate()}` }, cleanups });
         const updated = await client.query(
           `update utero_academy.attendances set check_out_at = now(), check_out_latitude = $3,
-           check_out_longitude = $4, check_out_wifi_ssid = $5, check_out_selfie_path = $6, updated_at = now()
+           check_out_longitude = $4, check_out_wifi_ssid = $5, check_out_selfie_path = $6,
+           check_out_is_out_of_range = $7, check_out_out_of_range_reason = $8,
+           check_out_out_of_range_proof_path = $9,
+           status = case when $7 then 'manual_review'::utero_academy.attendance_status else status end,
+           updated_at = now()
            where intern_id = $1 and attendance_date = $2 and check_in_at is not null and check_out_at is null returning *`,
-          [internId, jakartaDate(), coordinates.latitude, coordinates.longitude, coordinates.wifiSsid, selfiePath],
+          [internId, jakartaDate(), coordinates.latitude, coordinates.longitude, coordinates.wifiSsid, selfiePath, outOfRange, reason, proofPath],
         );
         return updated.rows[0] ? { attendance: updated.rows[0] } : { error: "check_in_required" };
       });
@@ -206,7 +236,7 @@ export async function attendanceRoutes(app, { db, config }) {
     if (!identity) return;
     const { permitType, startDate, endDate } = request.body ?? {};
     const reason = typeof request.body?.reason === "string" ? request.body.reason.trim() : "";
-    if (!["permit", "sick"].includes(permitType) || !validDate(startDate) || !validDate(endDate) || startDate > endDate || reason.length < 5) return apiError(reply, 400, "invalid_permit");
+    if (!["permit", "sick"].includes(permitType) || !permitDates(startDate, endDate) || reason.length < 5) return apiError(reply, 400, "invalid_permit");
     const upload = parseUpload(request.body?.certificate);
     if (permitType === "sick" && !upload) return apiError(reply, 400, "certificate_required");
     const cleanups = [];
@@ -214,6 +244,14 @@ export async function attendanceRoutes(app, { db, config }) {
       const permit = await db.transaction(identity, async (client) => {
         const internId = await activeInternProfile(client, identity);
         if (!internId) return null;
+        await client.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [internId]);
+        const conflict = await client.query(
+          `select 1 from utero_academy.permits
+           where intern_id = $1 and status in ('pending','approved')
+             and daterange(start_date, end_date, '[]') && daterange($2::date, $3::date, '[]') limit 1`,
+          [internId, startDate, endDate],
+        );
+        if (conflict.rows.length) return { error: "permit_exists" };
         const attachmentPath = upload ? await storeDomainObject({ db, config, identity, bucketName: "academy-private", prefix: `${identity.id}/sick-certificates`, upload, cleanups }) : null;
         const inserted = await client.query(
           `insert into utero_academy.permits (intern_id, permit_type, start_date, end_date, reason, attachment_path)
@@ -222,6 +260,7 @@ export async function attendanceRoutes(app, { db, config }) {
         return inserted.rows[0];
       });
       if (!permit) { await cleanupObjects(cleanups); return apiError(reply, 409, "intern_profile_inactive"); }
+      if (permit.error) { await cleanupObjects(cleanups); return apiError(reply, 409, permit.error); }
       return reply.code(201).send({ permit });
     } catch (error) { await cleanupObjects(cleanups); throw error; }
   });
@@ -261,21 +300,30 @@ export async function attendanceRoutes(app, { db, config }) {
       const endDate = request.body.endDate || dateString(permit.end_date);
       const dates = request.body.status === "approved" ? permitDates(dateString(permit.start_date), endDate) : [];
       if (request.body.status === "approved" && !dates) return "invalid_range";
-      await client.query("update utero_academy.permits set status=$2,end_date=$3,reviewed_by=$4,reviewed_at=now(),updated_at=now() where id=$1", [permit.id, request.body.status, endDate, identity.id]);
+      if (dates.length) {
+        const existing = await client.query(
+          "select 1 from utero_academy.attendances where intern_id=$1 and attendance_date = any($2::date[]) and check_in_at is not null limit 1",
+          [permit.intern_id, dates],
+        );
+        if (existing.rows.length) return "attendance_conflict";
+      }
       for (const date of dates) {
-        await client.query(
+        const saved = await client.query(
           `insert into utero_academy.attendances
            (intern_id,attendance_date,attendance_type,permit_reason,sick_certificate_path,status,reviewed_by,reviewed_at)
            values ($1,$2,$3,$4,$5,'valid',$6,now())
            on conflict (intern_id,attendance_date) do update set attendance_type=excluded.attendance_type,
              permit_reason=excluded.permit_reason,sick_certificate_path=excluded.sick_certificate_path,status='valid',
-             reviewed_by=excluded.reviewed_by,reviewed_at=excluded.reviewed_at,updated_at=now()`,
+             reviewed_by=excluded.reviewed_by,reviewed_at=excluded.reviewed_at,updated_at=now()
+           where utero_academy.attendances.check_in_at is null returning id`,
           [permit.intern_id, date, permit.permit_type, permit.reason, permit.attachment_path, identity.id],
         );
+        if (!saved.rowCount) throw Object.assign(new Error("attendance_conflict"), { statusCode: 409 });
       }
+      await client.query("update utero_academy.permits set status=$2,end_date=$3,reviewed_by=$4,reviewed_at=now(),updated_at=now() where id=$1", [permit.id, request.body.status, endDate, identity.id]);
       return "ok";
     });
-    const statuses = { not_found: 404, setup_required: 409, forbidden: 403, invalid_range: 400 };
+    const statuses = { not_found: 404, setup_required: 409, forbidden: 403, invalid_range: 400, attendance_conflict: 409 };
     if (result !== "ok") return apiError(reply, statuses[result], result);
     return { ok: true };
   });

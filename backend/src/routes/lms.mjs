@@ -76,6 +76,39 @@ export async function lmsRoutes(app, { db }) {
   app.delete("/v1/lms/lessons/:id",async(request,reply)=>{const identity=staff(request,reply);if(!identity)return;if(!validId(request.params.id))return reply.code(400).send({error:"invalid_lesson_id"});
     const result=await db.transaction(identity,(client)=>client.query("delete from utero_academy.lessons where id=$1 returning id",[request.params.id]));return result.rowCount?reply.code(204).send():reply.code(404).send({error:"lesson_not_found"});});
 
+  app.post("/v1/lms/lessons/:id/attachments", async (request, reply) => {
+    const identity = staff(request, reply); if (!identity) return;
+    const attachment = request.body;
+    if (!validId(request.params.id) || !validId(attachment?.id) || typeof attachment?.name !== "string" || !attachment.name.trim() || attachment.name.length > 255 ||
+        typeof attachment?.path !== "string" || !attachment.path.startsWith(`lessons/${request.params.id}/`) || attachment.path.length > 1000 ||
+        !Number.isSafeInteger(attachment?.size) || attachment.size < 1 || typeof attachment?.type !== "string" || attachment.type.length > 255) {
+      return reply.code(400).send({ error: "invalid_attachment" });
+    }
+    const result = await db.transaction(identity, (client) => client.query(
+      `update utero_academy.lessons set attachments=coalesce(attachments,'[]'::jsonb) || $2::jsonb,updated_at=now()
+       where id=$1 returning course_id`,
+      [request.params.id, JSON.stringify([{ ...attachment, name: attachment.name.trim(), uploaded_at: new Date().toISOString() }])],
+    ));
+    return result.rowCount ? reply.code(201).send({ courseId: result.rows[0].course_id }) : reply.code(404).send({ error: "lesson_not_found" });
+  });
+
+  app.delete("/v1/lms/lessons/:id/attachments/:attachmentId", async (request, reply) => {
+    const identity = staff(request, reply); if (!identity) return;
+    if (!validId(request.params.id) || !validId(request.params.attachmentId)) return reply.code(400).send({ error: "invalid_attachment" });
+    const result = await db.transaction(identity, async (client) => {
+      const lesson = await client.query("select attachments from utero_academy.lessons where id=$1 for update", [request.params.id]);
+      if (!lesson.rowCount) return null;
+      const attachments = Array.isArray(lesson.rows[0].attachments) ? lesson.rows[0].attachments : [];
+      const removed = attachments.find((item) => item?.id === request.params.attachmentId);
+      if (!removed) return false;
+      await client.query("update utero_academy.lessons set attachments=$2::jsonb,updated_at=now() where id=$1", [request.params.id, JSON.stringify(attachments.filter((item) => item?.id !== request.params.attachmentId))]);
+      return removed;
+    });
+    if (result === null) return reply.code(404).send({ error: "lesson_not_found" });
+    if (result === false) return reply.code(404).send({ error: "attachment_not_found" });
+    return { path: result.path ?? null };
+  });
+
   app.post("/v1/lms/courses/:id/enroll",async(request,reply)=>{const identity=requireIdentity(request,reply);if(!identity)return;
     if(!identity.roles.includes("intern")||!identity.permissions.includes("lms.read"))return reply.code(403).send({error:"forbidden"});
     if(!validId(request.params.id))return reply.code(400).send({error:"invalid_course_id"});
@@ -101,6 +134,35 @@ export async function lmsRoutes(app, { db }) {
       "select * from utero_academy.courses order by created_at desc",
     ));
     return { courses: result.rows };
+  });
+  app.get("/v1/lms/courses/:id/enrollment", async (request, reply) => {
+    const identity = participant(request, reply); if (!identity) return;
+    if (!validId(request.params.id) || !validId(request.query?.internId)) return reply.code(400).send({ error: "invalid_enrollment" });
+    const result = await db.transaction(identity, async (client) => {
+      const profile = await internProfile(client, identity);
+      if (!profile || profile.id !== request.query.internId) return null;
+      return client.query("select 1 from utero_academy.course_enrollments where course_id=$1 and intern_id=$2", [request.params.id, profile.id]);
+    });
+    return result ? { enrolled: result.rowCount > 0 } : reply.code(404).send({ error: "intern_not_found" });
+  });
+  app.post("/v1/lms/courses/:id/certificate", async (request, reply) => {
+    const identity = participant(request, reply); if (!identity) return;
+    if (!validId(request.params.id) || !validId(request.body?.internId)) return reply.code(400).send({ error: "invalid_certificate" });
+    const result = await db.transaction(identity, async (client) => {
+      const profile = await internProfile(client, identity);
+      if (!profile || profile.id !== request.body.internId) return null;
+      const enrollmentRow = await client.query("select completed_at from utero_academy.course_enrollments where course_id=$1 and intern_id=$2", [request.params.id, profile.id]);
+      if (!enrollmentRow.rows[0]?.completed_at) return false;
+      await client.query(`insert into utero_academy.certificates
+        (intern_id,course_id,certificate_type,certificate_number,final_score,status,issued_at,signed_at,notes)
+        select $2,$1,'course_completion',$3,100,'issued',now(),now(),'Menyelesaikan course: ' || c.title
+        from utero_academy.courses c where c.id=$1
+        on conflict (intern_id,course_id) where course_id is not null do nothing`, [request.params.id, profile.id, certificateNumber()]);
+      return true;
+    });
+    if (result === null) return reply.code(404).send({ error: "intern_not_found" });
+    if (result === false) return reply.code(409).send({ error: "course_not_completed" });
+    return reply.code(201).send({ courseId: request.params.id });
   });
   app.get("/v1/lms/courses/:id/detail", async (request, reply) => {
     const identity = requireIdentity(request, reply); if (!identity) return;
@@ -296,6 +358,28 @@ export async function lmsRoutes(app, { db }) {
     if (!result) return reply.code(404).send({ error: "quiz_not_found" });
     if (result.gate) return reply.code(409).send({ error: "attempt_not_allowed", status: result.gate });
     return reply.code(201).send(result);
+  });
+  app.post("/v1/lms/courses/:id/quizzes", async (request, reply) => {
+    const identity = staff(request, reply); if (!identity) return;
+    const name = title(request.body?.title);
+    const passingScore = Number(request.body?.passingScore);
+    const timeLimit = request.body?.timeLimitMinutes;
+    if (!validId(request.params.id) || !name || !Array.isArray(request.body?.questions) || !Number.isFinite(passingScore) || passingScore < 0 || passingScore > 100 ||
+        (timeLimit !== null && (!Number.isInteger(timeLimit) || timeLimit < 1 || timeLimit > 1440))) return reply.code(400).send({ error: "invalid_quiz" });
+    const result = await db.transaction(identity, (client) => client.query(
+      "insert into utero_academy.quizzes(course_id,title,questions,passing_score,time_limit_minutes) values($1,$2,$3::jsonb,$4,$5) returning id",
+      [request.params.id, name, JSON.stringify(request.body.questions), passingScore, timeLimit],
+    ));
+    return reply.code(201).send({ quiz: result.rows[0] });
+  });
+  app.patch("/v1/lms/quizzes/:id/publish", async (request, reply) => {
+    const identity = staff(request, reply); if (!identity) return;
+    if (!validId(request.params.id) || typeof request.body?.isPublished !== "boolean") return reply.code(400).send({ error: "invalid_quiz" });
+    const result = await db.transaction(identity, (client) => client.query(
+      "update utero_academy.quizzes set is_published=$2,updated_at=now() where id=$1 returning course_id",
+      [request.params.id, request.body.isPublished],
+    ));
+    return result.rowCount ? { courseId: result.rows[0].course_id } : reply.code(404).send({ error: "quiz_not_found" });
   });
 
   app.post("/v1/lms/courses/:id/assignments", async (request, reply) => {

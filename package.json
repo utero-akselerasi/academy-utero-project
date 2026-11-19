@@ -42,7 +42,8 @@
     "preflight:selfhosted-production": "node scripts/selfhosted-production-preflight.mjs",
     "smoke:selfhosted-smtp": "node scripts/selfhosted-smtp-smoke.mjs",
     "probe:selfhosted-readonly": "node scripts/selfhosted-readonly-load.mjs",
-    "verify:selfhosted-uat": "node scripts/evaluate-selfhosted-uat-gate.mjs"
+    "verify:selfhosted-uat": "node scripts/evaluate-selfhosted-uat-gate.mjs",
+    "readiness:production": "node scripts/production-readiness-summary.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",

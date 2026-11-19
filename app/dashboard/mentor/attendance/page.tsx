@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic";
 
-import { ATTENDANCE_SETTINGS_ID } from "@/features/attendance/constants";
 import { AttendanceStatusBadge } from "@/features/attendance/AttendanceStatusBadge";
 import { PendingPermitsList } from "@/features/attendance/PendingPermitsList";
 import { ReviewAttendanceForm } from "@/features/attendance/ReviewAttendanceForm";
@@ -9,15 +8,13 @@ import { DatePickerFilter } from "@/features/attendance/DatePickerFilter";
 import { ImagePreview } from "@/features/daily-reports/ImagePreview";
 import { saveAttendanceSettingsAction } from "@/features/attendance/actions";
 import { requireAdmin } from "@/features/auth/guards";
-import { resolveStaffInternScope } from "@/features/auth/scope";
-import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { isPdfPath, resolveStorageUrl, resolveStorageUrls } from "@/lib/storage-urls";
 import { jakartaDateString, jakartaMinutesOfDay, parseWallClockMinutes } from "@/lib/time";
 import Link from "next/link";
 import { RouteModal } from "@/components/ui/route-modal";
 import { Clock, Settings, User, CheckCircle, AlertTriangle, Play, HelpCircle, MapPin, Eye, Download } from "lucide-react";
-import { usesLocalBackend } from "@/lib/backend/mode";
 import { localMentorAttendanceDashboard } from "@/features/attendance/local";
+import { parseAttendanceCoordinates } from "@/features/attendance/coordinates";
 
 type Props = {
   searchParams: Promise<{ detailInternId?: string; showSettings?: string; date?: string }>;
@@ -35,46 +32,14 @@ function formatDate(value: string) {
 export default async function MentorAttendancePage({ searchParams }: Props) {
   const { detailInternId, showSettings, date: filterDate } = await searchParams;
 
-  const user = await requireAdmin();
+  await requireAdmin();
 
-  let settings: any = null;
-  let interns: any[] = [];
-  let attendances: any[] = [];
-  let pendingPermits: any[] = [];
-  let setupRequired = false;
-
-  if (usesLocalBackend()) {
-    const dashboard = await localMentorAttendanceDashboard();
-    settings = dashboard.settings;
-    interns = dashboard.interns;
-    attendances = dashboard.attendances;
-    pendingPermits = dashboard.pendingPermits;
-    setupRequired = dashboard.setupRequired;
-  } else {
-    const scope = await resolveStaffInternScope(user.id);
-    setupRequired = scope.kind === "setup_required";
-    if (!setupRequired) {
-      const scopedInternIds = scope.kind === "global" ? null : scope.kind === "scoped" ? scope.internIds : [];
-      const db = await createUteroAcademyServiceRoleClient();
-      const settingsResult = await db.from("attendance_settings").select("*").eq("id", ATTENDANCE_SETTINGS_ID).maybeSingle();
-      settings = settingsResult.data;
-      const { data: internRoleUsers } = await db.from("user_roles").select("user_id, roles(code)").returns<any[]>();
-      const internUserIds = (internRoleUsers || []).filter((entry) => {
-        const role = Array.isArray(entry.roles) ? entry.roles[0] : entry.roles;
-        return role?.code === "intern";
-      }).map((entry) => entry.user_id);
-      let internQuery = db.from("intern_profiles").select("id, full_name, user_id, status, start_date, major, phone, email")
-        .eq("status", "active").in("user_id", internUserIds.length ? internUserIds : ["00000000-0000-0000-0000-000000000000"]);
-      if (scopedInternIds !== null) internQuery = internQuery.in("id", scopedInternIds);
-      interns = (await internQuery.order("full_name", { ascending: true })).data || [];
-      const visibleInternIds = interns.map((intern) => intern.id);
-      if (visibleInternIds.length) {
-        attendances = (await db.from("attendances").select("*").in("intern_id", visibleInternIds).order("attendance_date", { ascending: false })).data || [];
-        pendingPermits = (await db.from("permits").select("*, intern_profiles(full_name)").eq("status", "pending")
-          .in("intern_id", visibleInternIds).order("created_at", { ascending: false })).data || [];
-      }
-    }
-  }
+  const dashboard = await localMentorAttendanceDashboard();
+  const settings: any = dashboard.settings;
+  const interns: any[] = dashboard.interns;
+  const attendances: any[] = dashboard.attendances;
+  const pendingPermits: any[] = dashboard.pendingPermits;
+  const setupRequired = dashboard.setupRequired;
 
   if (setupRequired) {
     return (
@@ -207,7 +172,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
   // id absensi supaya JSX tidak perlu berurusan dengan indeks.
   const logAttachments = new Map<
     string,
-    { checkIn: string | null; checkOut: string | null; proof: string | null; sickCertificate: string | null }
+    { checkIn: string | null; checkOut: string | null; proof: string | null; checkOutProof: string | null; sickCertificate: string | null }
   >();
   if (selectedIntern) {
     const logs = (selectedIntern.logs ?? []) as any[];
@@ -217,6 +182,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
         checkIn: await resolveStorageUrl("academy-private", log.check_in_selfie_path),
         checkOut: await resolveStorageUrl("academy-private", log.check_out_selfie_path),
         proof: await resolveStorageUrl("academy-private", log.out_of_range_proof_path),
+        checkOutProof: await resolveStorageUrl("academy-private", log.check_out_out_of_range_proof_path),
         sickCertificate: await resolveStorageUrl("academy-private", log.sick_certificate_path),
       })),
     );
@@ -241,9 +207,11 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
   // `.endsWith('.pdf')` pada URL final selalu false dan setiap PDF akan dirender
   // sebagai gambar rusak.
   const proofIsPdf = new Map<string, boolean>();
+  const checkOutProofIsPdf = new Map<string, boolean>();
   if (selectedIntern) {
     for (const log of (selectedIntern.logs ?? []) as any[]) {
       proofIsPdf.set(log.id as string, isPdfPath(log.out_of_range_proof_path, "academy-private"));
+      checkOutProofIsPdf.set(log.id as string, isPdfPath(log.check_out_out_of_range_proof_path, "academy-private"));
     }
   }
   const today = jakartaDateString();
@@ -578,6 +546,8 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
                     <div className="space-y-3">
                       {logs.map((log: any) => {
                       const isPresent = log.attendance_type === "present" || !log.attendance_type;
+                      const checkInCoordinates = parseAttendanceCoordinates(log.check_in_latitude, log.check_in_longitude);
+                      const checkOutCoordinates = parseAttendanceCoordinates(log.check_out_latitude, log.check_out_longitude);
                       return (
                         <div key={log.id} className="p-4 bg-slate-50/50 border border-slate-200 rounded-xl space-y-3">
                           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -616,11 +586,11 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
                                     </div>
                                   )}
                                 </div>
-                                {log.check_in_latitude && (
+                                {checkInCoordinates && (
                                   <div className="border-t border-slate-100 pt-2 mt-auto">
                                     <span className="font-semibold text-[9px] text-slate-400 uppercase block">Lokasi GPS</span>
-                                    <p className="text-[10px] text-slate-600 font-mono mt-0.5">Lat: {log.check_in_latitude.toFixed(5)}, {log.check_in_longitude?.toFixed(5)}</p>
-                                    <AttendanceMap latitude={log.check_in_latitude} longitude={log.check_in_longitude!} label="Check-In" />
+                                    <p className="text-[10px] text-slate-600 font-mono mt-0.5">Lat: {checkInCoordinates.latitude.toFixed(5)}, {checkInCoordinates.longitude.toFixed(5)}</p>
+                                    <AttendanceMap latitude={checkInCoordinates.latitude} longitude={checkInCoordinates.longitude} label="Check-In" />
                                   </div>
                                 )}
                               </div>
@@ -645,11 +615,11 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
                                     </div>
                                   )}
                                 </div>
-                                {log.check_out_latitude && (
+                                {checkOutCoordinates && (
                                   <div className="border-t border-slate-100 pt-2 mt-auto">
                                     <span className="font-semibold text-[9px] text-slate-400 uppercase block">Lokasi GPS</span>
-                                    <p className="text-[10px] text-slate-600 font-mono mt-0.5">Lat: {log.check_out_latitude.toFixed(5)}, {log.check_out_longitude?.toFixed(5)}</p>
-                                    <AttendanceMap latitude={log.check_out_latitude} longitude={log.check_out_longitude!} label="Check-Out" />
+                                    <p className="text-[10px] text-slate-600 font-mono mt-0.5">Lat: {checkOutCoordinates.latitude.toFixed(5)}, {checkOutCoordinates.longitude.toFixed(5)}</p>
+                                    <AttendanceMap latitude={checkOutCoordinates.latitude} longitude={checkOutCoordinates.longitude} label="Check-Out" />
                                   </div>
                                 )}
                               </div>
@@ -673,6 +643,27 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
                                       </a>
                                     ) : (
                                       <ImagePreview src={logAttachments.get(log.id)!.proof!} alt="Bukti Kegiatan Luar" className="max-h-36 object-contain rounded border border-slate-200" />
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {log.check_out_is_out_of_range && (
+                              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs mt-2 space-y-2 text-left">
+                                <span className="font-bold text-amber-900 block">Check-out di Luar Jangkauan Kantor</span>
+                                <div>
+                                  <span className="font-bold text-[10px] text-slate-500 uppercase block">Alasan Kegiatan:</span>
+                                  <p className="text-slate-700 italic mt-0.5">"{log.check_out_out_of_range_reason}"</p>
+                                </div>
+                                {logAttachments.get(log.id)?.checkOutProof && (
+                                  <div>
+                                    <span className="font-bold text-[10px] text-slate-500 uppercase block mb-1">Bukti Dokumen:</span>
+                                    {checkOutProofIsPdf.get(log.id) ? (
+                                      <a href={logAttachments.get(log.id)!.checkOutProof!} target="_blank" rel="noreferrer" className="text-teal-600 font-bold underline hover:text-teal-700 block">
+                                        Lihat Dokumen PDF Bukti
+                                      </a>
+                                    ) : (
+                                      <ImagePreview src={logAttachments.get(log.id)!.checkOutProof!} alt="Bukti Check-out Kegiatan Luar" className="max-h-36 object-contain rounded border border-slate-200" />
                                     )}
                                   </div>
                                 )}

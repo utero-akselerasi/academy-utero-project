@@ -3,7 +3,7 @@
  *
  * Kenapa modul ini ada, dan kenapa bukan sekadar mengandalkan `TZ`:
  *
- * `Dockerfile` dan `docker-compose.yml` menyetel `TZ=Asia/Jakarta`, jadi di
+ * `Dockerfile` dan `compose.yaml` menyetel `TZ=Asia/Jakarta`, jadi di
  * container produksi `Date.prototype.getHours()` **memang** mengembalikan jam
  * Jakarta dan perhitungan telat saat ini benar. Tapi kebenaran absensi peserta
  * tidak boleh bergantung pada satu variabel lingkungan:
@@ -12,7 +12,7 @@
  *   bukan kegagalan, melainkan **angka telat yang bergeser beberapa jam** dan
  *   tetap terlihat masuk akal di laporan.
  * - `npm run dev` dan `npm run build` di laptop pengembang tidak memuat
- *   `docker-compose.yml`, jadi jumlah telat yang terlihat saat pengembangan
+ *   `compose.yaml`, jadi jumlah telat yang terlihat saat pengembangan
  *   berbeda dari produksi tanpa ada yang salah secara kasat mata.
  * - CI, cron, dan runner satu-kali (mis. eksekusi migrasi) belum tentu mewarisi
  *   `TZ` yang sama.

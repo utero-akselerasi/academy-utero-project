@@ -26,22 +26,22 @@ const expertisers = [
   {
     name: "Dadik Wahyu Chang",
     role: "BRAND CONSULTANT",
-    avatar: "/images/expert-dadik.jpg" // Fallback to initial if not found
+    avatar: "/images/expert-dadik.svg"
   },
   {
     name: "Fitri Labuda",
     role: "HEAD OF UTERO ACADEMY",
-    avatar: "/images/expert-fitri.jpg"
+    avatar: "/images/expert-fitri.svg"
   },
   {
     name: "Siti Sodrianti",
     role: "PRODUCT MANAGER",
-    avatar: "/images/expert-siti.jpg"
+    avatar: "/images/expert-siti.svg"
   },
   {
     name: "Wijayanty Lestari",
     role: "BRAND RESEARCH",
-    avatar: "/images/expert-wijayanty.jpg"
+    avatar: "/images/expert-wijayanty.svg"
   }
 ];
 

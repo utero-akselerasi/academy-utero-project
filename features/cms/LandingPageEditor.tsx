@@ -230,7 +230,7 @@ export function LandingPageEditor({ landingSettings }: Props) {
   };
 
   const addExpert = () => {
-    setExpertsList([...expertsList, { name: "Nama Expert", role: "Jabatan/Role", avatar: "/images/expert-dadik.jpg" }]);
+    setExpertsList([...expertsList, { name: "Nama Expert", role: "Jabatan/Role", avatar: "/images/expert-dadik.svg" }]);
   };
 
   const removeExpert = (index: number) => {
@@ -614,7 +614,7 @@ export function LandingPageEditor({ landingSettings }: Props) {
                     <input
                       className="form-input text-xs bg-white flex-1 min-w-0"
                       aria-label={`Path foto expert baris ${index + 1}`}
-                      placeholder="Path Foto (misal: /images/expert-dadik.jpg)"
+                      placeholder="Path Foto (misal: /images/expert-dadik.svg)"
                       value={exp.avatar}
                       onChange={(e) => updateExpert(index, "avatar", e.target.value)}
                       required

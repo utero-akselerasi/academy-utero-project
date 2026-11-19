@@ -12,6 +12,15 @@ export async function writeAuditLog(
   metadata: any = {}
 ) {
   try {
+    if (usesLocalBackend()) {
+      const response = await backendRequest("/v1/super-admin/audit-logs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, resourceType, resourceId, previousValue, nextValue, metadata }),
+      });
+      if (!response.ok) console.error("Gagal menyimpan audit log backend lokal:", response.status);
+      return;
+    }
     const db = await createUteroAcademyServiceRoleClient();
     const { error } = await db.from("audit_logs").insert({
       actor_id: actorId,

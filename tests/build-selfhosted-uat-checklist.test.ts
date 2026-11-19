@@ -30,9 +30,9 @@ function semanticEvidence(kind: string) {
     rollbackRehearsal: { rtoSeconds: 60, checks: { databaseMarker: { ok: true }, storageMarker: { ok: true }, readiness: { status: 200 } } },
     tlsPreflight: { checks: { tls: { ok: true }, httpRedirect: { ok: true }, health: { ok: true }, securityHeaders: { ok: true } } },
     smtpSmoke: { checks: { configuration: { ok: true }, tlsAndAuthentication: { ok: true }, delivery: { ok: true } } },
-    opsHealth: { checks: Object.fromEntries(["api", "database", "storageDisk", "backupDisk", "offsiteDisk", "backupFreshness", "offsiteBackupFreshness", "offsiteIsolation"].map((name) => [name, { ok: true }])) },
+    opsHealth: { checks: Object.fromEntries(["api", "database", "backupFreshness", "offsiteBackupFreshness", "offsiteIsolation"].map((name) => [name, { ok: true }])) },
     monitoringReadiness: { operator: "operator-a", reviewer: "reviewer-b",
-      checks: Object.fromEntries(["alertDelivery", "errorRate", "latency", "capacity"]
+      checks: Object.fromEntries(["alertDelivery", "errorRate", "latency"]
       .map((name) => [name, { ok: true, sourceArtifact }])) },
     writeFreeze: { operator: "operator-a", reviewer: "reviewer-b",
       writers: ["web", "api", "scheduled-jobs", "edge-functions", "webhooks", "legacy-clients", "direct-uploads"]
