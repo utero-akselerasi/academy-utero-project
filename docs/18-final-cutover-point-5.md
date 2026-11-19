@@ -1,5 +1,7 @@
 # Point 5 — Cutover Final
 
+Catatan 19 November 2026: audit Oktober di bawah mencatat implementasi lama. Preflight aktif tidak lagi membaca sisa ruang disk, memakai SSH, atau mewajibkan `PHASE13_PROD_SSH_USER`.
+
 Status awal selalu **NO-GO**. Dokumen ini menyiapkan mekanisme; tidak memberi izin menjalankan perubahan production.
 
 ## Maintenance dan write freeze
@@ -105,9 +107,9 @@ Keputusan per 12 Oktober 2026: **NO-GO**. Kredensial aman `SUPABASE_PROD_URL`, `
 
 Pemeriksaan lokal memastikan preflight hanya memakai HTTP `GET`, transaksi PostgreSQL `BEGIN READ ONLY` dengan `default_transaction_read_only=on`, dan SSH `df -Pk / /data`. Gate bukti lokal kini menolak artifact tanpa SHA-256, ukuran, waktu capture pasca-freeze, atau lokasi nyata di bawah `/data`; menolak report freeze/restore/preflight/delta/pilot di luar window; dan menolak pilot yang tidak cocok dengan sekolah yang disetujui.
 
-Operator boleh menjalankan `npm run preflight:phase13-production -- <baseline.json>` hanya saat empat kredensial tersedia melalui kanal aman dan baseline pasca-freeze sudah disetujui. Simpan stdout, exit code, command, waktu, operator, reviewer, ukuran, dan SHA-256 di `/data/academy-cutover/RUN_ID`. Jangan menjalankan migrasi, upload, restore, reload service, atau perintah tulis lain sebagai bagian preflight.
+Operator boleh menjalankan `npm run preflight:phase13-production -- <baseline.json>` hanya saat tiga kredensial tersedia melalui kanal aman dan baseline pasca-freeze sudah disetujui. Simpan stdout, exit code, command, waktu, operator, reviewer, ukuran, dan SHA-256 di `/data/academy-cutover/RUN_ID`. Jangan menjalankan migrasi, upload, restore, reload service, atau perintah tulis lain sebagai bagian preflight.
 
-Baseline stage 6 wajib `version: 1`, `target: "production"`, `status: "REVIEWED"`, dan `synthetic: false`. Metadata `evidence` wajib menyatakan `source: "historical-production-clone"`, `cloneDatabase: "phase13_current_prod"`, `readOnlyCapture: true`, path artifact absolut, SHA-256 artifact sumber, waktu capture/review, serta operator dan reviewer berbeda. Preflight menolak baseline draft, synthetic, snapshot live ad hoc, final backup yang belum mungkin ada, atau baseline tanpa provenance sebelum HTTP/DB/SSH I/O.
+Baseline stage 6 wajib `version: 1`, `target: "production"`, `status: "REVIEWED"`, dan `synthetic: false`. Metadata `evidence` wajib menyatakan `source: "historical-production-clone"`, `cloneDatabase: "phase13_current_prod"`, `readOnlyCapture: true`, path artifact absolut, SHA-256 artifact sumber, waktu capture/review, serta operator dan reviewer berbeda. Preflight menolak baseline draft, synthetic, snapshot live ad hoc, final backup yang belum mungkin ada, atau baseline tanpa provenance sebelum HTTP/DB I/O.
 
 Report `productionPreflight` pada final gate wajib menyatakan `readOnly: true`, `syntheticBaseline: false`, `baselineStatus: "REVIEWED"`, `baselineSource: "historical-production-clone"`, serta SHA-256 baseline dan artifact sumber clone. Report ini tidak diikat ke backup final karena preflight stage 6 mendahului freeze/backup stage 7. Secara terpisah, report `finalBackupRestore` wajib menyatakan `restoreVerified: true` dan source path/hash yang persis sama dengan artifact backup PostgreSQL final pada checklist. Kecocokan file hanya menghasilkan `EVIDENCE_FILES_VALID_NOT_GO`; keputusan GO tetap manual.
 
@@ -117,11 +119,11 @@ Keputusan: **NO-GO; probe production tidak dijalankan**. Pemeriksaan metadata lo
 
 SSH `known_hosts` memuat host key untuk `20.20.20.3`. Tunnel lokal pada `127.0.0.1:18100` dan `127.0.0.1:15532` aktif, tetapi command tunnel menunjuk gateway staging `127.0.0.1:8100` dan database staging `172.20.0.4:5432` melalui host production. Tunnel ini **bukan** bukti koneksi ke database production dan dilarang dipakai sebagai substitusi target preflight production.
 
-Karena target tidak lengkap dan baseline tidak ada, audit berhenti sebelum HTTP `GET`, koneksi PostgreSQL, atau SSH `df`. Tidak ada write freeze, migrasi, backup, upload, reload service, atau mutasi production. Untuk percobaan berikutnya, operator harus menyediakan baseline pasca-freeze yang direview di path absolut terlindungi dan empat env production melalui kanal aman; validator tetap harus mengunci endpoint ke `https://supabase.carubra.space`, database host ke `20.20.20.3`, SSH dengan `StrictHostKeyChecking=yes`, serta query ke `BEGIN READ ONLY`/`SELECT`/`ROLLBACK` saja.
+Karena target tidak lengkap dan baseline tidak ada, audit berhenti sebelum HTTP `GET`, koneksi PostgreSQL, atau SSH `df`. Tidak ada write freeze, migrasi, backup, upload, reload service, atau mutasi production. Untuk percobaan berikutnya, operator harus menyediakan baseline pasca-freeze yang direview di path absolut terlindungi dan tiga env production melalui kanal aman; validator tetap harus mengunci endpoint ke `https://supabase.carubra.space`, database host ke `20.20.20.3`, serta query ke `BEGIN READ ONLY`/`SELECT`/`ROLLBACK` saja.
 
 Pencarian lanjutan Point 5 memeriksa parent workspace, konfigurasi user, Windows Credential Manager, dan direktori bukti tanpa mencetak nilai secret. Credential Manager memiliki login Supabase CLI, tetapi token umum itu bukan bukti otorisasi proyek Academy dan tidak digunakan. `.env` proyek memiliki service-role untuk target lain: endpoint-nya bukan `https://supabase.carubra.space` dan tidak memiliki database URL production. File staging di direktori backup juga tidak memuat key preflight production. Tidak ditemukan JSON yang memuat struktur baseline `rlsSha256` atau checklist `EVIDENCE_READY` pada direktori bukti yang tersedia.
 
-Dilarang merakit konfigurasi campuran dari service-role target lain, tunnel staging, user SSH yang terlihat dari proses lain, atau token Supabase CLI. Preflight hanya boleh berjalan saat satu sumber konfigurasi aman yang direview menyediakan keempat nilai production dan satu baseline terpisah lolos `validateBaseline`; baseline tidak boleh dibuat dari hasil live.
+Dilarang merakit konfigurasi campuran dari service-role target lain, tunnel staging, user SSH yang terlihat dari proses lain, atau token Supabase CLI. Preflight hanya boleh berjalan saat satu sumber konfigurasi aman yang direview menyediakan ketiga nilai production dan satu baseline terpisah lolos `validateBaseline`; baseline tidak boleh dibuat dari hasil live.
 
 ### Evaluasi Task 6–7, 13 Oktober 2026
 

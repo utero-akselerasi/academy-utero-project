@@ -6,21 +6,20 @@ Status: 12 Oktober 2026. Cutover production masih **NO-GO**. Dokumen ini tidak m
 
 ## Point 6: production read-only preflight
 
-`scripts/preflight-phase13-production.mjs` memakai HTTP `GET`, PostgreSQL `default_transaction_read_only=on` dengan `BEGIN READ ONLY`, dan SSH `df -Pk / /data`. Tidak membuat baseline atau mengubah production. Target terkunci ke production.
+`scripts/preflight-phase13-production.mjs` memakai HTTP `GET` dan PostgreSQL `default_transaction_read_only=on` dengan `BEGIN READ ONLY`. Tidak mengukur sisa kapasitas disk. Tidak membuat baseline atau mengubah production. Target terkunci ke production.
 
-Operator menyimpan baseline JSON dari snapshot final yang disetujui setelah write freeze di lokasi terlindungi di luar repo. Bentuk wajib: `{"target":"production","counts":{"auth.users":209,"utero_academy.attendances":1180,"utero_academy.daily_reports":1032,"utero_academy.daily_report_attachments":1307,"storage.objects:academy-private":417},"minFreeKiB":10485760,"rlsSha256":"<64 hex>","policiesSha256":"<64 hex>","bucketsSha256":"<64 hex>"}`. Angka di sini **contoh, bukan baseline sah**. `counts` wajib memuat seluruh tabel yang dicek dan semua bucket dengan object. Digest adalah SHA-256 dari JSON baris terurut hasil query masing-masing untuk RLS, policy Academy/Storage, dan bucket; bandingkan bukti dari snapshot terpercaya. Jangan menghasilkan baseline langsung dari hasil preflight live lalu menyebutnya valid.
+Operator menyimpan baseline JSON dari snapshot final yang disetujui setelah write freeze di lokasi terlindungi di luar repo. Bentuk wajib: `{"target":"production","counts":{"auth.users":209,"utero_academy.attendances":1180,"utero_academy.daily_reports":1032,"utero_academy.daily_report_attachments":1307,"storage.objects:academy-private":417},"rlsSha256":"<64 hex>","policiesSha256":"<64 hex>","bucketsSha256":"<64 hex>"}`. Angka di sini **contoh, bukan baseline sah**. `counts` wajib memuat seluruh tabel yang dicek dan semua bucket dengan object. Digest adalah SHA-256 dari JSON baris terurut hasil query masing-masing untuk RLS, policy Academy/Storage, dan bucket; bandingkan bukti dari snapshot terpercaya. Jangan menghasilkan baseline langsung dari hasil preflight live lalu menyebutnya valid.
 
-Jalankan hanya bila kredensial tersedia dan host key SSH sudah dipercaya:
+Jalankan hanya bila kredensial production tersedia dan target sudah diverifikasi:
 
 ```powershell
 $env:SUPABASE_PROD_URL='https://supabase.carubra.space'
 $env:SUPABASE_PROD_DATABASE_URL='postgresql://...@20.20.20.3/postgres'
 $env:SUPABASE_PROD_SERVICE_ROLE_KEY='...'
-$env:PHASE13_PROD_SSH_USER='operator'
 node scripts/preflight-phase13-production.mjs 'I:\secure-evidence\phase13-production-baseline.json'
 ```
 
-Exit `0` hanya bila delta data nol, kedua mount `/` dan `/data` cukup ruang, seluruh tabel Academy tetap RLS-enabled, digest RLS/policy/bucket cocok, serta Auth/REST/Storage/PostgreSQL/SSH dapat dihubungi. Baseline hilang, timeout, respons tidak valid, perbedaan, atau HTTP non-2xx menghasilkan exit nonzero. Jangan ubah baseline untuk meluluskan gate; investigasi dan minta persetujuan pemilik data/keamanan.
+Exit `0` hanya bila delta data nol, seluruh tabel Academy tetap RLS-enabled, digest RLS/policy/bucket cocok, serta Auth/REST/Storage/PostgreSQL dapat dihubungi. Tidak ada pemeriksaan ambang ruang disk; jika penulisan gagal saat operasi, tangani error aktual. Baseline hilang, timeout, respons tidak valid, perbedaan, atau HTTP non-2xx menghasilkan exit nonzero. Jangan ubah baseline untuk meluluskan gate; investigasi dan minta persetujuan pemilik data/keamanan.
 
 ## Latihan staging terisolasi 12 Oktober 2026
 

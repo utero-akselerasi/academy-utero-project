@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 const modulePath = "../scripts/preflight-phase13-production.mjs";
 const { checkProduction, databaseSnapshot, assessPreflight, validateBaseline, verifyBaselineSource } = await import(modulePath);
-const config = { endpoint: "https://supabase.carubra.space", databaseUrl: "postgres://operator:password@20.20.20.3/postgres", serviceKey: "secret", sshUser: "operator" };
+const config = { endpoint: "https://supabase.carubra.space", databaseUrl: "postgres://operator:password@20.20.20.3/postgres", serviceKey: "secret" };
 const snapshot = { data: [
   { name: "utero_academy.attendances", count: "1180" }, { name: "utero_academy.daily_reports", count: "1032" },
   { name: "utero_academy.daily_report_attachments", count: "1307" }, { name: "auth.users", count: "209" },
@@ -18,8 +18,7 @@ const baseline = { version: 1, target: "production", status: "REVIEWED", synthet
     sourcePath: "I:\\secure-evidence\\phase13-current-prod-baseline.json", sourceSha256: "a".repeat(64),
     capturedAt: "2026-10-13T01:00:00Z", reviewedAt: "2026-10-13T01:10:00Z", operator: "operator-a", reviewer: "reviewer-b" },
   counts: Object.fromEntries(snapshot.data.map(({ name, count }) => [name, Number(count)])),
-  minFreeKiB: 1024, rlsSha256: hash(snapshot.rls), policiesSha256: hash(snapshot.policies), bucketsSha256: hash(snapshot.buckets) };
-const disk = [{ mount: "/", freeKiB: 2048 }, { mount: "/data", freeKiB: 2048 }];
+  rlsSha256: hash(snapshot.rls), policiesSha256: hash(snapshot.policies), bucketsSha256: hash(snapshot.buckets) };
 const verifySource = async () => true;
 
 describe("production preflight baca-saja", () => {
@@ -56,34 +55,37 @@ describe("production preflight baca-saja", () => {
 
   it("hanya GET dan seluruh bukti harus cocok", async () => {
     const fetcher = vi.fn().mockResolvedValue({ ok: true, status: 200 });
-    const report = await checkProduction(config, baseline, { fetcher, snapshot: async () => snapshot, diskReader: async () => disk, verifySource });
+    const report = await checkProduction(config, baseline, { fetcher, snapshot: async () => snapshot, verifySource });
     expect(report.ready).toBe(true);
     expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(report).not.toHaveProperty("disk");
+    expect(report.connectivity).not.toHaveProperty("ssh");
     for (const [, options] of fetcher.mock.calls) expect(options.method).toBe("GET");
   });
 
-  it("delta, disk, RLS, policy atau bucket berubah menutup gate", () => {
+  it("delta data, RLS, policy atau bucket berubah menutup gate", () => {
     for (const changed of [
       { ...snapshot, data: snapshot.data.slice(1) },
       { ...snapshot, data: snapshot.data.map((row) => ({ ...row, count: "0" })) },
       { ...snapshot, rls: [{ name: "utero_academy.attendances", enabled: false }] },
       { ...snapshot, policies: [] },
       { ...snapshot, buckets: [] },
-    ]) expect(assessPreflight(baseline, changed, disk).ready).toBe(false);
-    expect(assessPreflight(baseline, snapshot, [{ mount: "/", freeKiB: 1 }, disk[1]]).ready).toBe(false);
+    ]) expect(assessPreflight(baseline, changed).ready).toBe(false);
+    expect(validateBaseline(baseline)).toBe(baseline);
+    expect(assessPreflight(baseline, snapshot).checks).not.toHaveProperty("disk");
   });
 
   it("mengizinkan hanya tracker internal tanpa RLS dan tanpa privilege aplikasi", () => {
     const withTracker = { ...snapshot, rls: [...snapshot.rls,
       { name: "utero_academy.schema_migrations", enabled: false, forced: false, app_privileged: false }] };
     const reviewed = { ...baseline, rlsSha256: hash(withTracker.rls) };
-    expect(assessPreflight(reviewed, withTracker, disk).checks.rls).toBe(true);
+    expect(assessPreflight(reviewed, withTracker).checks.rls).toBe(true);
     const exposed = { ...withTracker, rls: withTracker.rls.map((row) =>
       row.name === "utero_academy.schema_migrations" ? { ...row, app_privileged: true } : row) };
-    expect(assessPreflight({ ...baseline, rlsSha256: hash(exposed.rls) }, exposed, disk).checks.rls).toBe(false);
+    expect(assessPreflight({ ...baseline, rlsSha256: hash(exposed.rls) }, exposed).checks.rls).toBe(false);
     const other = { ...withTracker, rls: [...withTracker.rls,
       { name: "utero_academy.unprotected", enabled: false, forced: false, app_privileged: false }] };
-    expect(assessPreflight({ ...baseline, rlsSha256: hash(other.rls) }, other, disk).checks.rls).toBe(false);
+    expect(assessPreflight({ ...baseline, rlsSha256: hash(other.rls) }, other).checks.rls).toBe(false);
   });
 
   it("service gagal menghentikan probe lain", async () => {

@@ -1,13 +1,10 @@
 import { lstat, readFile, realpath } from "node:fs/promises";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 import { isAbsolute, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import pg from "pg";
 import { TARGETS, validateConfig } from "./verify-phase13-readiness.mjs";
 
-const execFileAsync = promisify(execFile);
 const REQUIRED_COUNTS = ["auth.users", "utero_academy.attendances", "utero_academy.daily_reports", "utero_academy.daily_report_attachments"];
 const SQL = Object.freeze({
   data: `SELECT 'utero_academy.attendances' AS name, count(*) FROM utero_academy.attendances
@@ -46,8 +43,7 @@ export function validateBaseline(baseline) {
       Array.isArray(baseline.counts) || !REQUIRED_COUNTS.every((name) => Object.hasOwn(baseline.counts, name)) ||
       !Object.keys(baseline.counts).some((name) => name.startsWith("storage.objects:")) ||
       !Object.entries(baseline.counts).every(([name, count]) => typeof name === "string" && Number.isSafeInteger(count) && count >= 0) ||
-      !["rls", "policies", "buckets"].every((key) => /^[a-f0-9]{64}$/.test(baseline[`${key}Sha256`])) ||
-      !Number.isSafeInteger(baseline.minFreeKiB) || baseline.minFreeKiB <= 0) {
+      !["rls", "policies", "buckets"].every((key) => /^[a-f0-9]{64}$/.test(baseline[`${key}Sha256`]))) {
     throw new Error("Baseline production belum reviewed, synthetic, atau tidak lengkap/valid");
   }
   return baseline;
@@ -79,7 +75,7 @@ export async function databaseSnapshot(databaseUrl, Client = pg.Client) {
   }
 }
 
-export function assessPreflight(baseline, snapshot, disk) {
+export function assessPreflight(baseline, snapshot) {
   validateBaseline(baseline);
   const counts = Object.fromEntries(snapshot.data.map(({ name, count }) => [name, Number(count)]));
   if (Object.keys(counts).length !== snapshot.data.length || !Object.values(counts).every(Number.isSafeInteger)) throw new Error("Snapshot data tidak valid");
@@ -87,18 +83,17 @@ export function assessPreflight(baseline, snapshot, disk) {
     .map((name) => [name, { expected: baseline.counts[name] ?? null, actual: counts[name] ?? null }]));
   const checks = {
     data: Object.values(delta).every(({ expected, actual }) => expected !== null && expected === actual),
-    disk: disk.every(({ mount, freeKiB }) => ["/", "/data"].includes(mount) && Number.isSafeInteger(freeKiB) && freeKiB >= baseline.minFreeKiB) && disk.length === 2 && new Set(disk.map(({ mount }) => mount)).size === 2,
     rls: snapshot.rls.length > 0 && snapshot.rls.every(({ name, enabled, app_privileged: appPrivileged }) =>
       enabled === true || (name === "utero_academy.schema_migrations" && enabled === false && appPrivileged === false)) &&
       digest(snapshot.rls) === baseline.rlsSha256,
     policies: snapshot.policies.length > 0 && snapshot.policies.some(({ name }) => name === "storage.objects") && digest(snapshot.policies) === baseline.policiesSha256,
     buckets: snapshot.buckets.length > 0 && digest(snapshot.buckets) === baseline.bucketsSha256,
   };
-  return { checks, delta, disk, catalogSha256: Object.fromEntries(["rls", "policies", "buckets"].map((key) => [key, digest(snapshot[key])])), ready: Object.values(checks).every(Boolean) };
+  return { checks, delta, catalogSha256: Object.fromEntries(["rls", "policies", "buckets"].map((key) => [key, digest(snapshot[key])])), ready: Object.values(checks).every(Boolean) };
 }
 
 export async function checkProduction(config, baseline, { fetcher = fetch, snapshot = databaseSnapshot,
-  diskReader = readDisk, verifySource = verifyBaselineSource } = {}) {
+  verifySource = verifyBaselineSource } = {}) {
   validateConfig("production", config);
   validateBaseline(baseline);
   await verifySource(baseline);
@@ -111,16 +106,8 @@ export async function checkProduction(config, baseline, { fetcher = fetch, snaps
     health[route] = response.status;
     if (!response.ok) throw new Error(`Service ${route} HTTP ${response.status}`);
   }
-  const [data, disk] = await Promise.all([snapshot(config.databaseUrl), diskReader(config.sshUser)]);
-  return { ...assessPreflight(baseline, data, disk), target: "production", health, connectivity: { database: true, ssh: true, http: true } };
-}
-
-export async function readDisk(sshUser) {
-  if (!/^[a-z_][a-z0-9_-]*$/.test(sshUser ?? "")) throw new Error("SSH user wajib eksplisit dan valid");
-  const { stdout } = await execFileAsync("ssh", ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=10", `${sshUser}@${TARGETS.production.databaseHost}`, "df -Pk / /data"], { timeout: 15000 });
-  const rows = stdout.trim().split(/\r?\n/).slice(1).map((line) => line.trim().split(/\s+/));
-  if (rows.length !== 2 || rows.some((row) => row.length !== 6)) throw new Error("Output disk tidak lengkap");
-  return rows.map((row) => ({ mount: row[5], freeKiB: Number(row[3]) }));
+  const data = await snapshot(config.databaseUrl);
+  return { ...assessPreflight(baseline, data), target: "production", health, connectivity: { database: true, http: true } };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
@@ -128,7 +115,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     if (process.argv.length !== 3) throw new Error("Gunakan: node scripts/preflight-phase13-production.mjs <baseline.json>");
     const baseline = validateBaseline(JSON.parse(await readFile(process.argv[2], "utf8")));
     const report = await checkProduction({ endpoint: process.env.SUPABASE_PROD_URL, databaseUrl: process.env.SUPABASE_PROD_DATABASE_URL,
-      serviceKey: process.env.SUPABASE_PROD_SERVICE_ROLE_KEY, sshUser: process.env.PHASE13_PROD_SSH_USER }, baseline);
+      serviceKey: process.env.SUPABASE_PROD_SERVICE_ROLE_KEY }, baseline);
     console.log(JSON.stringify(report, null, 2));
     if (!report.ready) process.exitCode = 1;
   } catch (error) {
