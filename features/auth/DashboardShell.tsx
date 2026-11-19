@@ -69,48 +69,35 @@ type SidebarSectionProps = {
   title: string;
   items: NavItem[];
   activeHref: string | undefined;
-  initiallyOpen: boolean;
   onNavigate: () => void;
 };
 
-function SidebarSection({ title, items, activeHref, initiallyOpen, onNavigate }: SidebarSectionProps) {
-  const [open, setOpen] = useState(initiallyOpen);
-
+function SidebarSection({ title, items, activeHref, onNavigate }: SidebarSectionProps) {
   return (
-    <div className="border-t border-slate-800/70 pt-2 first:border-0 first:pt-0">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-        className="flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-      >
-        <span>{title}</span>
-        <ChevronDown size={14} className={`transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
-      </button>
-      {open && (
-        <div className="space-y-0.5 pb-2 pl-2">
-          {items.map((item) => {
-            const IconComponent = iconMap[item.icon];
-            const isActive = item.href === activeHref;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onNavigate}
-                aria-current={isActive ? "page" : undefined}
-                className={`flex min-h-11 items-center gap-2.5 rounded-lg px-3 text-[13px] font-medium leading-5 transition-colors ${
-                  isActive
-                    ? "bg-teal-600 text-white shadow-sm shadow-teal-600/10"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                }`}
-              >
-                <IconComponent size={16} className="shrink-0" aria-hidden="true" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      )}
+    <div className="mb-5 last:mb-0">
+      <h2 className="mb-1 px-3 text-[11px] font-medium leading-5 text-slate-400">{title}</h2>
+      <div className="space-y-0.5">
+        {items.map((item) => {
+          const IconComponent = iconMap[item.icon];
+          const isActive = item.href === activeHref;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              aria-current={isActive ? "page" : undefined}
+              className={`flex min-h-11 items-center gap-2 rounded-lg border-l-2 px-3 text-[13px] font-medium leading-5 transition-colors lg:min-h-10 ${
+                isActive
+                  ? "border-teal-400 bg-white/10 text-white"
+                  : "border-transparent text-slate-300 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              <IconComponent size={15} className="shrink-0" aria-hidden="true" />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -139,7 +126,6 @@ export function DashboardShell({
     .filter((item) => pathname === item.href || pathname.startsWith(item.href + "/"))
     .sort((first, second) => second.href.length - first.href.length)[0]?.href;
   const sections = Array.from(new Set(navItems.map((item) => item.section)));
-  const activeSection = navItems.find((item) => item.href === activeHref)?.section;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -226,11 +212,11 @@ export function DashboardShell({
         `--primary` (merah) di atas `slate-900` kontrasnya tidak cukup untuk jadi
         penanda fokus yang terlihat.
       */}
-      <aside id={SIDEBAR_ID} className={`sidebar-dark fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-slate-900 text-white transition-transform duration-300 lg:static lg:translate-x-0 ${
+      <aside id={SIDEBAR_ID} className={`sidebar-dark fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-[#111319] text-white transition-transform duration-300 lg:static lg:translate-x-0 ${
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       }`}>
         {/* Branding header */}
-        <div className="flex h-16 items-center justify-between px-6 border-b border-slate-800 bg-slate-950">
+        <div className="flex h-16 items-center justify-between border-b border-slate-800 bg-[#0d1016] px-6">
           <Link href="/" className="flex items-center gap-2 text-sm font-black tracking-wider text-teal-400">
             <GraduationCap size={20} aria-hidden="true" />
             <span>UTERO ACADEMY</span>
@@ -255,16 +241,15 @@ export function DashboardShell({
           pembaca layar hanya menampilkan "navigation" — tak ada petunjuk bahwa
           inilah navigasi utama dashboard.
         */}
-        <nav aria-label="Navigasi dashboard" className="flex-1 overflow-y-auto px-3 py-5">
-          <p className="mb-3 px-3 text-[11px] font-bold uppercase tracking-[0.18em] text-teal-300">Main Menu</p>
-          <div className="space-y-1">
+        <nav aria-label="Navigasi dashboard" className="flex-1 overflow-y-auto px-3 py-4">
+          <p className="mb-4 px-3 text-[11px] font-medium text-slate-400">Main Menu</p>
+          <div>
             {sections.map((section) => (
               <SidebarSection
-                key={`${section}-${activeSection}`}
+                key={section}
                 title={section}
                 items={navItems.filter((item) => item.section === section)}
                 activeHref={activeHref}
-                initiallyOpen={section === (activeSection ?? sections[0])}
                 onNavigate={() => setSidebarOpen(false)}
               />
             ))}
@@ -272,7 +257,7 @@ export function DashboardShell({
         </nav>
 
         {/* Quick User summary in Sidebar bottom */}
-        <div className="border-t border-slate-800 p-4 bg-slate-950/40 flex items-center gap-3">
+        <div className="flex items-center gap-3 border-t border-slate-800 bg-[#0d1016] p-4">
           <div className="relative h-10 w-10 overflow-hidden rounded-full bg-slate-800 border border-slate-700">
             {/*
               `alt=""` menjadikannya dekoratif. Nama pengguna sudah tercetak di
