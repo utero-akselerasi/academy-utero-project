@@ -71,3 +71,4 @@ Thumbs.db
 /.env.*
 !/.env.example
 /backend/.env*
+.codegraphy/*
