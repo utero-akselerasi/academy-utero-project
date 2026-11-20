@@ -20,16 +20,16 @@ const questionTypeLabels = {
   file_upload: "Unggah berkas",
 } as const;
 const steps = [
-  { id: "jalur", number: "01", title: "Siapkan jalur" },
-  { id: "tes", number: "02", title: "Buat paket & soal" },
-  { id: "penugasan", number: "03", title: "Tugaskan tes" },
-  { id: "review", number: "04", title: "Nilai & putuskan" },
+  { id: "jalur", number: "01", title: "Jalur seleksi", hint: "Kelompokkan peserta" },
+  { id: "tes", number: "02", title: "Paket & soal", hint: "Susun dan terbitkan" },
+  { id: "penugasan", number: "03", title: "Penugasan", hint: "Kirim tes ke pelamar" },
+  { id: "review", number: "04", title: "Hasil seleksi", hint: "Nilai dan putuskan" },
 ];
 
 function StepHeading({ number, title, description }: { number: string; title: string; description: string }) {
-  return <div className="flex items-start gap-4">
-    <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-sm font-extrabold text-teal-800">{number}</span>
-    <div><h2 className="text-lg font-bold text-slate-950">{title}</h2><p className="mt-1 text-sm leading-6 text-slate-600">{description}</p></div>
+  return <div className="flex items-start gap-3 border-b border-slate-100 pb-5">
+    <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-bold text-white">{number}</span>
+    <div><h2 className="text-lg font-bold tracking-tight text-slate-950">{title}</h2><p className="mt-1 text-sm leading-6 text-slate-600">{description}</p></div>
   </div>;
 }
 
@@ -42,31 +42,50 @@ export default async function MentorSelectionPage() {
     test.id,
     workspace.questions.filter((question) => question.package_id === test.id),
   ]));
+  const awaitingReview = workspace.assignments.filter((assignment) =>
+    ["submitted", "grading"].includes(assignment.attempt?.status ?? "") ||
+    (assignment.attempt?.status === "graded" && !["passed", "failed"].includes(assignment.status))
+  ).length;
 
-  return <main className="mx-auto max-w-6xl space-y-7 px-4 py-8">
-    <header className="overflow-hidden rounded-3xl bg-slate-950 p-6 text-white sm:p-8">
-      <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-300">Ruang kerja admin</p>
-      <div className="mt-3 flex flex-wrap items-end justify-between gap-5">
-        <div><h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Seleksi calon peserta</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">Siapkan tes, berikan kepada pelamar, lalu nilai hasilnya dalam satu alur.</p></div>
-        <div className="flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full border border-white/20 px-3 py-2">{workspace.applications.length} pelamar</span><span className="rounded-full border border-white/20 px-3 py-2">{publishedTests.length} tes terbit</span><span className="rounded-full border border-white/20 px-3 py-2">{workspace.assignments.length} penugasan</span></div>
+  return <main className="mx-auto max-w-7xl space-y-6 px-4 py-7 sm:px-6 lg:px-8">
+    <header className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white px-6 py-7 shadow-sm sm:px-8">
+      <div aria-hidden="true" className="absolute inset-y-0 right-0 hidden w-1/3 bg-[radial-gradient(circle_at_85%_30%,#ccfbf1,transparent_70%)] sm:block" />
+      <div className="relative flex flex-wrap items-end justify-between gap-5">
+        <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-700">Pendaftaran / Seleksi</p><h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Seleksi calon peserta</h1><p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">Kelola jalur, susun tes, tugaskan kepada pelamar, dan tinjau hasilnya.</p></div>
+        <a href="#penugasan" className={`${primaryButton} inline-flex items-center justify-center rounded-lg px-5`}>Tugaskan tes</a>
       </div>
     </header>
 
-    <nav aria-label="Tahapan seleksi" className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-4">
-      {steps.map((step) => <a key={step.id} href={`#${step.id}`} className="flex min-h-12 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-teal-50 hover:text-teal-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"><span className="text-xs font-extrabold text-teal-700">{step.number}</span>{step.title}</a>)}
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Ringkasan seleksi">
+      {[
+        { label: "Pelamar", value: workspace.applications.length, caption: "Dalam daftar seleksi" },
+        { label: "Tes siap", value: publishedTests.length, caption: "Paket sudah terbit" },
+        { label: "Ditugaskan", value: workspace.assignments.length, caption: "Tes terkirim" },
+        { label: "Perlu ditinjau", value: awaitingReview, caption: "Jawaban atau keputusan" },
+      ].map((stat) => <div key={stat.label} className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm"><p className="text-xs font-semibold text-slate-600">{stat.label}</p><p className="mt-2 text-3xl font-bold tracking-tight text-slate-950">{stat.value}</p><p className="mt-1 text-xs text-slate-500">{stat.caption}</p></div>)}
+    </div>
+
+    <div className="grid items-start gap-6 lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)]">
+    <nav aria-label="Alur kerja seleksi" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-6">
+      <p className="px-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Alur kerja</p>
+      <div className="mt-3 grid gap-1 sm:grid-cols-2 lg:grid-cols-1">{steps.map((step) => <a key={step.id} href={`#${step.id}`} className="group flex min-h-14 items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-teal-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"><span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-700 group-hover:bg-teal-100 group-hover:text-teal-900">{step.number}</span><span><strong className="block text-sm text-slate-900">{step.title}</strong><span className="text-xs text-slate-500">{step.hint}</span></span></a>)}</div>
+      <p className="mt-4 border-t border-slate-100 px-2 pt-4 text-xs leading-5 text-slate-500">Mulai dari jalur, lalu terbitkan tes sebelum menugaskannya.</p>
     </nav>
+    <div className="min-w-0 space-y-6">
 
     <section id="jalur" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <StepHeading number="01" title="Siapkan jalur seleksi" description="Jalur mengelompokkan tes sesuai jurusan atau kebutuhan program." />
-      <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.8fr)]">
-        <form action={createSelectionTrackAction} className="grid content-start gap-3 rounded-xl bg-slate-50 p-4">
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3"><h3 className="text-sm font-bold text-slate-800">Jalur tersedia <span className="ml-1 font-normal text-slate-500">({workspace.tracks.length})</span></h3><a href="#tes" className="text-sm font-semibold text-teal-800 underline-offset-4 hover:underline">Lihat paket tes</a></div>
+      {workspace.tracks.length ? <ul className="mt-3 grid gap-2 sm:grid-cols-2">{workspace.tracks.map((track) => <li key={track.id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"><span className="truncate text-sm font-semibold text-slate-900">{track.name}</span><span className="max-w-32 truncate rounded-md bg-white px-2 py-1 text-xs text-slate-600" title={track.code}>{track.code}</span></li>)}</ul> : <p className="mt-3 rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">Belum ada jalur. Buat jalur pertama untuk memulai seleksi.</p>}
+      <details className="group mt-5 rounded-xl border border-slate-200 bg-white">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">+ Tambah jalur baru<span aria-hidden="true" className="text-slate-500 group-open:rotate-180">⌄</span></summary>
+        <form action={createSelectionTrackAction} className="grid gap-3 border-t border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
           <label className="form-field"><span className="form-label">Nama jalur</span><input className={field} name="name" placeholder="Contoh: Desain Grafis" required /></label>
           <label className="form-field"><span className="form-label">Kode jalur</span><input className={field} name="code" placeholder="Contoh: DESAIN_GRAFIS" required /></label>
-          <label className="form-field"><span className="form-label">Keterangan (opsional)</span><textarea className={field} name="description" rows={2} /></label>
-          <button className={`${primaryButton} justify-self-start`}>Buat jalur</button>
+          <label className="form-field sm:col-span-2"><span className="form-label">Keterangan (opsional)</span><textarea className={field} name="description" rows={2} /></label>
+          <button className={`${primaryButton} justify-self-start sm:col-span-2`}>Buat jalur</button>
         </form>
-        <div><h3 className="text-sm font-bold text-slate-800">Jalur tersedia</h3>{workspace.tracks.length ? <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">{workspace.tracks.map((track) => <li key={track.id} className="flex items-center justify-between gap-3 px-4 py-3"><span className="font-semibold text-slate-800">{track.name}</span><span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">{track.code}</span></li>)}</ul> : <p className="mt-3 rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">Buat jalur pertama sebelum menyusun tes.</p>}</div>
-      </div>
+      </details>
       <details className="mt-5 rounded-xl border border-slate-200">
         <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-700">Materi persiapan (opsional)</summary>
         <div className="grid gap-5 border-t border-slate-200 p-4 lg:grid-cols-2">
@@ -84,8 +103,9 @@ export default async function MentorSelectionPage() {
 
     <section id="tes" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <StepHeading number="02" title="Buat paket tes dan soal" description="Buat paket sebagai draf, tambahkan minimal satu soal, lalu terbitkan agar bisa ditugaskan." />
-      <div className="mt-5 grid gap-6 xl:grid-cols-2">
-        <form action={createSelectionTestAction} className="grid content-start gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
+      <details className="group mt-5 rounded-xl border border-slate-200">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">+ Buat paket tes baru<span aria-hidden="true" className="text-slate-500 group-open:rotate-180">⌄</span></summary>
+        <form action={createSelectionTestAction} className="grid gap-3 border-t border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
           <label className="form-field sm:col-span-2"><span className="form-label">Jalur tes</span><select className={field} name="trackId" required><option value="">Pilih jalur</option>{workspace.tracks.map((track) => <option key={track.id} value={track.id}>{track.name}</option>)}</select></label>
           <label className="form-field"><span className="form-label">Kode paket</span><input className={field} name="code" placeholder="TES_DESAIN" required /></label>
           <label className="form-field"><span className="form-label">Nama tes</span><input className={field} name="title" placeholder="Tes dasar desain" required /></label>
@@ -95,8 +115,9 @@ export default async function MentorSelectionPage() {
           <label className="form-field"><span className="form-label">Kesempatan tes</span><input className={field} name="maxAttempts" type="number" min="1" max="10" defaultValue="1" required /></label>
           <button className={`${primaryButton} justify-self-start sm:col-span-2`}>Simpan sebagai draf</button>
         </form>
+      </details>
 
-        <div><h3 className="text-sm font-bold text-slate-800">Paket dan bank soal</h3>{workspace.tests.length ? <div className="mt-3 space-y-3">{workspace.tests.map((test) => {
+        <div className="mt-6"><h3 className="text-sm font-bold text-slate-800">Paket dan bank soal <span className="ml-1 font-normal text-slate-500">({workspace.tests.length})</span></h3>{workspace.tests.length ? <div className="mt-3 grid gap-3 xl:grid-cols-2">{workspace.tests.map((test) => {
           const questions = questionsByTest.get(test.id) ?? [];
           return <article key={test.id} className="rounded-xl border border-slate-200 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><h4 className="font-bold text-slate-950">{test.title}</h4><p className="mt-1 text-xs text-slate-600">{test.code} · v{test.version} · {questions.length} soal · lulus {test.passing_score}%</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${test.is_published ? "bg-teal-50 text-teal-800" : "bg-amber-50 text-amber-800"}`}>{test.is_published ? "Terbit" : "Draf"}</span></div>
@@ -104,11 +125,10 @@ export default async function MentorSelectionPage() {
             <div className="mt-3 flex flex-wrap gap-2">{!test.is_published && questions.length > 0 ? <form action={publishSelectionTestAction}><input type="hidden" name="testId" value={test.id} /><button className={secondaryButton}>Terbitkan tes</button></form> : null}{test.is_published ? <form action={versionSelectionTestAction}><input type="hidden" name="testId" value={test.id} /><button className={secondaryButton}>Buat versi baru</button></form> : null}</div>
           </article>;
         })}</div> : <p className="mt-3 rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">Belum ada paket tes. Buat draf pertama di formulir.</p>}</div>
-      </div>
 
-      <div className="mt-6 rounded-xl border border-slate-200 p-4">
-        <h3 className="font-bold text-slate-950">Tambah soal ke paket draf</h3>
-        <p className="mt-1 text-sm text-slate-600">Paket yang sudah terbit tidak dapat diubah; buat versi baru untuk memperbarui isi tes.</p>
+      <details className="group mt-5 rounded-xl border border-slate-200">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">+ Tambah soal ke paket draf<span aria-hidden="true" className="text-slate-500 group-open:rotate-180">⌄</span></summary>
+        <div className="border-t border-slate-200 p-4"><p className="text-sm text-slate-600">Paket yang sudah terbit tidak dapat diubah; buat versi baru untuk memperbarui isi tes.</p>
         {draftTests.length ? <form action={createSelectionQuestionAction} className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="form-field sm:col-span-2"><span className="form-label">Paket tes</span><select className={field} name="testId" required><option value="">Pilih paket draf</option>{draftTests.map((test) => <option key={test.id} value={test.id}>{test.title} v{test.version}</option>)}</select></label>
           <label className="form-field sm:col-span-2"><span className="form-label">Pertanyaan</span><textarea className={field} name="prompt" rows={3} placeholder="Tulis pertanyaan dengan jelas" required /></label>
@@ -124,8 +144,8 @@ export default async function MentorSelectionPage() {
           </details>
           <p className="sm:col-span-2 text-xs leading-5 text-slate-500">Untuk soal esai atau unggah berkas, penilaian dilakukan manual setelah peserta mengirim jawaban.</p>
           <button className={`${primaryButton} justify-self-start sm:col-span-2`}>Simpan soal</button>
-        </form> : <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Buat paket tes draf terlebih dahulu untuk menambahkan soal.</p>}
-      </div>
+        </form> : <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Buat paket tes draf terlebih dahulu untuk menambahkan soal.</p>}</div>
+      </details>
     </section>
 
     <section id="penugasan" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -170,5 +190,7 @@ export default async function MentorSelectionPage() {
       })}</div> : <p className="mt-5 rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-600">Belum ada tes yang ditugaskan kepada pelamar.</p>}
       <p className="mt-4 text-sm text-slate-600">Setelah status <strong>Lulus</strong>, kembali ke <Link href="/dashboard/admin/pendaftaran" className="font-semibold text-teal-800 underline underline-offset-2">Pendaftaran Masuk</Link> untuk memasukkan periode magang dan menerima pelamar.</p>
     </section>
+    </div>
+    </div>
   </main>;
 }
