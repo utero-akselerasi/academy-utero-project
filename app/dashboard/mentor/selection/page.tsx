@@ -8,6 +8,7 @@ import {
 } from "@/features/selection/actions";
 import { getSelectionWorkspace } from "@/features/selection/queries";
 import { selectionQuestionTypes } from "@/features/selection/types";
+import { SelectionStages } from "@/features/selection/SelectionStages";
 
 const field = "form-input w-full";
 const primaryButton = "button-primary min-h-11 text-sm";
@@ -19,13 +20,6 @@ const questionTypeLabels = {
   essay: "Esai",
   file_upload: "Unggah berkas",
 } as const;
-const steps = [
-  { id: "jalur", number: "01", title: "Jalur seleksi", hint: "Kelompokkan peserta" },
-  { id: "tes", number: "02", title: "Paket & soal", hint: "Susun dan terbitkan" },
-  { id: "penugasan", number: "03", title: "Penugasan", hint: "Kirim tes ke pelamar" },
-  { id: "review", number: "04", title: "Hasil seleksi", hint: "Nilai dan putuskan" },
-];
-
 function StepHeading({ number, title, description }: { number: string; title: string; description: string }) {
   return <div className="flex items-start gap-3 border-b border-slate-100 pb-5">
     <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-bold text-white">{number}</span>
@@ -56,22 +50,16 @@ export default async function MentorSelectionPage() {
       </div>
     </header>
 
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Ringkasan seleksi">
+    <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4" aria-label="Ringkasan seleksi">
       {[
         { label: "Pelamar", value: workspace.applications.length, caption: "Dalam daftar seleksi" },
         { label: "Tes siap", value: publishedTests.length, caption: "Paket sudah terbit" },
         { label: "Ditugaskan", value: workspace.assignments.length, caption: "Tes terkirim" },
         { label: "Perlu ditinjau", value: awaitingReview, caption: "Jawaban atau keputusan" },
-      ].map((stat) => <div key={stat.label} className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm"><p className="text-xs font-semibold text-slate-600">{stat.label}</p><p className="mt-2 text-3xl font-bold tracking-tight text-slate-950">{stat.value}</p><p className="mt-1 text-xs text-slate-500">{stat.caption}</p></div>)}
+      ].map((stat) => <div key={stat.label} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-5 sm:py-4"><p className="text-xs font-semibold text-slate-600">{stat.label}</p><p className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:mt-2 sm:text-3xl">{stat.value}</p><p className="mt-1 text-xs leading-4 text-slate-500">{stat.caption}</p></div>)}
     </div>
 
-    <div className="grid items-start gap-6 lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)]">
-    <nav aria-label="Alur kerja seleksi" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-6">
-      <p className="px-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Alur kerja</p>
-      <div className="mt-3 grid gap-1 sm:grid-cols-2 lg:grid-cols-1">{steps.map((step) => <a key={step.id} href={`#${step.id}`} className="group flex min-h-14 items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-teal-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"><span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-700 group-hover:bg-teal-100 group-hover:text-teal-900">{step.number}</span><span><strong className="block text-sm text-slate-900">{step.title}</strong><span className="text-xs text-slate-500">{step.hint}</span></span></a>)}</div>
-      <p className="mt-4 border-t border-slate-100 px-2 pt-4 text-xs leading-5 text-slate-500">Mulai dari jalur, lalu terbitkan tes sebelum menugaskannya.</p>
-    </nav>
-    <div className="min-w-0 space-y-6">
+    <SelectionStages>
 
     <section id="jalur" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <StepHeading number="01" title="Siapkan jalur seleksi" description="Jalur mengelompokkan tes sesuai jurusan atau kebutuhan program." />
@@ -190,7 +178,6 @@ export default async function MentorSelectionPage() {
       })}</div> : <p className="mt-5 rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-600">Belum ada tes yang ditugaskan kepada pelamar.</p>}
       <p className="mt-4 text-sm text-slate-600">Setelah status <strong>Lulus</strong>, kembali ke <Link href="/dashboard/admin/pendaftaran" className="font-semibold text-teal-800 underline underline-offset-2">Pendaftaran Masuk</Link> untuk memasukkan periode magang dan menerima pelamar.</p>
     </section>
-    </div>
-    </div>
+    </SelectionStages>
   </main>;
 }
