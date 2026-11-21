@@ -120,8 +120,7 @@ services:
         type: bind
       - source: ${ACADEMY_OFFSITE_BACKUP_ROOT:-./data/offsite-backups}
         target: /offsite
-        type: volume
-        volume: {}
+        type: bind
   backup-prune:
     command:
       - sh
@@ -378,8 +377,7 @@ services:
       - read_only: true
         source: ${ACADEMY_OFFSITE_BACKUP_ROOT:-./data/offsite-backups}
         target: /offsite
-        type: volume
-        volume: {}
+        type: bind
       - bind:
           create_host_path: true
         source: ./data/ops-evidence
