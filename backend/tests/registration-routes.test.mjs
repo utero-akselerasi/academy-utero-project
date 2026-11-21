@@ -65,6 +65,7 @@ test("applicant selection read dan start selalu scoped ke pemilik aplikasi", asy
   const scoped = queries.filter(([sql]) => /applicant_user_id/.test(sql));
   assert.ok(scoped.length >= 2);
   assert.ok(scoped.every(([, params]) => params.includes(userId)));
+  assert.ok(queries.some(([sql, params]) => /advance_applicant_selection\(\$1, 'in_progress'\)/.test(sql) && params[0] === programId));
   await app.close();
 });
 
@@ -105,5 +106,6 @@ test("selection submit computes objective score from stored answer key", async (
   const attemptUpdate = queries.find(([sql]) => /update utero_academy\.selection_attempts set status/.test(sql));
   assert.deepEqual(attemptUpdate[1], [otherId, "graded", 100]);
   assert.ok(queries.some(([sql, params]) => /selection_answers set auto_score/.test(sql) && params[1] === 20));
+  assert.ok(queries.some(([sql, params]) => /advance_applicant_selection\(\$1, 'grading'\)/.test(sql) && params[0] === programId));
   await app.close();
 });

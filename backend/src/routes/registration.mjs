@@ -135,7 +135,7 @@ export async function registrationRoutes(app, { db }) {
       if ((attempt?.attempt_number ?? 0) >= assignment.max_attempts) return { status: 409, error: "attempt_limit" };
       await client.query(`insert into utero_academy.selection_attempts (assignment_id, applicant_user_id, attempt_number, status, started_at, expires_at)
         values ($1,$2,$3,'in_progress',now(),now() + $4 * interval '1 minute')`, [assignment.id, identity.id, (attempt?.attempt_number ?? 0) + 1, assignment.duration_minutes]);
-      await client.query("update utero_academy.selection_assignments set status = 'in_progress', updated_at = now() where id = $1", [assignment.id]);
+      await client.query("select utero_academy.advance_applicant_selection($1, 'in_progress')", [assignment.id]);
       return { ok: true };
     });
     return result.error ? reply.code(result.status).send({ error: result.error }) : result;
@@ -229,7 +229,7 @@ export async function registrationRoutes(app, { db }) {
       const finalScore = calculateSelectionScore(scoredAnswers);
       await client.query(`update utero_academy.selection_attempts set status = $2, submitted_at = now(), final_score = $3, updated_at = now() where id = $1`,
         [attempt.id, manualRequired ? "grading" : "graded", finalScore]);
-      await client.query("update utero_academy.selection_assignments set status = 'grading', updated_at = now() where id = $1", [request.params.assignmentId]);
+      await client.query("select utero_academy.advance_applicant_selection($1, 'grading')", [request.params.assignmentId]);
       return { ok: true };
     });
     return result.error ? reply.code(result.status).send({ error: result.error }) : result;
