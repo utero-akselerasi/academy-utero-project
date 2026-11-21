@@ -21,9 +21,9 @@ const questionTypeLabels = {
   file_upload: "Unggah berkas",
 } as const;
 function StepHeading({ number, title, description }: { number: string; title: string; description: string }) {
-  return <div className="flex items-start gap-3 border-b border-slate-100 pb-5">
-    <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-bold text-white">{number}</span>
-    <div><h2 className="text-lg font-bold tracking-tight text-slate-950">{title}</h2><p className="mt-1 text-sm leading-6 text-slate-600">{description}</p></div>
+  return <div className="flex items-start gap-3 border-b border-slate-100 pb-4">
+    <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-bold text-white">{number}</span>
+    <div><h2 className="text-base font-bold tracking-tight text-slate-950 sm:text-lg">{title}</h2><p className="mt-0.5 text-xs leading-5 text-slate-600 sm:text-sm">{description}</p></div>
   </div>;
 }
 
@@ -41,27 +41,28 @@ export default async function MentorSelectionPage() {
     (assignment.attempt?.status === "graded" && !["passed", "failed"].includes(assignment.status))
   ).length;
 
-  return <main className="mx-auto max-w-7xl space-y-6 px-4 py-7 sm:px-6 lg:px-8">
-    <header className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white px-6 py-7 shadow-sm sm:px-8">
-      <div aria-hidden="true" className="absolute inset-y-0 right-0 hidden w-1/3 bg-[radial-gradient(circle_at_85%_30%,#ccfbf1,transparent_70%)] sm:block" />
-      <div className="relative flex flex-wrap items-end justify-between gap-5">
-        <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-700">Pendaftaran / Seleksi</p><h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Seleksi calon peserta</h1><p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">Kelola jalur, susun tes, tugaskan kepada pelamar, dan tinjau hasilnya.</p></div>
-        <a href="#penugasan" className={`${primaryButton} inline-flex items-center justify-center rounded-lg px-5`}>Tugaskan tes</a>
+  return <main className="mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-6 sm:py-6">
+    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+      <div className="border-l-4 border-red-700 pl-4">
+        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Pendaftaran / Seleksi</p>
+        <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Seleksi calon peserta</h1>
+        <p className="mt-1 text-xs leading-5 text-slate-600 sm:text-sm">Siapkan jalur, susun soal, tugaskan tes, lalu nilai hasilnya.</p>
       </div>
+      <a href="#penugasan" className={`${primaryButton} inline-flex items-center justify-center rounded-lg px-4`}>Tugaskan tes</a>
     </header>
 
-    <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4" aria-label="Ringkasan seleksi">
+    <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:grid-cols-4" aria-label="Ringkasan seleksi">
       {[
         { label: "Pelamar", value: workspace.applications.length, caption: "Dalam daftar seleksi" },
         { label: "Tes siap", value: publishedTests.length, caption: "Paket sudah terbit" },
         { label: "Ditugaskan", value: workspace.assignments.length, caption: "Tes terkirim" },
         { label: "Perlu ditinjau", value: awaitingReview, caption: "Jawaban atau keputusan" },
-      ].map((stat) => <div key={stat.label} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-5 sm:py-4"><p className="text-xs font-semibold text-slate-600">{stat.label}</p><p className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:mt-2 sm:text-3xl">{stat.value}</p><p className="mt-1 text-xs leading-4 text-slate-500">{stat.caption}</p></div>)}
+      ].map((stat, index) => <div key={stat.label} className={`min-w-0 px-3 py-2.5 sm:px-4 ${index % 2 ? "border-l border-slate-100" : ""} ${index > 1 ? "border-t border-slate-100 sm:border-t-0" : ""} ${index === 2 ? "sm:border-l" : ""}`}><p className="text-xs font-medium text-slate-600">{stat.label}</p><p className="mt-0.5 text-xl font-bold leading-7 tracking-tight text-slate-950">{stat.value}</p><p className="text-[11px] leading-4 text-slate-500">{stat.caption}</p></div>)}
     </div>
 
     <SelectionStages>
 
-    <section id="jalur" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section id="jalur" className="scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <StepHeading number="01" title="Siapkan jalur seleksi" description="Jalur mengelompokkan tes sesuai jurusan atau kebutuhan program." />
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3"><h3 className="text-sm font-bold text-slate-800">Jalur tersedia <span className="ml-1 font-normal text-slate-500">({workspace.tracks.length})</span></h3><a href="#tes" className="text-sm font-semibold text-teal-800 underline-offset-4 hover:underline">Lihat paket tes</a></div>
       {workspace.tracks.length ? <ul className="mt-3 grid gap-2 sm:grid-cols-2">{workspace.tracks.map((track) => <li key={track.id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"><span className="truncate text-sm font-semibold text-slate-900">{track.name}</span><span className="max-w-32 truncate rounded-md bg-white px-2 py-1 text-xs text-slate-600" title={track.code}>{track.code}</span></li>)}</ul> : <p className="mt-3 rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">Belum ada jalur. Buat jalur pertama untuk memulai seleksi.</p>}
@@ -89,7 +90,7 @@ export default async function MentorSelectionPage() {
       </details>
     </section>
 
-    <section id="tes" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section id="tes" className="scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <StepHeading number="02" title="Buat paket tes dan soal" description="Buat paket sebagai draf, tambahkan minimal satu soal, lalu terbitkan agar bisa ditugaskan." />
       <details className="group mt-5 rounded-xl border border-slate-200">
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">+ Buat paket tes baru<span aria-hidden="true" className="text-slate-500 group-open:rotate-180">⌄</span></summary>
@@ -136,7 +137,7 @@ export default async function MentorSelectionPage() {
       </details>
     </section>
 
-    <section id="penugasan" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section id="penugasan" className="scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <StepHeading number="03" title="Tugaskan tes ke pelamar" description="Hanya paket tes berstatus Terbit yang dapat dipilih. Batas waktu boleh dikosongkan." />
       {publishedTests.length && workspace.applications.length ? <form action={assignSelectionTestAction} className="mt-5 grid gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">
         <label className="form-field"><span className="form-label">Calon peserta</span><select className={field} name="applicationId" required><option value="">Pilih pelamar</option>{workspace.applications.map((applicant) => <option key={applicant.id} value={applicant.id}>{applicant.full_name} · {applicant.email}</option>)}</select></label>
@@ -147,7 +148,7 @@ export default async function MentorSelectionPage() {
       <p className="mt-3 text-xs text-slate-500">Setelah ditugaskan, tes muncul pada menu <strong>Tes Seleksi</strong> di dashboard pelamar.</p>
     </section>
 
-    <section id="review" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section id="review" className="scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <StepHeading number="04" title="Nilai jawaban dan tetapkan hasil" description="Periksa respons pelamar. Keputusan baru dapat disimpan setelah percobaan selesai dinilai." />
       {workspace.assignments.length ? <div className="mt-5 space-y-3">{workspace.assignments.map((assignment) => {
         const graded = assignment.attempt?.status === "graded" && assignment.attempt.final_score !== null;
