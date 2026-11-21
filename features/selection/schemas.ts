@@ -28,6 +28,8 @@ export const createTestSchema = z.object({
   maxAttempts: z.coerce.number().int().min(1).max(10).default(1),
 });
 
+export const updateTestSchema = createTestSchema.extend({ testId: uuid });
+
 export const createQuestionSchema = z.object({
   testId: uuid,
   type: z.enum(selectionQuestionTypes),
@@ -44,6 +46,8 @@ export const createQuestionSchema = z.object({
     if (!options.includes(value.correctOption)) ctx.addIssue({ code: "custom", path: ["correctOption"], message: "Jawaban benar harus sama dengan salah satu opsi." });
   }
 });
+
+export const updateQuestionSchema = createQuestionSchema.safeExtend({ questionId: uuid });
 
 export const assignApplicantSchema = z.object({
   applicationId: uuid,

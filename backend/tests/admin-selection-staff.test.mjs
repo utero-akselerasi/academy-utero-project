@@ -69,3 +69,38 @@ test("acceptance maps only the selection precondition error to conflict", async 
     await app.close();
   }
 });
+
+test("draft test edits update only unpublished package fields", async () => {
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
+  const queries = [];
+  const { app } = await fixture(identity, async (sql, params) => {
+    queries.push([sql, params]);
+    return { rows: [{ id: uuid }], rowCount: 1 };
+  });
+  const response = await app.inject({
+    method: "PUT", url: "/v1/selection/staff/tests/" + uuid,
+    payload: { trackId: uuid, code: "FUNDAMENTAL_IT", title: "Tes Fundamental", description: "Petunjuk", passingScore: 70, durationMinutes: 60, maxAttempts: 1 },
+  });
+  assert.equal(response.statusCode, 200);
+  assert.match(queries[0][0], /where id=\$1 and not is_published returning id/);
+  assert.equal(queries[1][1][0], "update_selection_test");
+  await app.close();
+});
+
+test("published test rejects question edits without changing questions", async () => {
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
+  const queries = [];
+  const { app } = await fixture(identity, async (sql) => {
+    queries.push(sql);
+    if (sql.includes("select is_published")) return { rows: [{ is_published: true }], rowCount: 1 };
+    throw Error("published package must not be modified");
+  });
+  const response = await app.inject({
+    method: "PUT", url: "/v1/selection/staff/tests/" + uuid + "/questions/" + uuid,
+    payload: { type: "multiple_choice", prompt: "Pertanyaan", points: 10, orderIndex: 0, expectedAnswer: "", options: ["A", "B"], correctOption: "A" },
+  });
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.json(), { error: "test_locked" });
+  assert.equal(queries.length, 1);
+  await app.close();
+});

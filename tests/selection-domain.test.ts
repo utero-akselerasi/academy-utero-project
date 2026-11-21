@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bypassSchema, createQuestionSchema, parseOptionLines } from "../features/selection/schemas";
+import { bypassSchema, createQuestionSchema, updateQuestionSchema, parseOptionLines } from "../features/selection/schemas";
 import { calculateSelectionScore, recommendedSelectionDecision } from "../features/selection/scoring";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -23,7 +23,11 @@ describe("selection domain", () => {
     expect(bypassSchema.safeParse({ applicationId: crypto.randomUUID(), reason: "too short" }).success).toBe(false);
     expect(bypassSchema.safeParse({ applicationId: crypto.randomUUID(), reason: "Keputusan khusus sudah diperiksa dan disetujui." }).success).toBe(true);
   });
-  it("rejects invalid answer keys", () => {
+  it("validates edited questions with the same answer-key rules", () => {
+    const input = { testId: crypto.randomUUID(), questionId: crypto.randomUUID(), type: "multiple_choice", prompt: "Contoh?", points: 10, orderIndex: 0, options: "A\nB", correctOption: "A" };
+    expect(updateQuestionSchema.safeParse(input).success).toBe(true);
+    expect(updateQuestionSchema.safeParse({ ...input, correctOption: "C" }).success).toBe(false);
+  });  it("rejects invalid answer keys", () => {
     expect(createQuestionSchema.safeParse({ testId: crypto.randomUUID(), type: "multiple_choice", prompt: "Contoh?", points: 10, options: "A\nB", correctOption: "C" }).success).toBe(false);
     expect(parseOptionLines(" A\nB\nA ")).toEqual(["A", "B"]);
   });

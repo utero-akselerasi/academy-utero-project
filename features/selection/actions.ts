@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import {
   assignApplicantSchema, bypassSchema, createMaterialSchema, createQuestionSchema,
   createTestSchema, createTrackSchema, decisionSchema, formDataObject, gradeAnswerSchema,
+  updateQuestionSchema, updateTestSchema,
   parseOptionLines,
 } from "./schemas";
 import { calculateSelectionScore, recommendedSelectionDecision } from "./scoring";
@@ -100,6 +101,55 @@ export async function createSelectionQuestionAction(formData: FormData) {
   revalidatePath(mentorPath);
 }
 
+export async function updateSelectionTestAction(formData: FormData) {
+  const user = await requireAdmin();
+  const input = parsed(updateTestSchema.safeParse(formDataObject(formData)));
+  if (usesLocalBackend()) {
+    await selectionRequest("/tests/" + input.testId, "PUT", input);
+    revalidatePath(mentorPath);
+    return;
+  }
+  const db = await createUteroAcademyServiceRoleClient();
+  const { testId, trackId, ...values } = input;
+  const { data, error } = await db.from("selection_test_packages").update({
+    track_id: trackId, code: values.code, title: values.title, description: values.description || null,
+    passing_score: values.passingScore, duration_minutes: values.durationMinutes, max_attempts: values.maxAttempts,
+  }).eq("id", testId).eq("is_published", false).select("id").maybeSingle();
+  if (error || !data) throw new Error(error?.message ?? "Paket terbit tidak dapat diedit. Buat versi baru.");
+  await writeAuditLog(user.id, "update_selection_test", "selection_test_packages", testId);
+  revalidatePath(mentorPath);
+}
+
+export async function updateSelectionQuestionAction(formData: FormData) {
+  const user = await requireAdmin();
+  const input = parsed(updateQuestionSchema.safeParse(formDataObject(formData)));
+  const options = ["multiple_choice", "true_false"].includes(input.type)
+    ? parseOptionLines(input.type === "true_false" ? "Benar\nSalah" : input.options)
+    : [];
+  if (usesLocalBackend()) {
+    await selectionRequest("/tests/" + input.testId + "/questions/" + input.questionId, "PUT", { ...input, options });
+    revalidatePath(mentorPath);
+    return;
+  }
+  const db = await createUteroAcademyServiceRoleClient();
+  const { data: test } = await db.from("selection_test_packages").select("is_published").eq("id", input.testId).single();
+  if (test?.is_published) throw new Error("Tes terbit tidak dapat diubah. Buat versi baru.");
+  const { data: question, error } = await db.from("selection_questions").update({
+    question_type: input.type, prompt: { text: input.prompt }, points: input.points, order_index: input.orderIndex,
+    answer_key: input.expectedAnswer ? { value: input.expectedAnswer } : null,
+  }).eq("id", input.questionId).eq("package_id", input.testId).select("id").maybeSingle();
+  if (error || !question) throw new Error(error?.message ?? "Soal tidak ditemukan.");
+  const { error: deleteError } = await db.from("selection_question_options").delete().eq("question_id", input.questionId);
+  if (deleteError) throw new Error("Gagal memperbarui opsi: " + deleteError.message);
+  if (options.length) {
+    const { error: insertError } = await db.from("selection_question_options").insert(options.map((label, orderIndex) => ({
+      question_id: input.questionId, label, content: { text: label }, order_index: orderIndex, is_correct: label === input.correctOption,
+    })));
+    if (insertError) throw new Error("Gagal memperbarui opsi: " + insertError.message);
+  }
+  await writeAuditLog(user.id, "update_selection_question", "selection_questions", input.questionId);
+  revalidatePath(mentorPath);
+}
 export async function publishSelectionTestAction(formData: FormData) {
   const user = await requireAdmin();
   const testId = z.string().uuid().parse(formData.get("testId"));
