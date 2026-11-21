@@ -28,8 +28,8 @@ export function SelectionStages({ children }: { children: ReactNode }) {
   const panels = Children.toArray(children);
 
   return <div className="space-y-3 sm:space-y-4">
-    <nav aria-label="Tahap seleksi" className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm sm:p-2.5">
-      <p className="px-1 pb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Alur kerja seleksi</p><div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2">
+    <nav aria-label="Tahap seleksi" className="relative rounded-xl border border-slate-200 bg-white p-2 shadow-sm sm:p-2.5">
+      <p className="px-1 pb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 sm:absolute sm:left-4 sm:top-1/2 sm:-translate-y-1/2 sm:pb-0">Alur kerja seleksi</p><div className="grid grid-cols-2 gap-1.5 sm:ml-32 sm:grid-cols-4 sm:gap-2">
         {stages.map((stage, index) => <a
           key={stage.id}
           href={`#${stage.id}`}

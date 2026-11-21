@@ -168,6 +168,14 @@ select {
   box-shadow: 0 0 0 3px rgba(206, 24, 30, 0.14);
 }
 
+.selection-workspace {
+  background-image: radial-gradient(ellipse at 92% 0%, rgba(206, 24, 30, 0.08), transparent 34%), linear-gradient(180deg, rgba(255, 255, 255, 0.52), transparent 42%);
+}
+
+.selection-workspace .form-input {
+  padding: 9px 11px;
+  font-size: 14px;
+}
 .button-primary {
   display: inline-flex;
   align-items: center;

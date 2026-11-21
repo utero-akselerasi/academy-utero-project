@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowRight, BookOpen, ClipboardCheck, Eye, Layers, Monitor, Plus, Users } from "lucide-react";
 import { requireAdmin } from "@/features/auth/guards";
 import {
   assignSelectionTestAction, createSelectionMaterialAction,
@@ -15,7 +16,7 @@ const primaryButton = "button-primary min-h-11 text-sm";
 const secondaryButton = "button-secondary min-h-10 text-sm";
 function StepHeading({ number, title, description }: { number: string; title: string; description: string }) {
   return <div className="flex items-start gap-3 border-b border-slate-100 pb-4">
-    <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-bold text-white">{number}</span>
+    <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-teal-800 text-xs font-bold text-white shadow-sm">{number}</span>
     <div><h2 className="text-base font-bold tracking-tight text-slate-950 sm:text-lg">{title}</h2><p className="mt-0.5 text-xs leading-5 text-slate-600 sm:text-sm">{description}</p></div>
   </div>;
 }
@@ -41,59 +42,69 @@ export default async function MentorSelectionPage() {
     return Number(needsReview(second)) - Number(needsReview(first));
   });
 
-  return <main className="mx-auto max-w-5xl space-y-3 px-4 py-5 sm:px-6 sm:py-6">
-    <header className="border-b border-slate-200 pb-4">
-      <div className="border-l-4 border-red-700 pl-4">
-        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Pendaftaran / Seleksi</p>
-        <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Seleksi calon peserta</h1>
-        <p className="mt-1 text-xs leading-5 text-slate-600 sm:text-sm">Atur jalur, susun tes, bagikan kepada pelamar, lalu tinjau hasilnya.</p>
+  return <main className="selection-workspace mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 sm:py-6">
+    <header className="relative isolate overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-r from-white via-white to-teal-50 px-4 py-5 shadow-sm sm:px-6">
+      <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-16 size-48 rounded-full bg-teal-100/70 blur-3xl" />
+      <div className="relative flex items-center gap-4">
+        <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-teal-800 text-white shadow-sm sm:size-14"><Users size={26} aria-hidden="true" /></span>
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-teal-800">Pendaftaran / Seleksi</p>
+          <h1 className="mt-0.5 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Seleksi calon peserta</h1>
+          <p className="mt-1 text-sm leading-5 text-slate-600">Atur jalur, susun tes, bagikan kepada pelamar, lalu tinjau hasilnya.</p>
+        </div>
       </div>
     </header>
 
-    <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:grid-cols-4" aria-label="Ringkasan seleksi">
+    <section aria-label="Ringkasan seleksi" className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
       {[
-        { label: "Pelamar", value: workspace.applications.length, caption: "Dalam daftar seleksi" },
-        { label: "Tes siap", value: publishedTests.length, caption: "Paket sudah terbit" },
-        { label: "Ditugaskan", value: workspace.assignments.length, caption: "Tes terkirim" },
-        { label: "Perlu ditinjau", value: awaitingReview, caption: "Jawaban atau keputusan" },
-      ].map((stat, index) => <div key={stat.label} className={`min-w-0 px-3 py-2 sm:px-4 ${index % 2 ? "border-l border-slate-100" : ""} ${index > 1 ? "border-t border-slate-100 sm:border-t-0" : ""} ${index === 2 ? "sm:border-l" : ""}`}><div className="flex items-baseline justify-between gap-2"><p className="truncate text-xs font-medium text-slate-600">{stat.label}</p><p className="text-xl font-bold leading-7 tabular-nums tracking-tight text-slate-950">{stat.value}</p></div></div>)}
-    </div>
+        { label: "Pelamar", value: workspace.applications.length, detail: "Dalam seleksi", Icon: Users, tone: "bg-violet-50 text-violet-700" },
+        { label: "Tes siap", value: publishedTests.length, detail: "Paket terbit", Icon: ClipboardCheck, tone: "bg-amber-50 text-amber-700" },
+        { label: "Ditugaskan", value: workspace.assignments.length, detail: "Tes dibagikan", Icon: Monitor, tone: "bg-slate-100 text-slate-700" },
+        { label: "Perlu ditinjau", value: awaitingReview, detail: "Menunggu tindakan", Icon: Eye, tone: "bg-rose-50 text-rose-700" },
+      ].map(({ label, value, detail, Icon, tone }) => <article key={label} className="flex min-w-0 items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+        <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${tone}`}><Icon size={18} aria-hidden="true" /></span>
+        <div className="min-w-0"><p className="text-xs font-medium text-slate-600">{label}</p><p className="mt-0.5 text-xl font-bold leading-6 tabular-nums text-slate-950">{value}</p><p className="mt-0.5 text-xs text-slate-500">{detail}</p></div>
+      </article>)}
+    </section>
 
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2.5 sm:px-4">
-      <div className="min-w-0"><p className="text-xs font-bold text-teal-950">Langkah berikut: {nextStep.label}</p><p className="text-xs leading-5 text-teal-900">{nextStep.description}</p></div>
-      <a href={nextStep.href} className="inline-flex min-h-10 items-center rounded-lg bg-teal-800 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">Buka tahap</a>
-    </div>
-
+    <aside className="flex flex-wrap items-center gap-3 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 sm:flex-nowrap" aria-label="Langkah berikut">
+      <span className="hidden size-9 shrink-0 items-center justify-center rounded-lg bg-white text-teal-700 sm:flex"><ClipboardCheck size={20} aria-hidden="true" /></span>
+      <div className="min-w-0 flex-1"><p className="text-sm font-bold text-teal-950">Langkah berikut: {nextStep.label}</p><p className="text-xs leading-5 text-teal-900">{nextStep.description}</p></div>
+      <a href={nextStep.href} className="button-primary min-h-11 shrink-0 text-sm">Buka tahap <ArrowRight size={16} aria-hidden="true" /></a>
+    </aside>
     <SelectionStages>
 
-    <section id="jalur" className="scroll-mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <StepHeading number="01" title="Siapkan jalur seleksi" description="Jalur mengelompokkan tes sesuai jurusan atau kebutuhan program." />
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><h3 className="text-sm font-bold text-slate-800">Jalur tersedia <span className="ml-1 font-normal text-slate-500">({workspace.tracks.length})</span></h3><a href="#tes" className="text-sm font-semibold text-teal-800 underline-offset-4 hover:underline">Lihat paket tes</a></div>
-      {workspace.tracks.length ? <ul className="mt-2 grid gap-2 sm:grid-cols-2">{workspace.tracks.map((track) => <li key={track.id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"><span className="truncate text-sm font-semibold text-slate-900">{track.name}</span><span className="max-w-32 truncate rounded-md bg-white px-2 py-1 text-xs text-slate-600" title={track.code}>{track.code}</span></li>)}</ul> : <p className="mt-3 rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">Belum ada jalur. Buat jalur pertama untuk memulai seleksi.</p>}
-      <details className="group mt-4 rounded-lg border border-slate-200 bg-white">
-        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">+ Tambah jalur baru<span aria-hidden="true" className="text-slate-500 group-open:rotate-180">⌄</span></summary>
-        <form action={createSelectionTrackAction} className="grid gap-3 border-t border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
-          <label className="form-field"><span className="form-label">Nama jalur</span><input className={field} name="name" placeholder="Contoh: Desain Grafis" required /></label>
-          <label className="form-field"><span className="form-label">Kode jalur</span><input className={field} name="code" placeholder="Contoh: DESAIN_GRAFIS" required /></label>
-          <label className="form-field sm:col-span-2"><span className="form-label">Keterangan (opsional)</span><textarea className={field} name="description" rows={2} /></label>
-          <button className={`${primaryButton} justify-self-start sm:col-span-2`}>Buat jalur</button>
-        </form>
-      </details>
-      <details className="mt-4 rounded-lg border border-slate-200">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-700">Materi persiapan (opsional)</summary>
-        <div className="grid gap-5 border-t border-slate-200 p-4 lg:grid-cols-2">
-          <form action={createSelectionMaterialAction} className="grid gap-3">
+    <section id="jalur" className="scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <StepHeading number="01" title="Siapkan jalur seleksi" description="Kelompokkan tes berdasarkan jurusan atau kebutuhan program." />
+      <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
+        <div className="min-w-0">
+          <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-bold text-slate-900">Jalur tersedia <span className="font-medium text-slate-500">({workspace.tracks.length})</span></h3><a href="#tes" className="min-h-10 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Lihat paket tes</a></div>
+          {workspace.tracks.length ? <ul className="mt-2 grid gap-2">{workspace.tracks.map((track) => <li key={track.id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3"><span className="flex min-w-0 items-center gap-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-700"><Layers size={16} aria-hidden="true" /></span><span className="truncate text-sm font-semibold text-slate-900">{track.name}</span></span><span className="max-w-32 shrink-0 truncate rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-600" title={track.code}>{track.code}</span></li>)}</ul> : <p className="mt-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">Belum ada jalur. Buat jalur pertama untuk memulai seleksi.</p>}
+        </div>
+        <details open className="group min-w-0 overflow-hidden rounded-xl border border-teal-200 bg-white">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 bg-teal-50/70 px-3 py-2.5 text-sm font-bold text-teal-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"><Plus size={17} aria-hidden="true" /> Tambah jalur baru</summary>
+          <form action={createSelectionTrackAction} className="grid gap-3 border-t border-slate-200 p-3 sm:grid-cols-2 sm:p-4">
+            <label className="form-field"><span className="form-label">Nama jalur</span><input className={field} name="name" placeholder="Contoh: Desain Grafis" required /></label>
+            <label className="form-field"><span className="form-label">Kode jalur</span><input className={field} name="code" placeholder="Contoh: DESAIN_GRAFIS" required /></label>
+            <label className="form-field sm:col-span-2"><span className="form-label">Keterangan (opsional)</span><textarea className={field} name="description" rows={2} placeholder="Jelaskan singkat tujuan atau cakupan jalur ini..." /></label>
+            <button className={`${primaryButton} justify-self-start sm:col-span-2`}><Plus size={16} aria-hidden="true" /> Buat jalur</button>
+          </form>
+        </details>
+      </div>
+      <details className="group mt-4 overflow-hidden rounded-xl border border-slate-200">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"><BookOpen size={16} className="text-teal-700" aria-hidden="true" /> Materi persiapan <span className="font-normal text-slate-500">(opsional)</span><span aria-hidden="true" className="ml-auto text-slate-500 group-open:rotate-180">⌄</span></summary>
+        <div className="grid gap-4 border-t border-slate-200 p-3 sm:p-4 lg:grid-cols-2">
+          <form action={createSelectionMaterialAction} className="grid content-start gap-3">
             <label className="form-field"><span className="form-label">Jalur</span><select className={field} name="trackId" required><option value="">Pilih jalur</option>{workspace.tracks.map((track) => <option key={track.id} value={track.id}>{track.name}</option>)}</select></label>
-            <label className="form-field"><span className="form-label">Judul materi</span><input className={field} name="title" required /></label>
-            <label className="form-field"><span className="form-label">Isi materi</span><textarea className={field} name="content" rows={3} /></label>
+            <label className="form-field"><span className="form-label">Judul materi</span><input className={field} name="title" placeholder="Contoh: Pengenalan Dasar IT" required /></label>
+            <label className="form-field"><span className="form-label">Isi materi</span><textarea className={field} name="content" rows={3} placeholder="Tuliskan materi, tautan referensi, atau instruksi..." /></label>
             <input type="hidden" name="orderIndex" value="0" />
             <button className={`${secondaryButton} justify-self-start`}>Simpan materi</button>
           </form>
-          <ul className="divide-y divide-slate-100">{workspace.materials.map((material) => <li key={material.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"><span>{material.title}</span>{material.is_published ? <span className="text-xs font-semibold text-teal-700">Terbit</span> : <form action={publishSelectionMaterialAction}><input type="hidden" name="materialId" value={material.id} /><button className={secondaryButton}>Terbitkan</button></form>}</li>)}</ul>
+          <ul className="divide-y divide-slate-100">{workspace.materials.length ? workspace.materials.map((material) => <li key={material.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"><span className="font-medium text-slate-800">{material.title}</span>{material.is_published ? <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">Terbit</span> : <form action={publishSelectionMaterialAction}><input type="hidden" name="materialId" value={material.id} /><button className={secondaryButton}>Terbitkan</button></form>}</li>) : <li className="py-3 text-sm text-slate-500">Belum ada materi persiapan.</li>}</ul>
         </div>
       </details>
     </section>
-
     <SelectionTestStudio tracks={workspace.tracks} tests={workspace.tests} questions={workspace.questions} />
 
     <section id="penugasan" className="scroll-mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -114,7 +125,7 @@ export default async function MentorSelectionPage() {
         return <details key={assignment.id} className="group rounded-xl border border-slate-200">
           <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
             <span><strong className="block text-sm text-slate-950">{assignment.applicant?.full_name ?? assignment.application_id}</strong><span className="mt-1 block text-xs text-slate-600">{assignment.test?.title ?? "Paket tes"} · {assignment.attempt?.status === "submitted" ? "Jawaban masuk" : assignment.attempt?.status === "grading" ? "Sedang dinilai" : assignment.attempt?.status === "graded" ? "Sudah dinilai" : assignment.attempt?.status === "in_progress" ? "Sedang dikerjakan" : "Belum dimulai"}</span></span>
-            <span className={`rounded-full px-3 py-1 text-xs font-bold ${graded ? "bg-teal-50 text-teal-800" : "bg-amber-50 text-amber-800"}`}>{graded ? `Nilai ${assignment.attempt?.final_score}` : assignment.status.replaceAll("_", " ")}</span>
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${graded ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>{graded ? `Nilai ${assignment.attempt?.final_score}` : assignment.status.replaceAll("_", " ")}</span>
           </summary>
           <div className="space-y-3 border-t border-slate-200 p-3 sm:p-4">
             {assignment.attempt?.answers.length ? assignment.attempt.answers.map((answer) => <article key={answer.id} className="rounded-lg bg-slate-50 p-3">
