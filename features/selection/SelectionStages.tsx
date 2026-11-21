@@ -3,10 +3,10 @@
 import { Children, type ReactNode, useEffect, useState } from "react";
 
 const stages = [
-  { id: "jalur", number: "01", title: "Jalur" },
-  { id: "tes", number: "02", title: "Paket & soal" },
-  { id: "penugasan", number: "03", title: "Penugasan" },
-  { id: "review", number: "04", title: "Hasil" },
+  { id: "jalur", number: "01", title: "Siapkan jalur" },
+  { id: "tes", number: "02", title: "Susun tes" },
+  { id: "penugasan", number: "03", title: "Bagikan tes" },
+  { id: "review", number: "04", title: "Tinjau hasil" },
 ];
 
 export function SelectionStages({ children }: { children: ReactNode }) {

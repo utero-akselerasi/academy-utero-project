@@ -1,25 +1,18 @@
 import Link from "next/link";
 import { requireAdmin } from "@/features/auth/guards";
 import {
-  assignSelectionTestAction, createSelectionMaterialAction, createSelectionQuestionAction,
-  createSelectionTestAction, createSelectionTrackAction, decideSelectionAction,
-  gradeSelectionAnswerAction, publishSelectionTestAction, versionSelectionTestAction,
-  publishSelectionMaterialAction, updateSelectionQuestionAction, updateSelectionTestAction,
+  assignSelectionTestAction, createSelectionMaterialAction,
+  createSelectionTrackAction, decideSelectionAction,
+  gradeSelectionAnswerAction,
+  publishSelectionMaterialAction,
 } from "@/features/selection/actions";
 import { getSelectionWorkspace } from "@/features/selection/queries";
-import { selectionQuestionTypes } from "@/features/selection/types";
+import { SelectionTestStudio } from "@/features/selection/SelectionTestStudio";
 import { SelectionStages } from "@/features/selection/SelectionStages";
 
 const field = "form-input w-full";
 const primaryButton = "button-primary min-h-11 text-sm";
 const secondaryButton = "button-secondary min-h-10 text-sm";
-const questionTypeLabels = {
-  multiple_choice: "Pilihan ganda",
-  true_false: "Benar / salah",
-  short_answer: "Isian singkat",
-  essay: "Esai",
-  file_upload: "Unggah berkas",
-} as const;
 function StepHeading({ number, title, description }: { number: string; title: string; description: string }) {
   return <div className="flex items-start gap-3 border-b border-slate-100 pb-4">
     <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-bold text-white">{number}</span>
@@ -31,24 +24,18 @@ export default async function MentorSelectionPage() {
   await requireAdmin();
   const workspace = await getSelectionWorkspace();
   const publishedTests = workspace.tests.filter((test) => test.is_published);
-  const draftTests = workspace.tests.filter((test) => !test.is_published);
-  const questionsByTest = new Map(workspace.tests.map((test) => [
-    test.id,
-    workspace.questions.filter((question) => question.package_id === test.id),
-  ]));
   const awaitingReview = workspace.assignments.filter((assignment) =>
     ["submitted", "grading"].includes(assignment.attempt?.status ?? "") ||
     (assignment.attempt?.status === "graded" && !["passed", "failed"].includes(assignment.status))
   ).length;
 
-  return <main className="mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-6 sm:py-6">
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+  return <main className="mx-auto max-w-6xl space-y-4 px-4 py-5 sm:px-6 sm:py-6">
+    <header className="border-b border-slate-200 pb-4">
       <div className="border-l-4 border-red-700 pl-4">
         <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Pendaftaran / Seleksi</p>
         <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Seleksi calon peserta</h1>
-        <p className="mt-1 text-xs leading-5 text-slate-600 sm:text-sm">Siapkan jalur, susun soal, tugaskan tes, lalu nilai hasilnya.</p>
+        <p className="mt-1 text-xs leading-5 text-slate-600 sm:text-sm">Atur jalur, susun tes, bagikan kepada pelamar, lalu tinjau hasilnya.</p>
       </div>
-      <a href="#penugasan" className={`${primaryButton} inline-flex items-center justify-center rounded-lg px-4`}>Tugaskan tes</a>
     </header>
 
     <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:grid-cols-4" aria-label="Ringkasan seleksi">
@@ -90,58 +77,7 @@ export default async function MentorSelectionPage() {
       </details>
     </section>
 
-    <section id="tes" className="scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-      <StepHeading number="02" title="Buat paket tes dan soal" description="Buat paket sebagai draf, tambahkan minimal satu soal, lalu terbitkan agar bisa ditugaskan." />
-      <details className="group mt-5 rounded-xl border border-slate-200">
-        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">+ Buat paket tes baru<span aria-hidden="true" className="text-slate-500 group-open:rotate-180">⌄</span></summary>
-        <form action={createSelectionTestAction} className="grid gap-3 border-t border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
-          <label className="form-field sm:col-span-2"><span className="form-label">Jalur tes</span><select className={field} name="trackId" required><option value="">Pilih jalur</option>{workspace.tracks.map((track) => <option key={track.id} value={track.id}>{track.name}</option>)}</select></label>
-          <label className="form-field"><span className="form-label">Kode paket</span><input className={field} name="code" placeholder="TES_DESAIN" required /></label>
-          <label className="form-field"><span className="form-label">Nama tes</span><input className={field} name="title" placeholder="Tes dasar desain" required /></label>
-          <label className="form-field sm:col-span-2"><span className="form-label">Petunjuk untuk peserta</span><textarea className={field} name="description" rows={2} /></label>
-          <label className="form-field"><span className="form-label">Ambang lulus (%)</span><input className={field} name="passingScore" type="number" min="0" max="100" defaultValue="70" required /></label>
-          <label className="form-field"><span className="form-label">Durasi (menit)</span><input className={field} name="durationMinutes" type="number" min="1" max="480" defaultValue="60" required /></label>
-          <label className="form-field"><span className="form-label">Kesempatan tes</span><input className={field} name="maxAttempts" type="number" min="1" max="10" defaultValue="1" required /></label>
-          <button className={`${primaryButton} justify-self-start sm:col-span-2`}>Simpan sebagai draf</button>
-        </form>
-      </details>
-
-        <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3"><div><h3 className="text-sm font-bold text-slate-900">Paket tes</h3><p className="text-xs text-slate-600">Kelola detail paket dan bank soal dalam satu tempat.</p></div><span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">{workspace.tests.length} paket</span></div>
-          {workspace.tests.length ? <div className="divide-y divide-slate-200">{workspace.tests.map((test, testIndex) => {
-            const questions = questionsByTest.get(test.id) ?? [];
-            return <details key={test.id} open={testIndex === 0 || !test.is_published} className="group p-4 sm:p-5">
-              <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-start justify-between gap-3 focus-visible:outline-2 focus-visible:outline-teal-700"><div className="min-w-0"><h4 className="font-bold text-slate-950">{test.title}</h4><p className="mt-1 text-xs text-slate-600">{test.code} · Versi {test.version} · {questions.length} soal · lulus {test.passing_score}%</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${test.is_published ? "bg-teal-50 text-teal-800" : "bg-amber-50 text-amber-800"}`}>{test.is_published ? "Terbit" : "Draf"}</span></summary>
-              {!test.is_published ? <details className="group mt-3 rounded-lg border border-slate-200"><summary className="min-h-11 cursor-pointer list-none px-3 py-2.5 text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-teal-700">Edit detail paket</summary><form action={updateSelectionTestAction} className="grid gap-3 border-t border-slate-200 bg-slate-50 p-3 sm:grid-cols-2"><input type="hidden" name="testId" value={test.id} /><label className="form-field"><span className="form-label">Jalur</span><select className={field} name="trackId" defaultValue={test.track_id} required>{workspace.tracks.map((track) => <option key={track.id} value={track.id}>{track.name}</option>)}</select></label><label className="form-field"><span className="form-label">Kode paket</span><input className={field} name="code" defaultValue={test.code} required /></label><label className="form-field sm:col-span-2"><span className="form-label">Nama tes</span><input className={field} name="title" defaultValue={test.title} required /></label><label className="form-field sm:col-span-2"><span className="form-label">Petunjuk peserta</span><textarea className={field} name="description" defaultValue={test.description ?? ""} rows={2} /></label><label className="form-field"><span className="form-label">Ambang lulus (%)</span><input className={field} type="number" name="passingScore" min="0" max="100" defaultValue={test.passing_score} required /></label><label className="form-field"><span className="form-label">Durasi (menit)</span><input className={field} type="number" name="durationMinutes" min="1" max="480" defaultValue={test.duration_minutes} required /></label><label className="form-field"><span className="form-label">Kesempatan tes</span><input className={field} type="number" name="maxAttempts" min="1" max="10" defaultValue={test.max_attempts} required /></label><button className={`${primaryButton} justify-self-start sm:col-span-2`}>Simpan perubahan</button></form></details> : <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">Paket terbit tidak dapat diedit. Buat versi baru untuk perubahan.</p>}
-              <section className="mt-4" aria-label={`Bank soal ${test.title}`}><div className="flex items-center justify-between border-b border-slate-100 pb-2"><h5 className="text-sm font-bold text-slate-800">Bank soal</h5><span className="text-xs text-slate-500">{questions.length} soal</span></div>
-                {questions.length ? <ol className="divide-y divide-slate-100">{questions.map((question,index) => <li key={question.id} className="py-3"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 gap-3"><span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-xs font-bold text-slate-600">{index+1}</span><div className="min-w-0"><p className="text-sm font-medium leading-5 text-slate-900">{question.prompt.text}</p><p className="mt-1 text-xs text-slate-500">{questionTypeLabels[question.question_type]} · {question.points} poin</p></div></div></div>{!test.is_published ? <details className="mt-2 w-full rounded-lg border border-slate-200"><summary className="min-h-9 cursor-pointer rounded-md px-2 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50">Edit soal</summary><form action={updateSelectionQuestionAction} className="mt-2 grid min-w-0 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2"><input type="hidden" name="testId" value={test.id} /><input type="hidden" name="questionId" value={question.id} /><label className="form-field sm:col-span-2"><span className="form-label">Pertanyaan</span><textarea className={field} name="prompt" rows={3} defaultValue={question.prompt.text} required /></label><label className="form-field"><span className="form-label">Jenis soal</span><select className={field} name="type" defaultValue={question.question_type}>{selectionQuestionTypes.map((type) => <option key={type} value={type}>{questionTypeLabels[type]}</option>)}</select></label><label className="form-field"><span className="form-label">Bobot poin</span><input className={field} name="points" type="number" min="1" defaultValue={question.points} required /></label><label className="form-field"><span className="form-label">Urutan</span><input className={field} name="orderIndex" type="number" min="0" defaultValue={question.order_index} /></label><label className="form-field sm:col-span-2"><span className="form-label">Opsi, satu per baris</span><textarea className={field} name="options" rows={3} defaultValue={(question.options ?? []).sort((a,b)=>a.order_index-b.order_index).map((option)=>option.label).join("\n")} /></label><label className="form-field sm:col-span-2"><span className="form-label">Jawaban benar / kunci jawaban</span><input className={field} name="correctOption" defaultValue={(question.options ?? []).find((option)=>option.is_correct)?.label ?? question.answer_key?.value ?? ""} /></label><label className="form-field sm:col-span-2"><span className="form-label">Kunci jawaban singkat (opsional)</span><input className={field} name="expectedAnswer" defaultValue={question.answer_key?.value ?? ""} /></label><button className={`${primaryButton} justify-self-start sm:col-span-2`}>Simpan soal</button></form></details> : null}</li>)}</ol> : <p className="py-3 text-sm text-amber-800">Belum ada soal. Tambahkan soal sebelum menerbitkan.</p>}
-              </section>
-              <div className="mt-3 flex flex-wrap gap-2">{!test.is_published && questions.length > 0 ? <form action={publishSelectionTestAction}><input type="hidden" name="testId" value={test.id} /><button className={secondaryButton}>Terbitkan paket</button></form> : null}{test.is_published ? <form action={versionSelectionTestAction}><input type="hidden" name="testId" value={test.id} /><button className={secondaryButton}>Buat versi baru</button></form> : null}</div>
-            </details>;
-          })}</div> : <p className="p-4 text-sm text-slate-600">Belum ada paket tes. Buat draf pertama untuk mulai menyusun bank soal.</p>}
-        </div>
-
-      <details className="group mt-5 rounded-xl border border-slate-200">
-        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">+ Tambah soal ke paket draf<span aria-hidden="true" className="text-slate-500 group-open:rotate-180">⌄</span></summary>
-        <div className="border-t border-slate-200 p-4"><p className="text-sm text-slate-600">Paket yang sudah terbit tidak dapat diubah; buat versi baru untuk memperbarui isi tes.</p>
-        {draftTests.length ? <form action={createSelectionQuestionAction} className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="form-field sm:col-span-2"><span className="form-label">Paket tes</span><select className={field} name="testId" required><option value="">Pilih paket draf</option>{draftTests.map((test) => <option key={test.id} value={test.id}>{test.title} v{test.version}</option>)}</select></label>
-          <label className="form-field sm:col-span-2"><span className="form-label">Pertanyaan</span><textarea className={field} name="prompt" rows={3} placeholder="Tulis pertanyaan dengan jelas" required /></label>
-          <label className="form-field"><span className="form-label">Jenis soal</span><select className={field} name="type">{selectionQuestionTypes.map((type) => <option key={type} value={type}>{questionTypeLabels[type]}</option>)}</select></label>
-          <label className="form-field"><span className="form-label">Bobot poin</span><input className={field} name="points" type="number" min="1" defaultValue="10" required /></label>
-          <label className="form-field"><span className="form-label">Urutan soal</span><input className={field} name="orderIndex" type="number" min="0" defaultValue="0" /></label>
-          <details className="rounded-lg border border-slate-200 sm:col-span-2"><summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">Opsi dan kunci jawaban (jika diperlukan)</summary>
-            <div className="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2">
-              <label className="form-field"><span className="form-label">Opsi pilihan ganda (satu per baris)</span><textarea className={field} name="options" rows={3} /></label>
-              <label className="form-field"><span className="form-label">Jawaban benar (pilihan ganda / benar-salah)</span><input className={field} name="correctOption" placeholder="Sama persis dengan teks opsi" /></label>
-              <label className="form-field sm:col-span-2"><span className="form-label">Kunci jawaban singkat (opsional)</span><input className={field} name="expectedAnswer" /></label>
-            </div>
-          </details>
-          <p className="sm:col-span-2 text-xs leading-5 text-slate-500">Untuk soal esai atau unggah berkas, penilaian dilakukan manual setelah peserta mengirim jawaban.</p>
-          <button className={`${primaryButton} justify-self-start sm:col-span-2`}>Simpan soal</button>
-        </form> : <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Buat paket tes draf terlebih dahulu untuk menambahkan soal.</p>}</div>
-      </details>
-    </section>
+    <SelectionTestStudio tracks={workspace.tracks} tests={workspace.tests} questions={workspace.questions} />
 
     <section id="penugasan" className="scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <StepHeading number="03" title="Tugaskan tes ke pelamar" description="Hanya paket tes berstatus Terbit yang dapat dipilih. Batas waktu boleh dikosongkan." />
