@@ -65,6 +65,8 @@ test("applicant selection read dan start selalu scoped ke pemilik aplikasi", asy
   const scoped = queries.filter(([sql]) => /applicant_user_id/.test(sql));
   assert.ok(scoped.length >= 2);
   assert.ok(scoped.every(([, params]) => params.includes(userId)));
+  assert.ok(queries.some(([sql, params]) => /pg_advisory_xact_lock\(hashtextextended/.test(sql) && params[0] === `selection:${programId}:${userId}`));
+  assert.ok(queries.every(([sql]) => !/for update of s/i.test(sql)));
   assert.ok(queries.some(([sql, params]) => /advance_applicant_selection\(\$1, 'in_progress'\)/.test(sql) && params[0] === programId));
   await app.close();
 });

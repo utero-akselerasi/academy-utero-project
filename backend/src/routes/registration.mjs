@@ -119,12 +119,13 @@ export async function registrationRoutes(app, { db }) {
     if (!identity) return;
     if (!validId(request.params.assignmentId)) return reply.code(400).send({ error: "invalid_assignment" });
     const result = await db.transaction(identity, async (client) => {
+      await client.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [`selection:${request.params.assignmentId}:${identity.id}`]);
       const assignment = (await client.query(`select s.id, s.max_attempts, s.due_at, s.available_from, s.package_id,
         p.duration_minutes, p.available_from as test_from, p.available_until as test_until, p.is_published
         from utero_academy.selection_assignments s
         join utero_academy.internship_applications a on a.id = s.application_id
         join utero_academy.selection_test_packages p on p.id = s.package_id
-        where s.id = $1 and a.applicant_user_id = $2 for update of s`, [request.params.assignmentId, identity.id])).rows[0];
+        where s.id = $1 and a.applicant_user_id = $2`, [request.params.assignmentId, identity.id])).rows[0];
       if (!assignment) return { status: 404, error: "assignment_not_found" };
       const now = Date.now();
       if (!assignment.is_published || [assignment.due_at, assignment.test_until].some((value) => value && now >= Date.parse(value)) ||
