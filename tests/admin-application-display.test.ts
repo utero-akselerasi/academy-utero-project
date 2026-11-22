@@ -13,6 +13,8 @@ describe("admin application display", () => {
   it("translates review states without exposing database codes", () => {
     expect(applicationStatusLabel("reviewed")).toBe("Sudah ditinjau");
     expect(applicationStatusLabel("not_assigned")).toBe("Belum ditugaskan");
+    expect(applicationStatusLabel("passed")).toBe("Lolos seleksi");
+    expect(applicationStatusLabel("expired")).toBe("Waktu habis");
     expect(formatApplicationTime("invalid")).toBe("-");
   });
 });

@@ -27,30 +27,30 @@ export default async function SuperAdminSchoolsPage() {
   const { schools, contacts, interns, unassignedInterns, error } = await getSuperAdminSchoolsData();
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8">
-      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <main className="mx-auto max-w-[1700px] space-y-4 px-4 py-5 sm:px-6">
+      <header className="flex flex-col gap-3 rounded-2xl bg-slate-950 p-5 text-white shadow-lg md:flex-row md:items-end md:justify-between sm:p-6">
         <div>
-          <p className="text-sm font-bold uppercase text-teal-700">Super Admin</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-950">Manajemen Instansi</h1>
-          <p className="mt-2 max-w-3xl leading-7 text-slate-600">Kelola sekolah/kampus partner, perwakilan, dan siswa yang terhubung ke School Portal.</p>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-red-300">Super Admin / data partner</p>
+          <h1 className="mt-1 text-2xl font-bold">Manajemen instansi</h1>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-300">Kelola sekolah, kampus, kontak perwakilan, dan peserta yang terhubung.</p>
         </div>
         <div className="flex gap-2">
-          <Link className="button-secondary" href="/dashboard/super-admin/users">User Management</Link>
-          <Link className="button-secondary" href="/dashboard/super-admin">Kembali</Link>
+          <Link className="rounded-lg border border-white/30 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10" href="/dashboard/super-admin/users">Kelola pengguna</Link>
+          <Link className="rounded-lg border border-white/30 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10" href="/dashboard/super-admin">Kembali</Link>
         </div>
-      </div>
+      </header>
 
       {error ? <div className="surface mb-4 p-4 text-sm font-semibold text-red-700">Data instansi belum bisa dibaca. Cek koneksi database atau policy tabel `schools`.</div> : null}
 
-      <details className="surface mb-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5">
+      <details className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3">
           <div>
-            <h2 className="text-lg font-black text-slate-950">Tambah Instansi Baru</h2>
-            <p className="mt-1 text-sm text-slate-500">Klik untuk membuka form tambah sekolah/kampus partner.</p>
+            <h2 className="text-sm font-bold text-slate-950">Tambah instansi</h2>
+            <p className="mt-0.5 text-xs text-slate-600">Buka formulir untuk mendaftarkan sekolah atau kampus partner.</p>
           </div>
           <span className="rounded-xl bg-teal-700 px-4 py-2 text-sm font-bold text-white">+ Tambah Instansi</span>
         </summary>
-        <form action={createSchoolAction} className="grid gap-3 border-t border-slate-100 px-6 pb-6 pt-4 md:grid-cols-2 lg:grid-cols-3">
+        <form action={createSchoolAction} className="grid gap-3 border-t border-slate-200 bg-slate-50 p-4 md:grid-cols-2 lg:grid-cols-3">
           <TextInput name="name" placeholder="Nama instansi *" required />
           <TextInput name="type" placeholder="Tipe: SMK / Universitas / Kampus" />
           <TextInput name="city" placeholder="Kota" />
@@ -61,15 +61,15 @@ export default async function SuperAdminSchoolsPage() {
         </form>
       </details>
 
-      <section className="surface mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+      <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
         <h2 className="text-base font-black text-amber-950">Siswa Belum Terhubung</h2>
         <p className="mt-1 text-sm text-amber-800">Ada {unassignedInterns.length} siswa yang belum punya instansi. Buka detail instansi lalu gunakan form Link Siswa.</p>
       </section>
 
-      <section className="surface rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-6 py-4">
-          <h2 className="text-lg font-black text-slate-950">Daftar Instansi</h2>
-          <p className="text-sm text-slate-500">Total {schools.length} instansi terdaftar. Setiap instansi tampil satu baris; buka detail untuk edit data dan siswa.</p>
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-4 py-3">
+          <h2 className="text-sm font-bold text-slate-950">Daftar instansi <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{schools.length}</span></h2>
+          <p className="mt-0.5 text-xs text-slate-600">Pilih baris instansi untuk mengubah data, kontak, atau peserta.</p>
         </div>
 
         <div className="divide-y divide-slate-100">
@@ -81,9 +81,9 @@ export default async function SuperAdminSchoolsPage() {
 
             return (
               <details key={school.id} className="group">
-                <summary className="grid cursor-pointer list-none items-center gap-4 px-6 py-4 hover:bg-slate-50 md:grid-cols-[1.4fr_1fr_1fr_auto]">
+                <summary className="grid cursor-pointer list-none items-center gap-2 px-4 py-3 transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 sm:gap-3 md:grid-cols-[1.4fr_1fr_1fr_auto]">
                   <div>
-                    <h3 className="font-black text-slate-950">{school.name}</h3>
+                    <h3 className="text-sm font-bold text-slate-950">{school.name}</h3>
                     <p className="text-xs font-semibold text-slate-500">{school.type || "Tipe belum diisi"}</p>
                   </div>
                   <div className="text-sm text-slate-600">
@@ -91,13 +91,13 @@ export default async function SuperAdminSchoolsPage() {
                     <p className="text-xs text-slate-400">{school.province || "Provinsi belum diisi"}</p>
                   </div>
                   <div className="flex gap-2 text-xs font-bold">
-                    <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{school.contacts_count || 0} perwakilan</span>
-                    <span className="rounded-full bg-teal-50 px-3 py-1 text-teal-700">{school.interns_count || 0} siswa</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{school.contacts_count || 0} perwakilan</span>
+                    <span className="rounded-full bg-red-50 px-2 py-1 text-red-800">{school.interns_count || 0} siswa</span>
                   </div>
-                  <span className="rounded-xl border border-slate-200 px-4 py-2 text-center text-sm font-bold text-slate-700 group-open:bg-slate-900 group-open:text-white">Lihat Detail</span>
+                  <span className="rounded-lg border border-slate-300 px-3 py-2 text-center text-xs font-bold text-slate-700 group-open:bg-slate-900 group-open:text-white">Detail / edit</span>
                 </summary>
 
-                <div className="grid gap-5 border-t border-slate-100 bg-slate-50/60 px-6 py-5 lg:grid-cols-[1fr_1fr_1.2fr]">
+                <div className="grid gap-3 border-t border-slate-200 bg-slate-50 p-3 lg:grid-cols-[1fr_1fr_1.2fr]">
                   <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <h4 className="mb-3 text-sm font-black uppercase text-slate-500">Data Instansi</h4>
                     <form action={updateSchoolAction} className="grid gap-2">

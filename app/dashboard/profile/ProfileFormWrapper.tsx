@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { updateProfileAction, type ProfileFormState } from "@/features/auth/edit-profile-action";
+import { updateProfileAction } from "@/features/auth/edit-profile-action";
 import { changePasswordAction } from "@/features/auth/change-password-action";
 import { useActionState, useState } from "react";
 import { Save, Lock } from "lucide-react";
@@ -17,11 +17,12 @@ export function ProfileFormWrapper({ userProfile, internProfile, mentorProfile, 
   const [state, formAction, isPending] = useActionState(updateProfileAction, initialState);
 
   return (
-    <div className="grid gap-6">
-      <form action={formAction} className="surface p-6 bg-white grid gap-6">
+    <div className="grid gap-4">
+      <form action={formAction} className="grid gap-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div>
-          <h3 className="font-bold text-slate-950 border-b border-slate-200 pb-2 mb-4">Informasi Utama</h3>
-          <div className="grid gap-4">
+          <h3 className="border-b border-slate-200 pb-2 text-sm font-bold text-slate-950">01 · Identitas akun</h3>
+          <p className="mb-3 mt-1 text-xs text-slate-600">Data ini membantu tim mengenali dan menghubungi Anda.</p>
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="form-field">
               <label className="form-label" htmlFor="fullName">Nama Lengkap *</label>
               <input className="form-input" id="fullName" name="fullName" defaultValue={userProfile?.full_name || ""} maxLength={150} required />
@@ -43,8 +44,9 @@ export function ProfileFormWrapper({ userProfile, internProfile, mentorProfile, 
 
         {internProfile && (
           <div>
-            <h3 className="font-bold text-slate-950 border-b border-slate-200 pb-2 mb-4">Detail Akademik / Magang</h3>
-            <div className="grid gap-4">
+            <h3 className="border-b border-slate-200 pb-2 text-sm font-bold text-slate-950">02 · Data akademik dan magang</h3>
+            <p className="mb-3 mt-1 text-xs text-slate-600">Lengkapi instansi, pembimbing, dan kontak darurat.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
               <div className="form-field">
                 <label className="form-label" htmlFor="major">Jurusan</label>
                 <input className="form-input" id="major" name="major" defaultValue={internProfile.major || ""} maxLength={120} required placeholder="Contoh: Rekayasa Perangkat Lunak" />
@@ -84,7 +86,7 @@ export function ProfileFormWrapper({ userProfile, internProfile, mentorProfile, 
 
         {mentorProfile && (
           <div>
-            <h3 className="font-bold text-slate-950 border-b border-slate-200 pb-2 mb-4">Profil Mentor</h3>
+            <h3 className="border-b border-slate-200 pb-2 text-sm font-bold text-slate-950">02 · Profil mentor</h3>
             <div className="grid gap-4">
               <div className="form-field">
                 <label className="form-label" htmlFor="headline">Headline Profesional</label>

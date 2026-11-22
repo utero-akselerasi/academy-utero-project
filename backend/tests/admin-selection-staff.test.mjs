@@ -22,6 +22,7 @@ test("anonymous and applicant cannot access staff data or mutate workflow", asyn
     const { app, transactions } = await fixture(identity, () => { throw Error("database must not be touched"); });
     for (const [method, url, payload] of [
       ["GET", "/v1/admin/applications"],
+      ["GET", `/v1/admin/applications/${uuid}/selection`],
       ["GET", "/v1/selection/staff/workspace"],
       ["POST", "/v1/selection/staff/bypass", { applicationId: uuid, reason: "Contoh alasan bypass seleksi" }],
       ["POST", "/v1/admin/placements", { internId: uuid, mentorId: uuid }],
@@ -39,6 +40,22 @@ test("permission split enforces read, review, placement and super-admin bypass",
   assert.equal((await app.inject({ method: "PATCH", url: `/v1/admin/applications/${uuid}/status`, payload: { status: "reviewed" } })).statusCode, 403);
   assert.equal((await app.inject({ method: "POST", url: "/v1/selection/staff/bypass", payload: { applicationId: uuid, reason: "Contoh alasan bypass seleksi" } })).statusCode, 403);
   assert.deepEqual(transactions, [identity]);
+  await app.close();
+});
+
+test("selection progress returns only assignments for requested application", async () => {
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.read"] };
+  const queries = [];
+  const { app } = await fixture(identity, async (sql, params) => {
+    queries.push([sql, params]);
+    return { rows: [{ id: uuid, title: "Tes Dasar", attempt_status: "submitted" }], rowCount: 1 };
+  });
+  assert.equal((await app.inject({ method: "GET", url: "/v1/admin/applications/bad-id/selection" })).statusCode, 400);
+  const response = await app.inject({ method: "GET", url: `/v1/admin/applications/${uuid}/selection` });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().assignments[0].title, "Tes Dasar");
+  assert.match(queries[0][0], /where s\.application_id = \$1/);
+  assert.deepEqual(queries[0][1], [uuid]);
   await app.close();
 });
 

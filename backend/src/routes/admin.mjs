@@ -123,9 +123,27 @@ export async function adminRoutes(app, { db }) {
   app.get("/v1/admin/applications", async (request, reply) => {
     const identity = admin(request, reply, "applications.read");
     if (!identity) return;
-    return db.transaction(identity, async (client) => ({ applications: (await client.query(`select id,full_name,email,phone,school_name,major,motivation,status,selection_status,onboarding_status,
-      proposed_start_date,proposed_end_date,approved_start_date,approved_end_date,applicant_user_id,converted_intern_id,cv_path,portfolio_path,created_at
-      from utero_academy.internship_applications order by created_at desc`)).rows }));
+    return db.transaction(identity, async (client) => ({ applications: (await client.query(`select a.id,a.full_name,a.email,a.phone,a.school_name,a.major,a.motivation,a.status,a.selection_status,a.onboarding_status,
+      a.proposed_start_date,a.proposed_end_date,a.approved_start_date,a.approved_end_date,a.applicant_user_id,a.converted_intern_id,a.cv_path,a.portfolio_path,a.created_at,up.avatar_path
+      from utero_academy.internship_applications a left join utero_academy.user_profiles up on up.id=a.applicant_user_id order by a.created_at desc`)).rows }));
+  });
+
+  app.get("/v1/admin/applications/:id/selection", async (request, reply) => {
+    const identity = admin(request, reply, "applications.read");
+    if (!identity) return;
+    if (!UUID.test(request.params.id || "")) return reply.code(400).send({ error: "invalid_id" });
+    return db.transaction(identity, async (client) => ({ assignments: (await client.query(`
+      select s.id, s.status, s.assigned_at, p.title,
+        t.status as attempt_status, t.started_at, t.submitted_at, t.expires_at
+      from utero_academy.selection_assignments s
+      join utero_academy.selection_test_packages p on p.id = s.package_id
+      left join lateral (
+        select status, started_at, submitted_at, expires_at
+        from utero_academy.selection_attempts
+        where assignment_id = s.id
+        order by attempt_number desc limit 1
+      ) t on true
+      where s.application_id = $1 order by s.assigned_at desc`, [request.params.id])).rows }));
   });
 
   app.patch("/v1/admin/applications/:id/status", async (request, reply) => {

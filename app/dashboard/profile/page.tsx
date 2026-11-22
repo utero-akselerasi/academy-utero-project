@@ -48,19 +48,20 @@ export default async function EditProfilePage() {
   const avatarUrl = await resolveStorageUrl("academy-private", userProfile?.avatar_path);
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8">
-      <div className="mb-6">
-        <p className="text-sm font-bold uppercase text-teal-700">Pengaturan</p>
-        <h1 className="mt-2 text-3xl font-bold text-slate-950">Edit Profil Anda</h1>
-        <p className="mt-2 text-slate-600">Lengkapi data pribadi, detail institusi, atau kualifikasi Anda.</p>
+    <main className="mx-auto max-w-[1400px] space-y-4 px-4 py-5 sm:px-6">
+      <div className="rounded-2xl bg-slate-950 p-5 text-white shadow-lg sm:p-6">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-red-300">Akun / pengaturan</p>
+        <h1 className="mt-2 text-2xl font-bold sm:text-3xl">Profil dan keamanan</h1>
+        <p className="mt-1 text-sm text-slate-300">Perbarui identitas, detail akademik bila berlaku, lalu simpan. Kata sandi diubah terpisah.</p>
         {internProfile && !isInternBiodataComplete(internProfile, userProfile?.full_name ?? null, user.email ?? null) && (
           <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900" role="status">
             Biodata belum lengkap. Isi semua kolom wajib sebelum melanjutkan ke dashboard peserta.
           </p>
         )}
       </div>
-      <div className="grid gap-8 lg:grid-cols-[240px_1fr]">
-        <div className="flex flex-col items-center text-center surface p-6 h-fit bg-white">
+      <div className="grid items-start gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <div className="flex flex-col items-center rounded-xl border border-slate-200 bg-white p-5 text-center shadow-sm lg:sticky lg:top-4">
+          <p className="mb-3 self-start text-xs font-bold uppercase tracking-wider text-slate-500">Pratinjau profil</p>
           <div className="relative h-24 w-24 overflow-hidden rounded-full border-2 border-teal-500 bg-slate-100 mb-4">
             {avatarUrl ? (
               <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
@@ -70,9 +71,9 @@ export default async function EditProfilePage() {
               </div>
             )}
           </div>
-          <h2 className="font-bold text-lg text-slate-950">{userProfile?.full_name || "Nama Pengguna"}</h2>
+          <h2 className="text-base font-bold text-slate-950">{userProfile?.full_name || "Nama belum diisi"}</h2>
           <p className="text-xs text-slate-500 break-all">{user.email}</p>
-          <div className="mt-4 flex flex-wrap gap-1 justify-center">
+          <div className="mt-4 flex flex-wrap justify-center gap-1">
             {roles.length > 0 ? (
               roles.map((role: any) => {
                 let badgeClass = "text-slate-700 bg-slate-50 border-slate-200";
@@ -98,6 +99,7 @@ export default async function EditProfilePage() {
               </span>
             )}
           </div>
+          <p className="mt-4 border-t border-slate-200 pt-3 text-xs leading-5 text-slate-600">Foto dan perubahan data muncul setelah profil disimpan.</p>
         </div>
         <div>
           <ProfileFormWrapper userProfile={userProfile} internProfile={internProfile} mentorProfile={mentorProfile} email={user.email ?? ""} />

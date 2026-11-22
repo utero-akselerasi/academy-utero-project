@@ -19,6 +19,8 @@ const statusLabels: Record<string, string> = {
   accepted: "Diterima", rejected: "Ditolak", cancelled: "Dibatalkan", converted: "Menjadi peserta",
   not_assigned: "Belum ditugaskan", not_started: "Belum dimulai", accepted_pending_onboarding: "Menunggu onboarding",
   biodata_review: "Review biodata", onboarding_complete: "Onboarding selesai", in_progress: "Berlangsung",
+  passed: "Lolos seleksi", failed: "Belum lolos", assigned: "Tes ditugaskan", completed: "Tes selesai",
+  expired: "Waktu habis", submitted_for_review: "Menunggu penilaian", pending: "Menunggu",
 };
 
 export function applicationStatusLabel(value: string | null | undefined): string {
