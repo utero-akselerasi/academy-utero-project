@@ -129,7 +129,7 @@ export async function adminRoutes(app, { db }) {
   });
 
   app.get("/v1/admin/applications/:id/selection", async (request, reply) => {
-    const identity = admin(request, reply, "applications.read");
+    const identity = admin(request, reply, "applications.review");
     if (!identity) return;
     if (!UUID.test(request.params.id || "")) return reply.code(400).send({ error: "invalid_id" });
     return db.transaction(identity, async (client) => ({ assignments: (await client.query(`

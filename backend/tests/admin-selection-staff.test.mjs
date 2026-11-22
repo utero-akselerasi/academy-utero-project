@@ -36,6 +36,7 @@ test("permission split enforces read, review, placement and super-admin bypass",
   const identity = { id: uuid, roles: ["admin"], permissions: ["applications.read", "interns.read"] };
   const { app, transactions } = await fixture(identity);
   assert.equal((await app.inject({ method: "GET", url: "/v1/admin/applications" })).statusCode, 200);
+  assert.equal((await app.inject({ method: "GET", url: `/v1/admin/applications/${uuid}/selection` })).statusCode, 403);
   assert.equal((await app.inject({ method: "POST", url: "/v1/selection/staff/tracks", payload: { name: "Jalur", code: "JALUR" } })).statusCode, 403);
   assert.equal((await app.inject({ method: "PATCH", url: `/v1/admin/applications/${uuid}/status`, payload: { status: "reviewed" } })).statusCode, 403);
   assert.equal((await app.inject({ method: "POST", url: "/v1/selection/staff/bypass", payload: { applicationId: uuid, reason: "Contoh alasan bypass seleksi" } })).statusCode, 403);
@@ -44,7 +45,7 @@ test("permission split enforces read, review, placement and super-admin bypass",
 });
 
 test("selection progress returns only assignments for requested application", async () => {
-  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.read"] };
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
   const queries = [];
   const { app } = await fixture(identity, async (sql, params) => {
     queries.push([sql, params]);
