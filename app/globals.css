@@ -414,3 +414,29 @@ select {
   }
 }
 
+
+.sidebar-premium {
+  background: radial-gradient(ellipse at 12% 100%, rgba(183, 25, 50, 0.32), transparent 27%), linear-gradient(158deg, #12192c 0%, #0d1425 55%, #15192d 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.applicant-dashboard {
+  background: radial-gradient(ellipse at 85% 0%, rgba(236, 38, 63, 0.04), transparent 35%), #f8f9fc;
+}
+
+.applicant-hero {
+  background: radial-gradient(ellipse at 100% 110%, rgba(255, 85, 108, 0.35), transparent 38%), linear-gradient(120deg, #fff 42%, #fff3f6 100%);
+}
+
+.applicant-hero::after {
+  content: "";
+  position: absolute;
+  right: -12%;
+  bottom: -145px;
+  width: 45%;
+  height: 240px;
+  border-radius: 50%;
+  background: rgba(238, 49, 73, 0.12);
+  transform: rotate(-18deg);
+  pointer-events: none;
+}
