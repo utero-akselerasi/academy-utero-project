@@ -94,7 +94,7 @@ export async function selectionStaffRoutes(app, { db }) {
       if (!test || !applicant) return reply.code(404).send({ error: "assignment_target_missing" });
       if (!test.is_published || !test.is_active) return reply.code(409).send({ error: "test_not_published" });
       if (applicant.selection_track_id && applicant.selection_track_id !== test.track_id) return reply.code(409).send({ error: "track_mismatch" });
-      const existing = (await client.query("select s.id, s.status, t.status attempt_status, t.expires_at from utero_academy.selection_assignments s left join lateral (select status, expires_at from utero_academy.selection_attempts where assignment_id=s.id order by attempt_number desc limit 1) t on true where s.application_id=$1 and s.package_id=$2 order by s.assigned_at desc limit 1", [body.applicationId, body.testId])).rows[0];
+      const existing = (await client.query("select s.id, s.status, t.status attempt_status, t.expires_at from utero_academy.selection_assignments s join utero_academy.selection_test_packages previous on previous.id=s.package_id left join lateral (select status, expires_at from utero_academy.selection_attempts where assignment_id=s.id order by attempt_number desc limit 1) t on true where s.application_id=$1 and previous.code=(select code from utero_academy.selection_test_packages where id=$2) order by s.assigned_at desc limit 1", [body.applicationId, body.testId])).rows[0];
       if (existing) {
         const expired = existing.attempt_status === "in_progress" && existing.expires_at && Date.now() >= Date.parse(existing.expires_at);
         const state = expired ? "expired" : existing.attempt_status || existing.status;

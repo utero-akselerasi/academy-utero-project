@@ -121,6 +121,7 @@ test("duplicate assignment returns readable state without inserting another", as
   assert.equal(response.statusCode, 409);
   assert.deepEqual(response.json(), { error: "already_assigned", assignmentId: uuid, state: "in_progress" });
   assert.equal(queries.length, 3);
+  assert.match(queries[2][0], /previous\.code=/);
   await app.close();
 });
 
