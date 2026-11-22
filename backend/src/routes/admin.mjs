@@ -124,7 +124,7 @@ export async function adminRoutes(app, { db }) {
     const identity = admin(request, reply, "applications.read");
     if (!identity) return;
     return db.transaction(identity, async (client) => ({ applications: (await client.query(`select a.id,a.full_name,a.email,a.phone,a.school_name,a.major,a.motivation,a.status,a.selection_status,a.onboarding_status,
-      a.proposed_start_date,a.proposed_end_date,a.approved_start_date,a.approved_end_date,a.applicant_user_id,a.converted_intern_id,a.cv_path,a.portfolio_path,a.created_at,up.avatar_path
+      a.proposed_start_date,a.proposed_end_date,a.approved_start_date,a.approved_end_date,a.applicant_user_id,a.converted_intern_id,a.cv_path,a.portfolio_path,a.school_letter_path,a.proposal_path,a.created_at,coalesce(a.photo_path,up.avatar_path) as avatar_path
       from utero_academy.internship_applications a left join utero_academy.user_profiles up on up.id=a.applicant_user_id order by a.created_at desc`)).rows }));
   });
 

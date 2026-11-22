@@ -21,11 +21,11 @@ export function parseRegistration(body) {
     value[key] = body[key];
   }
   if (value.proposedEndDate < value.proposedStartDate) return null;
-  for (const key of ["cvPath", "portfolioPath"]) {
-    if (key === "portfolioPath" && body[key] === null) { value[key] = null; continue; }
-    if (typeof body[key] !== "string" || !/^[0-9a-f-]{36}\/applications\/(cv|portfolio)\/[0-9a-f-]{36}\.[a-z0-9]+$/i.test(body[key])) return null;
+  for (const [key, kind] of [["cvPath", "cv"], ["portfolioPath", "portfolio"], ["schoolLetterPath", "school-letter"], ["proposalPath", "proposal"], ["photoPath", "photo"]]) {
+    if (["portfolioPath", "proposalPath"].includes(key) && body[key] === null) { value[key] = null; continue; }
+    if (typeof body[key] !== "string" || !new RegExp(`^[0-9a-f-]{36}/applications/${kind}/[0-9a-f-]{36}\\.(?:pdf|png|jpe?g|webp|docx)$`, "i").test(body[key])) return null;
     value[key] = body[key];
   }
-  if (!value.cvPath.includes("/cv/") || (value.portfolioPath && !value.portfolioPath.includes("/portfolio/"))) return null;
+  if (!/\.(?:png|jpe?g|webp)$/i.test(value.photoPath)) return null;
   return { ...value, programId: body.programId };
 }

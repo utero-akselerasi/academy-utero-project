@@ -81,10 +81,12 @@ export async function storageRoutes(app, options) {
         !resolved.normalized.startsWith(`${identity.id}/`)) {
       return reply.code(403).send({ error: "forbidden" });
     }
-    const maxBytes = bucketName === "academy-private" && /^[^/]+\/applications\/(?:cv|portfolio)\//.test(resolved.normalized)
+    const maxBytes = bucketName === "academy-private" && /^[^/]+\/applications\/(?:cv|portfolio|school-letter|proposal|photo)\//.test(resolved.normalized)
       ? 5 * 1024 * 1024 : bucket.maxBytes;
+    if (bucketName === "academy-private" && /^[^/]+\/applications\/photo\//.test(resolved.normalized) && !/\.(?:png|jpe?g|webp)$/i.test(resolved.normalized)) return reply.code(415).send({ error: "unsupported_media_type" });
     const file = await request.file({ limits: { files: 1, fileSize: maxBytes } });
     if (!file || !bucket.mime.includes(file.mimetype)) return reply.code(415).send({ error: "unsupported_media_type" });
+    if (bucketName === "academy-private" && /^[^/]+\/applications\/photo\//.test(resolved.normalized) && !["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) return reply.code(415).send({ error: "unsupported_media_type" });
     await mkdir(path.dirname(resolved.target), { recursive: true });
     const temporary = `${resolved.target}.${randomUUID()}.upload`;
     const digest = createHash("sha256");

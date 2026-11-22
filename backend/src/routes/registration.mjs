@@ -37,7 +37,7 @@ export async function registrationRoutes(app, { db }) {
     if (!identity.email) return reply.code(400).send({ error: "email_required" });
     const input = parseRegistration(request.body);
     if (!input) return reply.code(400).send({ error: "invalid_registration" });
-    if (![input.cvPath, input.portfolioPath].filter(Boolean).every((path) => path.startsWith(`${identity.id}/`))) return reply.code(403).send({ error: "forbidden" });
+    if (![input.cvPath, input.portfolioPath, input.schoolLetterPath, input.proposalPath, input.photoPath].filter(Boolean).every((path) => path.startsWith(`${identity.id}/`))) return reply.code(403).send({ error: "forbidden" });
     const result = await db.transaction(identity, async (client) => {
       await client.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [identity.id]);
       const existing = await client.query(`select 1 from utero_academy.internship_applications
@@ -58,18 +58,20 @@ export async function registrationRoutes(app, { db }) {
         schoolId = row.id;
         schoolName = row.name;
       }
-      const paths = [input.cvPath, input.portfolioPath].filter(Boolean);
-      const files = await client.query(`select name from academy_storage.objects where bucket_id = 'academy-private'
+      const paths = [input.cvPath, input.portfolioPath, input.schoolLetterPath, input.proposalPath, input.photoPath].filter(Boolean);
+      const files = await client.query(`select name, mime_type, byte_size from academy_storage.objects where bucket_id = 'academy-private'
         and owner_id = $1 and name = any($2::text[]) and deleted_at is null`, [identity.id, paths]);
-      if (files.rowCount !== paths.length) return { error: "documents_missing" };
+      if (files.rowCount !== paths.length || files.rows.some((file) => file.byte_size > 5 * 1024 * 1024) ||
+          !files.rows.some((file) => file.name === input.photoPath && ["image/jpeg", "image/png", "image/webp"].includes(file.mime_type))) return { error: "documents_missing" };
       const inserted = await client.query(`insert into utero_academy.internship_applications
         (program_id, school_id, source, applicant_user_id, submitted_by_user_id, full_name, email, phone,
          school_name, student_number, major, motivation, proposed_start_date, proposed_end_date,
-         cv_path, portfolio_path, status, submitted_at)
-        values ($1,$2,'self',$3,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'submitted',now()) returning id`,
+         cv_path, portfolio_path, school_letter_path, proposal_path, photo_path, status, submitted_at)
+        values ($1,$2,'self',$3,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'submitted',now()) returning id`,
         [input.programId, schoolId, identity.id, input.fullName, identity.email.toLowerCase(), input.phone,
           schoolName, input.studentNumber || null, input.major, input.motivation, input.proposedStartDate,
-          input.proposedEndDate, input.cvPath, input.portfolioPath]);
+          input.proposedEndDate, input.cvPath, input.portfolioPath, input.schoolLetterPath, input.proposalPath, input.photoPath]);
+      await client.query("update utero_academy.user_profiles set avatar_path = $2, updated_at = now() where id = $1", [identity.id, input.photoPath]);
       return { id: inserted.rows[0].id };
     });
     return result.error ? reply.code(409).send(result) : reply.code(201).send(result);

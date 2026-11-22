@@ -11,6 +11,8 @@ const body = {
   major: "RPL", motivation: "Saya ingin belajar pengembangan aplikasi.", studentNumber: "", referralCode: "",
   proposedStartDate: "2026-11-01", proposedEndDate: "2027-01-01",
   cvPath: `${userId}/applications/cv/44444444-4444-4444-8444-444444444444.pdf`, portfolioPath: null,
+  schoolLetterPath: `${userId}/applications/school-letter/44444444-4444-4444-8444-444444444444.pdf`, proposalPath: null,
+  photoPath: `${userId}/applications/photo/44444444-4444-4444-8444-444444444444.jpg`,
 };
 
 async function fixture(identity, query) {
@@ -31,6 +33,7 @@ test("registration menolak anonim, role lain, dan berkas milik pengguna lain", a
   await school.close();
   const applicant = await fixture({ id: userId, email: "budi@example.com", roles: ["applicant"] }, query);
   assert.equal((await applicant.inject({ method: "POST", url: "/v1/registration/applications", payload: { ...body, cvPath: body.cvPath.replace(userId, otherId) } })).statusCode, 403);
+  assert.equal((await applicant.inject({ method: "POST", url: "/v1/registration/applications", payload: { ...body, photoPath: body.photoPath.replace(userId, otherId) } })).statusCode, 403);
   await applicant.close();
   const isolated = await fixture({ id: userId, email: "budi@example.com", roles: ["applicant"] }, async () => ({ rows: [], rowCount: 0 }));
   assert.equal((await isolated.inject({ method: "GET", url: `/v1/registration/selection/${programId}` })).statusCode, 404);
@@ -48,6 +51,30 @@ test("registration tidak menyimpan pendaftaran bila berkas belum tercatat", asyn
   assert.equal(result.statusCode, 409);
   assert.equal(result.json().error, "documents_missing");
   assert.equal(queries.some((sql) => sql.includes("insert into utero_academy.internship_applications")), false);
+  await app.close();
+});
+
+test("registration menyimpan dokumen dan foto milik pelamar", async () => {
+  const queries = [];
+  const app = await fixture({ id: userId, email: "budi@example.com", roles: ["applicant"] }, async (sql, params) => {
+    queries.push([sql, params]);
+    if (sql.includes("programs where")) return { rowCount: 1, rows: [{}] };
+    if (sql.includes("from academy_storage.objects")) return {
+      rowCount: 3, rows: [
+        { name: body.cvPath, mime_type: "application/pdf", byte_size: 120 },
+        { name: body.schoolLetterPath, mime_type: "application/pdf", byte_size: 120 },
+        { name: body.photoPath, mime_type: "image/jpeg", byte_size: 120 },
+      ],
+    };
+    if (sql.includes("insert into utero_academy.internship_applications")) return { rowCount: 1, rows: [{ id: programId }] };
+    return { rowCount: 0, rows: [] };
+  });
+  const response = await app.inject({ method: "POST", url: "/v1/registration/applications", payload: body });
+  assert.equal(response.statusCode, 201);
+  const insert = queries.find(([sql]) => sql.includes("insert into utero_academy.internship_applications"));
+  assert.ok(insert[0].includes("photo_path"));
+  assert.ok([body.cvPath, body.schoolLetterPath, body.photoPath].every((path) => insert[1].includes(path)));
+  assert.ok(queries.some(([sql, params]) => sql.includes("update utero_academy.user_profiles") && params[0] === userId && params[1] === body.photoPath));
   await app.close();
 });
 
