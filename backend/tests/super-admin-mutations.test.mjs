@@ -158,6 +158,38 @@ test("update periode menolak tanggal terbalik sebelum transaksi", async () => {
   await app.close();
 });
 
+test("update periode pendaftaran menyinkronkan profil, tanggal resmi, dan audit", async () => {
+  const identity = { id: actorId, userId: actorId, roles: ["super_admin"] };
+  const queries = [];
+  const db = { async transaction(received, callback) {
+    assert.equal(received, identity);
+    return callback({ async query(sql, values) {
+      queries.push({ sql, values });
+      if (sql.includes("from utero_academy.internship_applications")) return { rows: [{ converted_intern_id: targetId, approved_start_date: "2026-12-01", approved_end_date: "2027-05-31", status: "accepted" }], rowCount: 1 };
+      return { rows: [], rowCount: 1 };
+    } });
+  } };
+  const app = await build(identity, db);
+  const response = await app.inject({ method: "PATCH", url: `/v1/super-admin/applications/${targetId}/period`, payload: { startDate: "2027-01-01", endDate: "2027-06-30" } });
+  assert.equal(response.statusCode, 200);
+  assert.ok(queries.some(({ sql, values }) => sql.includes("update utero_academy.intern_profiles") && values[1] === "2027-01-01"));
+  assert.ok(queries.some(({ sql, values }) => sql.includes("update utero_academy.internship_applications") && values[2] === "2027-06-30"));
+  assert.ok(queries.some(({ sql, values }) => sql.includes("append_audit_log") && values[0] === "update_application_period" && JSON.parse(values[3]).startDate === "2026-12-01"));
+  await app.close();
+});
+
+test("update periode pendaftaran menolak role lain dan tanggal tidak valid", async () => {
+  let called = false;
+  const db = { async transaction() { called = true; } };
+  const regularAdmin = await build({ id: actorId, roles: ["admin"] }, db);
+  assert.equal((await regularAdmin.inject({ method: "PATCH", url: `/v1/super-admin/applications/${targetId}/period`, payload: { startDate: "2027-01-01", endDate: "2027-06-30" } })).statusCode, 403);
+  await regularAdmin.close();
+  const administrator = await build({ id: actorId, roles: ["super_admin"] }, db);
+  assert.equal((await administrator.inject({ method: "PATCH", url: `/v1/super-admin/applications/${targetId}/period`, payload: { startDate: "2027-02-30", endDate: "2027-03-01" } })).statusCode, 400);
+  assert.equal(called, false);
+  await administrator.close();
+});
+
 test("delete user menolak akun sendiri tanpa query database", async () => {
   let called = false;
   const app = await build({ id: actorId, roles: ["super_admin"] }, { async apiTransaction() { called = true; } });

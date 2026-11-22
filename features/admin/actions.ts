@@ -7,6 +7,8 @@ import { usesLocalBackend } from "@/lib/backend/server";
 import { approveLocalOnboarding, createLocalPlacement, deleteLocalPlacement, updateLocalApplication } from "./local";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { requireSuperAdmin } from "@/features/auth/guards";
+import { backendRequest } from "@/lib/backend/server";
 
 const updateApplicationSchema = z.object({
   id: z.string().uuid(),
@@ -159,6 +161,37 @@ export async function removeMentorAssignmentAction(formData: FormData) {
 }
 
 export type ApplicationStatusActionState = { ok: boolean; message: string };
+
+export async function updateApplicationPeriodAction(_previousState: ApplicationStatusActionState, formData: FormData): Promise<ApplicationStatusActionState> {
+  await requireSuperAdmin();
+  const parsed = z.object({
+    id: z.string().uuid(),
+    startDate: z.string().date(),
+    endDate: z.string().date(),
+  }).refine((value) => value.endDate >= value.startDate).safeParse({
+    id: formData.get("id"), startDate: formData.get("startDate"), endDate: formData.get("endDate"),
+  });
+  if (!parsed.success) return { ok: false, message: "Tanggal mulai dan selesai tidak valid." };
+  if (!usesLocalBackend()) return { ok: false, message: "Perubahan periode harus dilakukan melalui backend Academy." };
+  try {
+    const response = await backendRequest(`/v1/super-admin/applications/${parsed.data.id}/period`, {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ startDate: parsed.data.startDate, endDate: parsed.data.endDate }),
+    });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      return { ok: false, message: result.error === "intern_profile_not_created" ? "Profil peserta magang belum dibuat; periode belum bisa diubah." : "Periode belum berhasil diperbarui." };
+    }
+    revalidatePath("/dashboard/admin/pendaftaran");
+    revalidatePath(`/dashboard/admin/pendaftaran/${parsed.data.id}`);
+    revalidatePath("/dashboard/applicant");
+    revalidatePath("/dashboard/profile");
+    revalidatePath("/dashboard/intern");
+    return { ok: true, message: "Periode magang diperbarui dan perubahan tercatat." };
+  } catch {
+    return { ok: false, message: "Periode belum berhasil diperbarui. Coba lagi." };
+  }
+}
 
 export async function updateApplicationStatusFormAction(
   _previousState: ApplicationStatusActionState,

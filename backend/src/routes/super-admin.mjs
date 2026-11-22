@@ -312,6 +312,25 @@ export async function superAdminRoutes(app, { db, config }) {
     return db.transaction(identity, async (client) => { const previous = (await client.query("select start_date,end_date,major,grade_or_semester,status from utero_academy.intern_profiles where id=$1 for update", [request.params.id])).rows[0]; if (!previous) return reply.code(404).send({ error: "intern_not_found" }); await client.query("update utero_academy.intern_profiles set start_date=$2,end_date=$3,major=$4,grade_or_semester=$5,status=$6,updated_at=now() where id=$1", [request.params.id, startDate || null, endDate || null, major, grade, status]); await audit(client, "update_intern_period", "intern_profiles", request.params.id, previous, { startDate: startDate || null, endDate: endDate || null, major, gradeOrSemester: grade, status }); return { id: request.params.id }; });
   });
 
+  app.patch("/v1/super-admin/applications/:id/period", async (request, reply) => {
+    const identity = superAdmin(request, reply); if (!identity) return;
+    const { startDate, endDate } = request.body || {};
+    const validDate = (value) => typeof value === "string" && DATE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+    if (!UUID.test(request.params.id || "") || !validDate(startDate) || !validDate(endDate) || endDate < startDate) return reply.code(400).send({ error: "invalid_period" });
+    return db.transaction(identity, async (client) => {
+      const previous = (await client.query(`select converted_intern_id,approved_start_date,approved_end_date,status
+        from utero_academy.internship_applications where id=$1 for update`, [request.params.id])).rows[0];
+      if (!previous) return reply.code(404).send({ error: "application_not_found" });
+      if (!previous.converted_intern_id || !["accepted", "converted"].includes(previous.status)) return reply.code(409).send({ error: "intern_profile_not_created" });
+      const profile = await client.query("update utero_academy.intern_profiles set start_date=$2,end_date=$3,updated_at=now() where id=$1", [previous.converted_intern_id, startDate, endDate]);
+      if (profile.rowCount !== 1) throw new Error("Profil peserta tidak dapat diperbarui.");
+      const application = await client.query("update utero_academy.internship_applications set approved_start_date=$2,approved_end_date=$3,updated_at=now() where id=$1", [request.params.id, startDate, endDate]);
+      if (application.rowCount !== 1) throw new Error("Pendaftaran tidak dapat diperbarui.");
+      await client.query("select utero_academy.append_audit_log($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb)", ["update_application_period", "internship_applications", request.params.id, JSON.stringify({ startDate: previous.approved_start_date, endDate: previous.approved_end_date }), JSON.stringify({ startDate, endDate }), "{}"]);
+      return { id: request.params.id, startDate, endDate };
+    });
+  });
+
   app.post("/v1/super-admin/orphans/cleanup", async (request, reply) => {
     const identity = superAdmin(request, reply); if (!identity) return;
     const orphanType = request.body?.orphanType;

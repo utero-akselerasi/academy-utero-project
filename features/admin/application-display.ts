@@ -21,6 +21,7 @@ const statusLabels: Record<string, string> = {
   biodata_review: "Review biodata", onboarding_complete: "Onboarding selesai", in_progress: "Berlangsung",
   passed: "Lolos seleksi", failed: "Belum lolos", assigned: "Tes ditugaskan", completed: "Tes selesai",
   expired: "Waktu habis", submitted_for_review: "Menunggu penilaian", pending: "Menunggu",
+  graded: "Sudah dinilai", timed_out: "Waktu habis",
 };
 
 export function applicationStatusLabel(value: string | null | undefined): string {
