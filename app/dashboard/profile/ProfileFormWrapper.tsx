@@ -33,7 +33,7 @@ export function ProfileFormWrapper({ userProfile, internProfile, mentorProfile, 
             </div>
             <div className="form-field">
               <label className="form-label" htmlFor="phone">Nomor WhatsApp/Telepon</label>
-              <input className="form-input" id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="08xxxxxxxxxx atau 628xxxxxxxxxx" aria-describedby="phone-help" defaultValue={userProfile?.phone || ""} maxLength={25} required={Boolean(internProfile)} />
+              <input className="form-input" id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="08xxxxxxxxxx atau 628xxxxxxxxxx" pattern="(?:0|\+?62)[\s()-]*8[\s()-]*[1-9](?:[\s()-]*[0-9]){7,10}" title="Masukkan nomor seluler Indonesia yang diawali 08 atau 628." aria-describedby="phone-help" defaultValue={userProfile?.phone || ""} maxLength={25} required={Boolean(internProfile)} />
               <p id="phone-help" className="text-xs text-slate-600">Gunakan nomor seluler Indonesia. Awalan 08 atau 628; sistem menyimpan format 628….</p>
             </div>
             <div className="form-field">
@@ -71,7 +71,7 @@ export function ProfileFormWrapper({ userProfile, internProfile, mentorProfile, 
               </div>
               <div className="form-field">
                 <label className="form-label" htmlFor="schoolSupervisorPhone">Nomor Pembimbing Sekolah *</label>
-                <input className="form-input" id="schoolSupervisorPhone" name="schoolSupervisorPhone" type="tel" inputMode="tel" autoComplete="tel" placeholder="08xxxxxxxxxx atau 628xxxxxxxxxx" aria-describedby="school-supervisor-phone-help" defaultValue={internProfile.school_supervisor_phone || ""} maxLength={25} required />
+                <input className="form-input" id="schoolSupervisorPhone" name="schoolSupervisorPhone" type="tel" inputMode="tel" autoComplete="tel" placeholder="08xxxxxxxxxx atau 628xxxxxxxxxx" pattern="(?:0|\+?62)[\s()-]*8[\s()-]*[1-9](?:[\s()-]*[0-9]){7,10}" title="Masukkan nomor seluler Indonesia yang diawali 08 atau 628." aria-describedby="school-supervisor-phone-help" defaultValue={internProfile.school_supervisor_phone || ""} maxLength={25} required />
                 <p id="school-supervisor-phone-help" className="text-xs text-slate-600">Wajib nomor seluler Indonesia. 620… tidak valid; awali dengan 08 atau 628.</p>
               </div>
               <div className="form-field">
