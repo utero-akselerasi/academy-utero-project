@@ -28,6 +28,16 @@ describe("internBiodataSchema", () => {
     const result = internBiodataSchema.safeParse({ ...complete, phone: "telepon saya" });
     expect(result.success).toBe(false);
   });
+
+  it("menerima nomor seluler Indonesia berawalan 08 atau 628 dan menormalkannya", () => {
+    expect(internBiodataSchema.parse({ ...complete, phone: "0812-3456-7890" }).phone).toBe("6281234567890");
+    expect(internBiodataSchema.parse({ ...complete, schoolSupervisorPhone: "+62 812-3456-7890" }).schoolSupervisorPhone).toBe("6281234567890");
+  });
+
+  it("menolak awalan 620 yang bukan nomor seluler Indonesia", () => {
+    expect(internBiodataSchema.safeParse({ ...complete, phone: "620817270898" }).success).toBe(false);
+    expect(internBiodataSchema.safeParse({ ...complete, schoolSupervisorPhone: "620817270898" }).success).toBe(false);
+  });
 });
 
 describe("isInternBiodataComplete", () => {
