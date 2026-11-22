@@ -47,6 +47,7 @@ export async function updateApplicationStatusAction(formData: FormData) {
   if (usesLocalBackend()) {
     await updateLocalApplication(parsed.data.id, { status, startDate: parsed.data.startDate, endDate: parsed.data.endDate });
     revalidatePath("/dashboard/admin/pendaftaran");
+    revalidatePath("/dashboard/admin/pendaftaran/" + parsed.data.id);
     return;
   }
   const db = await createUteroAcademyClient();
@@ -56,6 +57,7 @@ export async function updateApplicationStatusAction(formData: FormData) {
     const { error } = await db.rpc("accept_application_as_intern", { p_application_id: parsed.data.id, p_start_date: dates.data.startDate, p_end_date: dates.data.endDate });
     if (error) throw new Error(error.message);
     revalidatePath("/dashboard/admin/pendaftaran");
+    revalidatePath("/dashboard/admin/pendaftaran/" + parsed.data.id);
     return;
   }
   const { error } = await db
@@ -72,6 +74,7 @@ export async function updateApplicationStatusAction(formData: FormData) {
   }
 
   revalidatePath("/dashboard/admin/pendaftaran");
+  revalidatePath("/dashboard/admin/pendaftaran/" + parsed.data.id);
 }
 
 export async function approveApplicationOnboardingAction(formData: FormData) {
@@ -82,6 +85,7 @@ export async function approveApplicationOnboardingAction(formData: FormData) {
   if (usesLocalBackend()) {
     await approveLocalOnboarding(parsed.data.id);
     revalidatePath("/dashboard/admin/pendaftaran");
+    revalidatePath("/dashboard/admin/pendaftaran/" + parsed.data.id);
     return;
   }
 
@@ -91,6 +95,7 @@ export async function approveApplicationOnboardingAction(formData: FormData) {
   });
   if (error) throw new Error(error.message);
   revalidatePath("/dashboard/admin/pendaftaran");
+  revalidatePath("/dashboard/admin/pendaftaran/" + parsed.data.id);
 }
 
 export async function assignMentorAction(formData: FormData) {

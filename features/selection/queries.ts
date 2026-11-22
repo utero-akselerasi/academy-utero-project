@@ -22,7 +22,7 @@ export async function getSelectionWorkspace(): Promise<SelectionWorkspace> {
   const assignmentRows = assignments.data ?? [];
   const assignmentIds = assignmentRows.map((row) => row.id);
   const attempts = assignmentIds.length
-    ? await db.from("selection_attempts").select("id,assignment_id,status,expires_at,final_score,submitted_at").in("assignment_id", assignmentIds).order("created_at", { ascending: false })
+    ? await db.from("selection_attempts").select("id,assignment_id,status,started_at,expires_at,final_score,submitted_at").in("assignment_id", assignmentIds).order("created_at", { ascending: false })
     : { data: [], error: null };
   if (attempts.error) throw new Error(attempts.error.message);
   const attemptIds = (attempts.data ?? []).map((row) => row.id);
@@ -40,10 +40,10 @@ export async function getSelectionWorkspace(): Promise<SelectionWorkspace> {
     return {
       ...row,
       status: row.status as SelectionAssignmentReview["status"],
-      applicant: applicant ? { full_name: applicant.full_name, email: applicant.email, major: applicant.major } : null,
+      applicant: applicant ? { full_name: applicant.full_name, email: applicant.email, major: applicant.major, selection_status: applicant.selection_status } : null,
       test: test ? { title: test.title, passing_score: test.passing_score, version: test.version, available_until: test.available_until } : null,
       attempt: attempt ? {
-        id: attempt.id, status: attempt.status, expires_at: attempt.expires_at, final_score: attempt.final_score, submitted_at: attempt.submitted_at,
+        id: attempt.id, status: attempt.status, started_at: attempt.started_at, expires_at: attempt.expires_at, final_score: attempt.final_score, submitted_at: attempt.submitted_at,
         answers: (answers.data ?? []).filter((answer) => answer.attempt_id === attempt.id).map((answer) => {
           const question = questionsById.get(answer.question_id);
           return { ...answer, feedback: null, question: question ? { prompt: (question.prompt as { text?: string })?.text ?? "Pertanyaan", type: question.question_type as "essay", points: question.points } : null };

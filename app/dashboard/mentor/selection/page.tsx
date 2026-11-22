@@ -1,18 +1,16 @@
-import { CorrectSelectionForm } from "@/features/selection/CorrectSelectionForm";
 import { AssignSelectionForm } from "@/features/selection/AssignSelectionForm";
 import Link from "next/link";
 import { ArrowRight, BookOpen, ClipboardCheck, Eye, Layers, Monitor, Plus, Users } from "lucide-react";
 import { requireAdmin } from "@/features/auth/guards";
 import {
   createSelectionMaterialAction,
-  createSelectionTrackAction, decideSelectionAction,
-  gradeSelectionAnswerAction,
+  createSelectionTrackAction,
   publishSelectionMaterialAction,
 } from "@/features/selection/actions";
 import { getSelectionWorkspace } from "@/features/selection/queries";
-import { effectiveAttemptStatus } from "@/features/selection/attempt-status";
 import { SelectionTestStudio } from "@/features/selection/SelectionTestStudio";
 import { SelectionStages } from "@/features/selection/SelectionStages";
+import { reviewDuration, reviewStatus, reviewTime } from "@/features/selection/review-display";
 
 const field = "form-input w-full";
 const primaryButton = "button-primary min-h-11 text-sm";
@@ -118,36 +116,22 @@ export default async function MentorSelectionPage() {
 
     <section id="review" className="scroll-mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <StepHeading number="04" title="Nilai jawaban dan tetapkan hasil" description="Periksa respons pelamar. Keputusan baru dapat disimpan setelah percobaan selesai dinilai." />
-      {workspace.assignments.length ? <div className="mt-4 space-y-2">{reviewAssignments.map((assignment) => {
-        const graded = assignment.attempt?.status === "graded" && assignment.attempt.final_score !== null;
-        const expired = effectiveAttemptStatus(assignment.attempt, assignment.due_at, assignment.test?.available_until ?? null, workspace.currentTime) === "expired";
-        return <details key={assignment.id} className="group rounded-xl border border-slate-200">
-          <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
-            <span><strong className="block text-sm text-slate-950">{assignment.applicant?.full_name ?? assignment.application_id}</strong><span className="mt-1 block text-xs text-slate-600">{assignment.test?.title ?? "Paket tes"} · {expired ? "Waktu pengerjaan habis" : assignment.attempt?.status === "submitted" ? "Jawaban masuk" : assignment.attempt?.status === "grading" ? "Sedang dinilai" : assignment.attempt?.status === "graded" ? "Sudah dinilai" : assignment.attempt?.status === "in_progress" ? "Sedang dikerjakan" : "Belum dimulai"}</span></span>
-            <span className={`rounded-full px-3 py-1 text-xs font-bold ${graded ? "bg-emerald-50 text-emerald-800" : expired ? "bg-rose-50 text-rose-800" : "bg-amber-50 text-amber-800"}`}>{graded ? `Nilai ${assignment.attempt?.final_score}` : expired ? "Waktu habis" : assignment.status.replaceAll("_", " ")}</span>
-          </summary>
-          <div className="space-y-3 border-t border-slate-200 p-3 sm:p-4">
-            {!assignment.attempt ? <CorrectSelectionForm assignmentId={assignment.id} currentTestId={assignment.package_id} tests={publishedTests} /> : null}
-            {expired && !assignment.attempt?.answers.length ? <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">Tes kedaluwarsa tanpa jawaban. Untuk memberi kesempatan ulang, pilih pelamar dan paket sama di bagian Penugasan, centang penugasan ulang, lalu tuliskan alasan.</p> : null}
-            {assignment.attempt?.answers.length ? assignment.attempt.answers.map((answer) => <article key={answer.id} className="rounded-lg bg-slate-50 p-3">
-              <h4 className="text-sm font-semibold text-slate-900">{answer.question?.prompt ?? "Pertanyaan"}</h4>
-              <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{answer.answer_text || answer.attachment_path || "Tidak ada jawaban tertulis."}</p>
-              {["submitted", "grading", "graded"].includes(assignment.attempt?.status ?? "") ? <form action={gradeSelectionAnswerAction} className="mt-3 flex flex-wrap items-end gap-3 border-t border-slate-200 pt-3">
-                <input type="hidden" name="answerId" value={answer.id} /><input type="hidden" name="assignmentId" value={assignment.id} /><input type="hidden" name="maxPoints" value={answer.question?.points ?? 0} />
-                <label className="form-field"><span className="form-label">Nilai (maks. {answer.question?.points ?? 0})</span><input className={field} type="number" name="awardedPoints" min="0" max={answer.question?.points ?? 0} defaultValue={answer.manual_score ?? ""} required /></label>
-                <label className="form-field min-w-56 flex-1"><span className="form-label">Umpan balik (opsional)</span><input className={field} name="feedback" defaultValue={answer.feedback ?? ""} /></label>
-                <button className={secondaryButton}>Simpan nilai</button>
-              </form> : null}
-            </article>) : <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Pelamar belum mengirim jawaban tes.</p>}
-            {graded ? <form action={decideSelectionAction} className="flex flex-wrap items-end gap-3 border-t border-slate-200 pt-4">
-              <input type="hidden" name="assignmentId" value={assignment.id} /><input type="hidden" name="applicationId" value={assignment.application_id} />
-              <label className="form-field"><span className="form-label">Keputusan</span><select className={field} name="decision"><option value="passed">Lulus</option><option value="failed">Tidak lulus</option><option value="waitlisted">Daftar tunggu</option></select></label>
-              <label className="form-field min-w-56 flex-1"><span className="form-label">Catatan</span><input className={field} name="notes" /></label>
-              <button className={primaryButton}>Simpan keputusan</button>
-            </form> : <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-950">Keputusan tersedia setelah tes selesai dan seluruh penilaian manual tersimpan.</p>}
-          </div>
-        </details>;
-      })}</div> : <p className="mt-5 rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-600">Belum ada tes yang ditugaskan kepada pelamar.</p>}
+      {workspace.assignments.length ? <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+        <div className="overflow-x-auto"><table className="w-full min-w-[920px] text-left text-sm">
+          <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-600"><tr><th className="px-4 py-3">Pelamar</th><th className="px-4 py-3">Paket tes</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Mulai / dikirim</th><th className="px-4 py-3">Durasi</th><th className="px-4 py-3 text-right">Aksi</th></tr></thead>
+          <tbody className="divide-y divide-slate-100 bg-white">{reviewAssignments.map((assignment) => {
+            const status = reviewStatus(assignment, workspace.currentTime);
+            return <tr key={assignment.id} className="align-middle hover:bg-slate-50/70">
+              <td className="px-4 py-3"><span className="block font-semibold text-slate-950">{assignment.applicant?.full_name ?? assignment.application_id}</span><span className="text-xs text-slate-500">{assignment.applicant?.email ?? ""}</span></td>
+              <td className="px-4 py-3 text-slate-700">{assignment.test?.title ?? "Paket tes"}</td>
+              <td className="px-4 py-3"><span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${status.tone}`}>{status.label}</span>{assignment.attempt?.final_score !== null && assignment.attempt?.final_score !== undefined ? <span className="ml-2 text-xs text-slate-500">Nilai {assignment.attempt.final_score}</span> : null}</td>
+              <td className="px-4 py-3 text-xs leading-5 text-slate-600"><span className="block">Mulai: {reviewTime(assignment.attempt?.started_at)}</span><span className="block">Kirim: {reviewTime(assignment.attempt?.submitted_at)}</span></td>
+              <td className="px-4 py-3 text-slate-700">{reviewDuration(assignment, workspace.currentTime)}</td>
+              <td className="px-4 py-3 text-right"><Link className="button-secondary inline-flex min-h-9 items-center gap-1.5 px-3 text-xs" href={`/dashboard/mentor/selection/review/${assignment.id}`}><Eye size={14} aria-hidden="true" /> Lihat & review</Link></td>
+            </tr>;
+          })}</tbody>
+        </table></div>
+      </div> : <p className="mt-5 rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-600">Belum ada tes yang ditugaskan kepada pelamar.</p>}
       <p className="mt-4 text-sm text-slate-600">Setelah status <strong>Lulus</strong>, kembali ke <Link href="/dashboard/admin/pendaftaran" className="font-semibold text-teal-800 underline underline-offset-2">Pendaftaran Masuk</Link> untuk memasukkan periode magang dan menerima pelamar.</p>
     </section>
     </SelectionStages>

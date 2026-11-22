@@ -237,7 +237,7 @@ export async function correctSelectionAssignmentAction(formData: FormData) {
 export async function gradeSelectionAnswerAction(formData: FormData) {
   const user = await requireAdmin();
   const input = parsed(gradeAnswerSchema.safeParse(formDataObject(formData)));
-  if (usesLocalBackend()) { await selectionRequest(`/answers/${input.answerId}/grade`, "POST", input); revalidatePath(mentorPath); return; }
+  if (usesLocalBackend()) { await selectionRequest(`/answers/${input.answerId}/grade`, "POST", input); revalidatePath(mentorPath); revalidatePath(`${mentorPath}/review/${input.assignmentId}`); return; }
   const db = await createUteroAcademyServiceRoleClient();
   const { data: answer } = await db.from("selection_answers").select("id,attempt_id,question_id").eq("id", input.answerId).single();
   if (!answer) throw new Error("Jawaban tidak ditemukan.");
@@ -268,12 +268,13 @@ export async function gradeSelectionAnswerAction(formData: FormData) {
   }
   await writeAuditLog(user.id, "grade_selection_answer", "selection_answers", input.answerId, null, { awardedPoints: input.awardedPoints, feedback: input.feedback });
   revalidatePath(mentorPath);
+  revalidatePath(`${mentorPath}/review/${input.assignmentId}`);
 }
 
 export async function decideSelectionAction(formData: FormData) {
   await requireAdmin();
   const input = parsed(decisionSchema.safeParse(formDataObject(formData)));
-  if (usesLocalBackend()) { await selectionRequest("/decisions", "POST", input); revalidatePath(mentorPath); return; }
+  if (usesLocalBackend()) { await selectionRequest("/decisions", "POST", input); revalidatePath(mentorPath); revalidatePath(`${mentorPath}/review/${input.assignmentId}`); return; }
   const db = await createUteroAcademyClient();
   const { error } = await db.rpc("decide_selection_atomically", {
     p_assignment_id: input.assignmentId,
@@ -283,6 +284,7 @@ export async function decideSelectionAction(formData: FormData) {
   });
   if (error) throw new Error(`Gagal menyimpan keputusan: ${error.message}`);
   revalidatePath(mentorPath);
+  revalidatePath(`${mentorPath}/review/${input.assignmentId}`);
 }
 
 export async function bypassSelectionAction(formData: FormData) {

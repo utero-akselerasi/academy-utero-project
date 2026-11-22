@@ -20,7 +20,7 @@ export async function selectionStaffRoutes(app, { db }) {
         client.query("select id,question_id,label,is_correct,order_index from utero_academy.selection_question_options order by order_index"),
         client.query("select id,full_name,email,major,selection_status from utero_academy.internship_applications order by created_at desc limit 200"),
         client.query("select id,application_id,package_id,status,assigned_at,due_at from utero_academy.selection_assignments order by assigned_at desc limit 200"),
-        client.query("select id,assignment_id,status,expires_at,final_score,submitted_at,created_at from utero_academy.selection_attempts order by created_at desc"),
+        client.query("select id,assignment_id,status,started_at,expires_at,final_score,submitted_at,created_at from utero_academy.selection_attempts order by created_at desc"),
         client.query("select id,attempt_id,question_id,answer_text,attachment_path,manual_score from utero_academy.selection_answers"),
       ]);
       const questionRows = questions.rows.map((q) => ({ ...q, options: options.rows.filter((o) => o.question_id === q.id) }));
@@ -28,7 +28,7 @@ export async function selectionStaffRoutes(app, { db }) {
         const attempt = attempts.rows.find((item) => item.assignment_id === row.id);
         const applicant = applications.rows.find((item) => item.id === row.application_id);
         const test = tests.rows.find((item) => item.id === row.package_id);
-        return { ...row, applicant: applicant ? { full_name: applicant.full_name, email: applicant.email, major: applicant.major } : null,
+        return { ...row, applicant: applicant ? { full_name: applicant.full_name, email: applicant.email, major: applicant.major, selection_status: applicant.selection_status } : null,
           test: test ? { title: test.title, passing_score: test.passing_score, version: test.version, available_until: test.available_until } : null,
           attempt: attempt ? { ...attempt, answers: answers.rows.filter((a) => a.attempt_id === attempt.id).map((a) => { const q=questionRows.find((item)=>item.id===a.question_id); return {...a,feedback:null,question:q?{prompt:q.prompt?.text??"Pertanyaan",type:q.question_type,points:q.points}:null}; }) } : null };
       });

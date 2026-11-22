@@ -13,13 +13,13 @@ export default async function SuperAdminUsersPage() {
   const { profiles, roles, userRoles, schools, error } = await getSuperAdminUserManagementData();
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <main className="w-full px-4 py-5 sm:px-6 sm:py-6">
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-bold uppercase text-teal-700">Super Admin</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-950">User dan Role</h1>
-          <p className="mt-2 max-w-2xl leading-7 text-slate-600">
-            Kelola role aplikasi dari data `utero_academy.user_profiles`, `roles`, dan `user_roles`.
+          <h1 className="mt-1 text-2xl font-bold text-slate-950">User dan Role</h1>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            Kelola akun, status, dan role pengguna.
           </p>
         </div>
         <div className="flex gap-2">

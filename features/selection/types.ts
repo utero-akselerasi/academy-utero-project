@@ -78,11 +78,12 @@ export type SelectionAssignmentReview = {
   status: SelectionStatus;
   assigned_at: string;
   due_at: string | null;
-  applicant: { full_name: string; email: string; major: string | null } | null;
+  applicant: { full_name: string; email: string; major: string | null; selection_status: string | null } | null;
   test: { title: string; passing_score: number; version: number; available_until: string | null } | null;
   attempt: {
     id: string;
     status: string;
+    started_at: string | null;
     expires_at: string | null;
     final_score: number | null;
     submitted_at: string | null;
