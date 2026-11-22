@@ -5,8 +5,6 @@ import { type InternshipApplication } from "@/features/admin/types";
 import { applicationStatusLabel, formatApplicationDate, formatApplicationTime } from "@/features/admin/application-display";
 import { requireAdmin } from "@/features/auth/guards";
 import { resolveStorageUrl } from "@/lib/storage-urls";
-import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
-import { usesLocalBackend } from "@/lib/backend/server";
 import { getLocalApplications } from "@/features/admin/local";
 
 type ApplicationDetail = InternshipApplication & { onboarding_status: string | null; converted_intern_id: string | null; approved_start_date?: string | null; approved_end_date?: string | null; cv_path?: string | null; portfolio_path?: string | null };
@@ -14,18 +12,8 @@ type ApplicationDetail = InternshipApplication & { onboarding_status: string | n
 export default async function AdminApplicationDetailPage({ params }: { params: Promise<{ applicationId: string }> }) {
   await requireAdmin();
   const { applicationId } = await params;
-  let application: ApplicationDetail | undefined;
-  if (usesLocalBackend()) {
-    const result = await getLocalApplications() as { applications: ApplicationDetail[] };
-    application = result.applications.find((item) => item.id === applicationId);
-  } else {
-    const db = await createUteroAcademyServiceRoleClient();
-    const { data, error } = await db.from("internship_applications")
-      .select("id, full_name, email, phone, school_name, major, motivation, status, selection_status, onboarding_status, proposed_start_date, proposed_end_date, approved_start_date, approved_end_date, applicant_user_id, converted_intern_id, cv_path, portfolio_path, created_at")
-      .eq("id", applicationId).maybeSingle();
-    if (error) throw new Error(`Data pelamar tidak dapat dimuat: ${error.message}`);
-    application = data as ApplicationDetail | undefined;
-  }
+  const result = await getLocalApplications() as { applications: ApplicationDetail[] };
+  const application = result.applications.find((item) => item.id === applicationId);
   if (!application) notFound();
   const [cvUrl, portfolioUrl] = await Promise.all([
     resolveStorageUrl("academy-private", application.cv_path),
