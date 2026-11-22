@@ -6,11 +6,21 @@ import { resolveStorageUrl } from "@/lib/storage-urls";
 import { ProfileFormWrapper } from "./ProfileFormWrapper";
 import { type InternProfileData, isInternBiodataComplete } from "@/features/auth/profile-schema";
 import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
+import { hasApprovedOnboarding } from "@/features/intern/activation";
+import Link from "next/link";
 
-export default async function EditProfilePage() {
+type ActivationSnapshot = {
+  profile: { id: string; status: string; start_date: string | null; end_date: string | null } | null;
+  application: {
+    status: string; onboarding_status: string; converted_intern_id: string | null;
+    approved_start_date: string | null; approved_end_date: string | null;
+  } | null;
+};
+export default async function EditProfilePage({ searchParams }: { searchParams: Promise<{ internAccess?: string }> }) {
   // Halaman profil terbuka untuk semua peran yang login, jadi requireUser()
   // saja - tetapi guard-nya harus di page: layout dan page dirender bersamaan.
   const user = await requireUser();
+  const { internAccess } = await searchParams;
   let userProfile: any = null;
   let internProfile: InternProfileData | null = null;
   let mentorProfile: any = null;
@@ -45,6 +55,20 @@ export default async function EditProfilePage() {
       .filter((roleObj) => roleObj && isActiveRoleCode(roleObj.code));
   }
 
+  const biodataComplete = Boolean(internProfile && isInternBiodataComplete(internProfile, userProfile?.full_name ?? null, user.email ?? null));
+  let activation: ActivationSnapshot | null = null;
+  if (usesLocalBackend() && roles.some((role) => role.code === "intern")) {
+    const response = await backendRequest("/v1/auth/intern-activation");
+    if (response.ok) activation = await response.json() as ActivationSnapshot;
+  }
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const approved = Boolean(activation?.profile && (
+    activation.application ? hasApprovedOnboarding(activation.application, activation.profile) : activation.profile.status === "active"
+  ));
+  const startDate = activation?.profile?.start_date;
+  const periodEnded = Boolean(activation?.profile?.end_date && activation.profile.end_date < today);
+  const inactive = Boolean(activation?.profile && ["paused", "completed", "failed", "alumni"].includes(activation.profile.status));
+  const canOpenInternDashboard = Boolean(biodataComplete && approved && startDate && startDate <= today && !periodEnded && !inactive);
   const avatarUrl = await resolveStorageUrl("academy-private", userProfile?.avatar_path);
 
   return (
@@ -58,7 +82,35 @@ export default async function EditProfilePage() {
             Biodata belum lengkap. Isi semua kolom wajib sebelum melanjutkan ke dashboard peserta.
           </p>
         )}
+
+
+        {internAccess === "check" && (
+          <p className="mt-4 rounded-lg border border-red-300 bg-red-50 p-4 text-sm leading-6 text-red-900" role="status">
+            Status peserta belum dapat diperiksa. Coba buka menu lagi beberapa saat, atau hubungi admin jika masalah berlanjut.
+          </p>
+        )}
       </div>
+      {roles.some((role) => role.code === "intern") && (
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex sm:items-center sm:justify-between sm:gap-5" aria-label="Status akses magang">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-red-700">Langkah berikutnya</p>
+            <h2 className="mt-1 text-base font-bold text-slate-950">{canOpenInternDashboard ? "Kegiatan magang siap" : "Akses kegiatan magang belum aktif"}</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600" role="status">
+              {!internProfile ? "Profil peserta belum dibuat. Hubungi admin pendaftaran." :
+                !biodataComplete ? "Lengkapi kolom wajib di bawah, lalu klik Simpan Perubahan." :
+                !activation ? "Status onboarding belum dapat diperiksa. Coba muat ulang halaman ini." :
+                !approved ? "Biodata tersimpan. Admin perlu menyetujui onboarding pada detail pendaftaran sebelum kegiatan magang dapat dimulai." :
+                !startDate ? "Tanggal mulai magang belum ditetapkan. Hubungi admin pendaftaran." :
+                startDate > today ? `Biodata siap. Kegiatan magang dimulai ${new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(new Date(startDate))}.` :
+                periodEnded || inactive ? "Periode atau status peserta saat ini tidak mengizinkan kegiatan magang. Hubungi admin." :
+                "Biodata dan onboarding sudah siap. Anda dapat membuka dashboard peserta dan memulai kegiatan magang."}
+            </p>
+          </div>
+          {canOpenInternDashboard && (
+            <Link href="/dashboard/intern" className="button-primary mt-3 inline-flex min-h-11 shrink-0 items-center justify-center sm:mt-0">Buka dashboard peserta</Link>
+          )}
+        </section>
+      )}
       <div className="grid items-start gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
         <div className="flex flex-col items-center rounded-xl border border-slate-200 bg-white p-5 text-center shadow-sm lg:sticky lg:top-4">
           <p className="mb-3 self-start text-xs font-bold uppercase tracking-wider text-slate-500">Pratinjau profil</p>
