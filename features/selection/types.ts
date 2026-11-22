@@ -48,6 +48,7 @@ export type SelectionTest = {
   duration_minutes: number;
   max_attempts: number;
   is_published: boolean;
+  available_until?: string | null;
 };
 
 export type SelectionQuestionOption = {
@@ -77,10 +78,11 @@ export type SelectionAssignmentReview = {
   assigned_at: string;
   due_at: string | null;
   applicant: { full_name: string; email: string; major: string | null } | null;
-  test: { title: string; passing_score: number; version: number } | null;
+  test: { title: string; passing_score: number; version: number; available_until: string | null } | null;
   attempt: {
     id: string;
     status: string;
+    expires_at: string | null;
     final_score: number | null;
     submitted_at: string | null;
     answers: Array<{
@@ -96,6 +98,7 @@ export type SelectionAssignmentReview = {
 };
 
 export type SelectionWorkspace = {
+  currentTime: number;
   tracks: SelectionTrack[];
   materials: SelectionMaterial[];
   tests: SelectionTest[];

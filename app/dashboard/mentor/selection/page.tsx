@@ -8,6 +8,7 @@ import {
   publishSelectionMaterialAction,
 } from "@/features/selection/actions";
 import { getSelectionWorkspace } from "@/features/selection/queries";
+import { effectiveAttemptStatus } from "@/features/selection/attempt-status";
 import { SelectionTestStudio } from "@/features/selection/SelectionTestStudio";
 import { SelectionStages } from "@/features/selection/SelectionStages";
 
@@ -122,10 +123,11 @@ export default async function MentorSelectionPage() {
       <StepHeading number="04" title="Nilai jawaban dan tetapkan hasil" description="Periksa respons pelamar. Keputusan baru dapat disimpan setelah percobaan selesai dinilai." />
       {workspace.assignments.length ? <div className="mt-4 space-y-2">{reviewAssignments.map((assignment) => {
         const graded = assignment.attempt?.status === "graded" && assignment.attempt.final_score !== null;
+        const expired = effectiveAttemptStatus(assignment.attempt, assignment.due_at, assignment.test?.available_until ?? null, workspace.currentTime) === "expired";
         return <details key={assignment.id} className="group rounded-xl border border-slate-200">
           <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
-            <span><strong className="block text-sm text-slate-950">{assignment.applicant?.full_name ?? assignment.application_id}</strong><span className="mt-1 block text-xs text-slate-600">{assignment.test?.title ?? "Paket tes"} · {assignment.attempt?.status === "submitted" ? "Jawaban masuk" : assignment.attempt?.status === "grading" ? "Sedang dinilai" : assignment.attempt?.status === "graded" ? "Sudah dinilai" : assignment.attempt?.status === "in_progress" ? "Sedang dikerjakan" : "Belum dimulai"}</span></span>
-            <span className={`rounded-full px-3 py-1 text-xs font-bold ${graded ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>{graded ? `Nilai ${assignment.attempt?.final_score}` : assignment.status.replaceAll("_", " ")}</span>
+            <span><strong className="block text-sm text-slate-950">{assignment.applicant?.full_name ?? assignment.application_id}</strong><span className="mt-1 block text-xs text-slate-600">{assignment.test?.title ?? "Paket tes"} · {expired ? "Waktu pengerjaan habis" : assignment.attempt?.status === "submitted" ? "Jawaban masuk" : assignment.attempt?.status === "grading" ? "Sedang dinilai" : assignment.attempt?.status === "graded" ? "Sudah dinilai" : assignment.attempt?.status === "in_progress" ? "Sedang dikerjakan" : "Belum dimulai"}</span></span>
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${graded ? "bg-emerald-50 text-emerald-800" : expired ? "bg-rose-50 text-rose-800" : "bg-amber-50 text-amber-800"}`}>{graded ? `Nilai ${assignment.attempt?.final_score}` : expired ? "Waktu habis" : assignment.status.replaceAll("_", " ")}</span>
           </summary>
           <div className="space-y-3 border-t border-slate-200 p-3 sm:p-4">
             {assignment.attempt?.answers.length ? assignment.attempt.answers.map((answer) => <article key={answer.id} className="rounded-lg bg-slate-50 p-3">

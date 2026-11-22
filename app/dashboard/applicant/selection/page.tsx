@@ -3,6 +3,7 @@ import { ArrowUpRight, BookOpen, CalendarDays, CheckCircle2, ClipboardList, Cloc
 import { requireApplicant } from "@/features/auth/guards";
 import { getApplicantSelectionData } from "@/features/registration/local-data";
 import { startApplicantSelectionAction } from "@/features/registration/selection-actions";
+import { effectiveAttemptStatus } from "@/features/selection/attempt-status";
 
 const statusLabels: Record<string, string> = {
   not_assigned: "Belum ditugaskan", assigned: "Ditugaskan", available: "Siap dikerjakan",
@@ -71,7 +72,8 @@ export default async function ApplicantSelectionPage() {
               const attempt = data.attempts.find((item) => item.assignment_id === assignment.id);
               const now = data.currentTime;
               const available = !!test?.is_published && (!test.available_from || now >= Date.parse(test.available_from)) && (!test.available_until || now < Date.parse(test.available_until)) && (!assignment.due_at || now < Date.parse(assignment.due_at));
-              const inProgress = attempt?.status === "in_progress" && !!attempt.expires_at && now < Date.parse(attempt.expires_at) && (!assignment.due_at || now < Date.parse(assignment.due_at));
+              const attemptStatus = effectiveAttemptStatus(attempt, assignment.due_at, test?.available_until ?? null, now);
+              const inProgress = attemptStatus === "in_progress";
               const canStart = available && (attempt?.attempt_number ?? 0) < assignment.max_attempts && (!attempt || ["graded", "expired", "cancelled"].includes(attempt.status));
               let hint = "Tes belum dibuka. Periksa kembali nanti.";
               if (!test?.is_published) hint = "Paket tes sedang disiapkan oleh tim seleksi.";
@@ -81,7 +83,7 @@ export default async function ApplicantSelectionPage() {
               else if (attempt?.status === "in_progress" && !inProgress) hint = "Waktu pengerjaan tes sudah berakhir.";
               else if (["submitted", "grading"].includes(attempt?.status ?? "")) hint = "Jawaban sudah dikirim dan menunggu penilaian.";
               else if (attempt && attempt.attempt_number >= assignment.max_attempts && !inProgress) hint = "Batas percobaan sudah digunakan.";
-              return <article key={assignment.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><h4 className="break-words text-base font-bold text-slate-900">{test?.title ?? "Tes seleksi"}</h4>{test?.description ? <p className="mt-1 text-sm leading-6 text-slate-600">{test.description}</p> : null}</div><span className={"rounded-full border px-2.5 py-1 text-xs font-semibold " + statusColor(attempt?.status ?? assignment.status)}>{displayStatus(attempt?.status ?? assignment.status)}</span></div>
+              return <article key={assignment.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><h4 className="break-words text-base font-bold text-slate-900">{test?.title ?? "Tes seleksi"}</h4>{test?.description ? <p className="mt-1 text-sm leading-6 text-slate-600">{test.description}</p> : null}</div><span className={"rounded-full border px-2.5 py-1 text-xs font-semibold " + statusColor(attemptStatus ?? assignment.status)}>{displayStatus(attemptStatus ?? assignment.status)}</span></div>
                 <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs leading-5 text-slate-600"><span className="inline-flex items-center gap-1.5"><Clock3 size={14} aria-hidden="true" />{test?.duration_minutes ?? "—"} menit</span><span className="inline-flex items-center gap-1.5"><CalendarDays size={14} aria-hidden="true" />Batas {formatDeadline(assignment.due_at)}</span><span className="inline-flex items-center gap-1.5"><FileText size={14} aria-hidden="true" />Percobaan {attempt?.attempt_number ?? 0}/{assignment.max_attempts}</span></div>
                 <div className="mt-3 flex flex-col items-start justify-between gap-3 border-t border-slate-200 pt-3 sm:flex-row sm:items-center"><p className="text-xs leading-5 text-slate-600">{inProgress ? "Tes belum selesai. Lanjutkan untuk menyimpan dan mengirim jawaban." : canStart ? "Siapkan waktu dan pastikan koneksi stabil sebelum mulai." : hint}</p>{inProgress ? <Link className="button-primary w-full shrink-0 sm:w-auto" href={"/dashboard/applicant/selection/" + assignment.id}>Lanjutkan tes <ArrowUpRight size={16} aria-hidden="true" /></Link> : canStart ? <form action={startApplicantSelectionAction} className="w-full shrink-0 sm:w-auto"><input type="hidden" name="assignmentId" value={assignment.id} /><button className="button-primary w-full sm:w-auto">Mulai tes <ArrowUpRight size={16} aria-hidden="true" /></button></form> : null}</div>
               </article>;

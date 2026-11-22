@@ -15,12 +15,12 @@ export async function selectionStaffRoutes(app, { db }) {
       const [tracks, materials, tests, questions, options, applications, assignments, attempts, answers] = await Promise.all([
         client.query("select id,name,code,description,is_active from utero_academy.selection_tracks order by name"),
         client.query("select id,track_id,title,content,attachment_path,order_index,is_published from utero_academy.selection_materials order by order_index"),
-        client.query("select id,code,track_id,title,description,version,passing_score,duration_minutes,max_attempts,is_published from utero_academy.selection_test_packages order by title"),
+        client.query("select id,code,track_id,title,description,version,passing_score,duration_minutes,max_attempts,is_published,available_until from utero_academy.selection_test_packages order by title"),
         client.query("select id,package_id,question_type,prompt,points,order_index,answer_key from utero_academy.selection_questions order by order_index"),
         client.query("select id,question_id,label,is_correct,order_index from utero_academy.selection_question_options order by order_index"),
         client.query("select id,full_name,email,major,selection_status from utero_academy.internship_applications order by created_at desc limit 200"),
         client.query("select id,application_id,package_id,status,assigned_at,due_at from utero_academy.selection_assignments order by assigned_at desc limit 200"),
-        client.query("select id,assignment_id,status,final_score,submitted_at,created_at from utero_academy.selection_attempts order by created_at desc"),
+        client.query("select id,assignment_id,status,expires_at,final_score,submitted_at,created_at from utero_academy.selection_attempts order by created_at desc"),
         client.query("select id,attempt_id,question_id,answer_text,attachment_path,manual_score from utero_academy.selection_answers"),
       ]);
       const questionRows = questions.rows.map((q) => ({ ...q, options: options.rows.filter((o) => o.question_id === q.id) }));
@@ -29,10 +29,10 @@ export async function selectionStaffRoutes(app, { db }) {
         const applicant = applications.rows.find((item) => item.id === row.application_id);
         const test = tests.rows.find((item) => item.id === row.package_id);
         return { ...row, applicant: applicant ? { full_name: applicant.full_name, email: applicant.email, major: applicant.major } : null,
-          test: test ? { title: test.title, passing_score: test.passing_score, version: test.version } : null,
+          test: test ? { title: test.title, passing_score: test.passing_score, version: test.version, available_until: test.available_until } : null,
           attempt: attempt ? { ...attempt, answers: answers.rows.filter((a) => a.attempt_id === attempt.id).map((a) => { const q=questionRows.find((item)=>item.id===a.question_id); return {...a,feedback:null,question:q?{prompt:q.prompt?.text??"Pertanyaan",type:q.question_type,points:q.points}:null}; }) } : null };
       });
-      return { tracks: tracks.rows, materials: materials.rows, tests: tests.rows, questions: questionRows, applications: applications.rows, assignments: reviews };
+      return { tracks: tracks.rows, materials: materials.rows, tests: tests.rows, questions: questionRows, applications: applications.rows, assignments: reviews, currentTime: Date.now() };
     });
   });
 
