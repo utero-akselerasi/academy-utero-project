@@ -192,9 +192,15 @@ export async function versionSelectionTestAction(formData: FormData) {
 export async function assignSelectionTestAction(formData: FormData) {
   const user = await requireAdmin();
   const input = parsed(assignApplicantSchema.safeParse(formDataObject(formData)));
-  if (usesLocalBackend()) { await selectionRequest("/assignments", "POST", input); revalidatePath(mentorPath); return; }
+  if (usesLocalBackend()) {
+    try { await selectionRequest("/assignments", "POST", input); revalidatePath(mentorPath); return { ok: true }; }
+    catch (error) { return { ok: false, message: error instanceof Error ? error.message : "Penugasan gagal." }; }
+  }
   const db = await createUteroAcademyServiceRoleClient();
   const { data: test } = await db.from("selection_test_packages").select("is_published,max_attempts,track_id").eq("id", input.testId).single();
+  const { data: priorAssignments, error: priorError } = await db.from("selection_assignments").select("id,status").eq("application_id", input.applicationId).eq("package_id", input.testId).order("assigned_at", { ascending: false }).limit(1);
+  if (priorError) throw new Error(`Gagal memeriksa histori penugasan: ${priorError.message}`);
+  if (priorAssignments?.length) throw new Error("Tes ini sudah pernah ditugaskan. Periksa status peserta sebelum penugasan ulang.");
   if (!test?.is_published) throw new Error("Hanya tes terbit yang dapat ditugaskan.");
   const { data: applicant } = await db.from("internship_applications").select("id,selection_track_id").eq("id", input.applicationId).single();
   if (!applicant || (applicant.selection_track_id && applicant.selection_track_id !== test.track_id)) throw new Error("Jalur seleksi pelamar tidak sesuai paket tes.");
@@ -206,6 +212,28 @@ export async function assignSelectionTestAction(formData: FormData) {
   revalidatePath(mentorPath);
 }
 
+export async function correctSelectionAssignmentAction(formData: FormData) {
+  const user = await requireAdmin();
+  const assignmentId = z.string().uuid().parse(formData.get("assignmentId"));
+  const testId = z.string().uuid().parse(formData.get("testId"));
+  const reason = z.string().trim().min(15).max(1000).parse(formData.get("reason"));
+  if (usesLocalBackend()) {
+    try { await selectionRequest(`/assignments/${assignmentId}/package`, "PUT", { testId, reason }); revalidatePath(mentorPath); return { ok: true }; }
+    catch (error) { return { ok: false, message: error instanceof Error ? error.message : "Koreksi gagal." }; }
+  }
+  const db = await createUteroAcademyServiceRoleClient();
+  const { data: assignment, error } = await db.from("selection_assignments").select("application_id,package_id").eq("id", assignmentId).single();
+  if (error || !assignment) throw new Error("Penugasan tidak ditemukan.");
+  const { data: attempts, error: attemptError } = await db.from("selection_attempts").select("id").eq("assignment_id", assignmentId).limit(1);
+  if (attemptError) throw new Error(attemptError.message);
+  if (attempts?.length) throw new Error("Tes sudah dimulai. Jawaban dan hasil tidak boleh diubah.");
+  const { data: test, error: testError } = await db.from("selection_test_packages").select("track_id,is_published,is_active,max_attempts").eq("id", testId).single();
+  if (testError || !test?.is_published || !test.is_active) throw new Error("Pilih paket terbit yang masih aktif.");
+  const { error: updateError } = await db.from("selection_assignments").update({ package_id: testId, max_attempts: test.max_attempts }).eq("id", assignmentId);
+  if (updateError) throw new Error(`Gagal mengoreksi penugasan: ${updateError.message}`);
+  await writeAuditLog(user.id, "correct_selection_assignment", "selection_assignments", assignmentId, { packageId: assignment.package_id }, { packageId: testId, reason });
+  revalidatePath(mentorPath);
+}
 export async function gradeSelectionAnswerAction(formData: FormData) {
   const user = await requireAdmin();
   const input = parsed(gradeAnswerSchema.safeParse(formDataObject(formData)));

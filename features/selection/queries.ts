@@ -11,7 +11,7 @@ export async function getSelectionWorkspace(): Promise<SelectionWorkspace> {
   const [tracks, materials, tests, questions, applications, assignments] = await Promise.all([
     db.from("selection_tracks").select("id,name,code,description,is_active").order("name"),
     db.from("selection_materials").select("id,track_id,title,content,attachment_path,order_index,is_published").order("order_index"),
-    db.from("selection_test_packages").select("id,code,track_id,title,description,version,passing_score,duration_minutes,max_attempts,is_published,available_until").order("title"),
+    db.from("selection_test_packages").select("id,code,track_id,title,description,version,passing_score,duration_minutes,max_attempts,is_published,is_active,available_until").order("title"),
     db.from("selection_questions").select("id,package_id,question_type,prompt,points,order_index,answer_key,options:selection_question_options(id,question_id,label,is_correct,order_index)").order("order_index"),
     db.from("internship_applications").select("id,full_name,email,major,selection_status").order("created_at", { ascending: false }).limit(200),
     db.from("selection_assignments").select("id,application_id,package_id,status,assigned_at,due_at").order("assigned_at", { ascending: false }).limit(200),

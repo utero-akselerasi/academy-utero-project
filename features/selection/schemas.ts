@@ -53,6 +53,8 @@ export const assignApplicantSchema = z.object({
   applicationId: uuid,
   testId: uuid,
   dueAt: z.union([z.literal(""), z.string().datetime({ local: true })]).default(""),
+  retry: z.preprocess((value) => value === true || value === "true" || value === "on", z.boolean()).default(false),
+  reason: z.string().trim().max(1000).default(""),
 });
 
 export const gradeAnswerSchema = z.object({

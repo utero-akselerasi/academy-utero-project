@@ -1,8 +1,10 @@
+import { CorrectSelectionForm } from "@/features/selection/CorrectSelectionForm";
+import { AssignSelectionForm } from "@/features/selection/AssignSelectionForm";
 import Link from "next/link";
 import { ArrowRight, BookOpen, ClipboardCheck, Eye, Layers, Monitor, Plus, Users } from "lucide-react";
 import { requireAdmin } from "@/features/auth/guards";
 import {
-  assignSelectionTestAction, createSelectionMaterialAction,
+  createSelectionMaterialAction,
   createSelectionTrackAction, decideSelectionAction,
   gradeSelectionAnswerAction,
   publishSelectionMaterialAction,
@@ -25,7 +27,7 @@ function StepHeading({ number, title, description }: { number: string; title: st
 export default async function MentorSelectionPage() {
   await requireAdmin();
   const workspace = await getSelectionWorkspace();
-  const publishedTests = workspace.tests.filter((test) => test.is_published);
+  const publishedTests = workspace.tests.filter((test) => test.is_published && test.is_active);
   const awaitingReview = workspace.assignments.filter((assignment) =>
     ["submitted", "grading"].includes(assignment.attempt?.status ?? "") ||
     (assignment.attempt?.status === "graded" && !["passed", "failed", "waitlisted"].includes(assignment.status))
@@ -110,12 +112,7 @@ export default async function MentorSelectionPage() {
 
     <section id="penugasan" className="scroll-mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <StepHeading number="03" title="Tugaskan tes ke pelamar" description="Hanya paket tes berstatus Terbit yang dapat dipilih. Batas waktu boleh dikosongkan." />
-      {publishedTests.length && workspace.applications.length ? <form action={assignSelectionTestAction} className="mt-5 grid gap-4 rounded-lg bg-slate-50 p-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">
-        <label className="form-field"><span className="form-label">Calon peserta</span><select className={field} name="applicationId" required><option value="">Pilih pelamar</option>{workspace.applications.map((applicant) => <option key={applicant.id} value={applicant.id}>{applicant.full_name} · {applicant.email}</option>)}</select></label>
-        <label className="form-field"><span className="form-label">Paket tes</span><select className={field} name="testId" required><option value="">Pilih tes terbit</option>{publishedTests.map((test) => <option key={test.id} value={test.id}>{test.title} (v{test.version})</option>)}</select></label>
-        <label className="form-field"><span className="form-label">Batas waktu (opsional)</span><input className={field} name="dueAt" type="datetime-local" /></label>
-        <button className={primaryButton}>Tugaskan tes</button>
-      </form> : <p className="mt-5 rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-950">{!publishedTests.length ? "Terbitkan paket tes yang sudah memiliki soal terlebih dahulu." : "Belum ada pelamar yang dapat dipilih."}</p>}
+      {publishedTests.length && workspace.applications.length ? <AssignSelectionForm applications={workspace.applications} tests={publishedTests} /> : <p className="mt-5 rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-950">{!publishedTests.length ? "Terbitkan paket tes yang sudah memiliki soal terlebih dahulu." : "Belum ada pelamar yang dapat dipilih."}</p>}
       <p className="mt-3 text-xs text-slate-500">Setelah ditugaskan, tes muncul pada menu <strong>Tes Seleksi</strong> di dashboard pelamar.</p>
     </section>
 
@@ -130,6 +127,8 @@ export default async function MentorSelectionPage() {
             <span className={`rounded-full px-3 py-1 text-xs font-bold ${graded ? "bg-emerald-50 text-emerald-800" : expired ? "bg-rose-50 text-rose-800" : "bg-amber-50 text-amber-800"}`}>{graded ? `Nilai ${assignment.attempt?.final_score}` : expired ? "Waktu habis" : assignment.status.replaceAll("_", " ")}</span>
           </summary>
           <div className="space-y-3 border-t border-slate-200 p-3 sm:p-4">
+            {!assignment.attempt ? <CorrectSelectionForm assignmentId={assignment.id} currentTestId={assignment.package_id} tests={publishedTests} /> : null}
+            {expired && !assignment.attempt?.answers.length ? <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">Tes kedaluwarsa tanpa jawaban. Untuk memberi kesempatan ulang, pilih pelamar dan paket sama di bagian Penugasan, centang penugasan ulang, lalu tuliskan alasan.</p> : null}
             {assignment.attempt?.answers.length ? assignment.attempt.answers.map((answer) => <article key={answer.id} className="rounded-lg bg-slate-50 p-3">
               <h4 className="text-sm font-semibold text-slate-900">{answer.question?.prompt ?? "Pertanyaan"}</h4>
               <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{answer.answer_text || answer.attachment_path || "Tidak ada jawaban tertulis."}</p>

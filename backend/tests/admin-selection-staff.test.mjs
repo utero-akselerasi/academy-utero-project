@@ -104,3 +104,73 @@ test("published test rejects question edits without changing questions", async (
   assert.equal(queries.length, 1);
   await app.close();
 });
+
+
+test("duplicate assignment returns readable state without inserting another", async () => {
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
+  const queries = [];
+  const { app } = await fixture(identity, async (sql, params) => {
+    queries.push([sql, params]);
+    if (sql.includes("select track_id, is_published, is_active")) return { rows: [{ track_id: uuid, is_published: true, is_active: true }], rowCount: 1 };
+    if (sql.includes("select selection_track_id")) return { rows: [{ selection_track_id: uuid }], rowCount: 1 };
+    if (sql.includes("select s.id, s.status, t.status attempt_status")) return { rows: [{ id: uuid, status: "in_progress", attempt_status: "in_progress", expires_at: new Date(Date.now() + 60000) }], rowCount: 1 };
+    throw Error("duplicate assignment must not write");
+  });
+  const payload = { applicationId: uuid, testId: uuid };
+  const response = await app.inject({ method: "POST", url: "/v1/selection/staff/assignments", payload });
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.json(), { error: "already_assigned", assignmentId: uuid, state: "in_progress" });
+  assert.equal(queries.length, 3);
+  await app.close();
+});
+
+test("expired empty attempt may be reassigned with reason and keeps prior row", async () => {
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
+  const queries = [];
+  const { app } = await fixture(identity, async (sql, params) => {
+    queries.push([sql, params]);
+    if (sql.includes("select track_id, is_published, is_active")) return { rows: [{ track_id: uuid, is_published: true, is_active: true }], rowCount: 1 };
+    if (sql.includes("select selection_track_id")) return { rows: [{ selection_track_id: uuid }], rowCount: 1 };
+    if (sql.includes("select s.id, s.status, t.status attempt_status")) return { rows: [{ id: uuid, status: "in_progress", attempt_status: "in_progress", expires_at: new Date(Date.now() - 60000) }], rowCount: 1 };
+    if (sql.includes("select 1 from utero_academy.selection_answers")) return { rows: [], rowCount: 0 };
+    if (sql.includes("assign_selection_test")) return { rows: [{ id: uuid }], rowCount: 1 };
+    return { rows: [], rowCount: 1 };
+  });
+  const response = await app.inject({ method: "POST", url: "/v1/selection/staff/assignments", payload: { applicationId: uuid, testId: uuid, retry: true, reason: "Tes tidak sengaja dimulai" } });
+  assert.equal(response.statusCode, 201);
+  assert.ok(queries.some(([sql]) => sql.includes("set status='expired'")));
+  assert.ok(queries.some(([sql, params]) => sql.includes("append_audit_log") && params[0] === "retry_selection_test"));
+  assert.ok(!queries.some(([sql]) => /^delete /i.test(sql)));
+  await app.close();
+});
+
+test("package correction rejects started tests before touching package", async () => {
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
+  const { app } = await fixture(identity, async (sql) => {
+    if (sql.includes("select id,application_id,package_id")) return { rows: [{ id: uuid, application_id: uuid, package_id: uuid }], rowCount: 1 };
+    if (sql.includes("from utero_academy.selection_attempts")) return { rows: [{ id: uuid }], rowCount: 1 };
+    throw Error("started package must not change");
+  });
+  const response = await app.inject({ method: "PUT", url: "/v1/selection/staff/assignments/" + uuid + "/package", payload: { testId: uuid, reason: "Paket tes diberikan keliru" } });
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.json(), { error: "correction_started" });
+  await app.close();
+});
+
+
+test("publishing revision keeps older published package accessible but inactive", async () => {
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
+  const queries = [];
+  const { app } = await fixture(identity, async (sql, params) => {
+    queries.push([sql, params]);
+    if (sql.includes("select count(*)")) return { rows: [{ count: 5 }], rowCount: 1 };
+    if (sql.includes("select id,code,track_id")) return { rows: [{ id: uuid, code: "FUNDAMENTAL_IT", track_id: uuid }], rowCount: 1 };
+    return { rows: [{ id: uuid }], rowCount: 1 };
+  });
+  const response = await app.inject({ method: "POST", url: "/v1/selection/staff/tests/" + uuid + "/publish" });
+  assert.equal(response.statusCode, 200);
+  assert.ok(queries.findIndex(([sql]) => sql.includes("set is_active=false")) < queries.findIndex(([sql]) => sql.includes("set is_published=true,is_active=true")));
+  assert.ok(queries.some(([sql, params]) => sql.includes("set is_active=false") && params[0] === "FUNDAMENTAL_IT"));
+  assert.ok(!queries.some(([sql]) => /^delete /i.test(sql)));
+  await app.close();
+});

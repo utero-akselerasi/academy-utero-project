@@ -48,6 +48,7 @@ export type SelectionTest = {
   duration_minutes: number;
   max_attempts: number;
   is_published: boolean;
+  is_active: boolean;
   available_until?: string | null;
 };
 
