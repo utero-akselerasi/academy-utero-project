@@ -121,12 +121,13 @@ export async function registrationRoutes(app, { db }) {
     const result = await db.transaction(identity, async (client) => {
       await client.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [`selection:${request.params.assignmentId}:${identity.id}`]);
       const assignment = (await client.query(`select s.id, s.max_attempts, s.due_at, s.available_from, s.package_id,
-        p.duration_minutes, p.available_from as test_from, p.available_until as test_until, p.is_published
+        a.selection_status, p.duration_minutes, p.available_from as test_from, p.available_until as test_until, p.is_published
         from utero_academy.selection_assignments s
         join utero_academy.internship_applications a on a.id = s.application_id
         join utero_academy.selection_test_packages p on p.id = s.package_id
         where s.id = $1 and a.applicant_user_id = $2`, [request.params.assignmentId, identity.id])).rows[0];
       if (!assignment) return { status: 404, error: "assignment_not_found" };
+      if (["passed", "bypassed"].includes(assignment.selection_status)) return { status: 409, error: "Seleksi sudah dinyatakan lolos. Tes tambahan tidak lagi dapat dimulai." };
       const now = Date.now();
       if (!assignment.is_published || [assignment.due_at, assignment.test_until].some((value) => value && now >= Date.parse(value)) ||
           [assignment.available_from, assignment.test_from].some((value) => value && now < Date.parse(value))) return { status: 409, error: "test_unavailable" };

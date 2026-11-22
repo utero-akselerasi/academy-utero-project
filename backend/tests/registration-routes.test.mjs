@@ -71,6 +71,20 @@ test("applicant selection read dan start selalu scoped ke pemilik aplikasi", asy
   await app.close();
 });
 
+test("applicant tidak dapat memulai tes setelah keputusan seleksi lolos", async () => {
+  const queries = [];
+  const app = await fixture({ id: userId, roles: ["applicant"] }, async (sql, params) => {
+    queries.push([sql, params]);
+    if (/from utero_academy\.selection_assignments s/.test(sql)) return { rows: [{ id: programId, selection_status: "passed", is_published: true }], rowCount: 1 };
+    return { rows: [], rowCount: 0 };
+  });
+  const response = await app.inject({ method: "POST", url: "/v1/registration/selection/" + programId + "/start" });
+  assert.equal(response.statusCode, 409);
+  assert.match(response.json().error, /sudah dinyatakan lolos/);
+  assert.equal(queries.some(([sql]) => /insert into utero_academy\.selection_attempts/.test(sql)), false);
+  await app.close();
+});
+
 test("answer save verifies active owned attempt, option, and attachment ownership", async () => {
   const queries = [];
   const attachmentPath = `${userId}/selection/${otherId}/${programId}/answer.pdf`;

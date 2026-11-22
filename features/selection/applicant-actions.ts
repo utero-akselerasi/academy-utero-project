@@ -30,6 +30,9 @@ export async function startSelectionAttemptAction(formData: FormData) {
     return;
   }
   const { assignment, test, attempt } = await getApplicantAttempt(assignmentId);
+  const db = await createUteroAcademyServiceRoleClient();
+  const { data: application } = await db.from("internship_applications").select("selection_status").eq("id", assignment.application_id).eq("applicant_user_id", user.id).maybeSingle();
+  if (["passed", "bypassed"].includes(application?.selection_status ?? "")) throw new Error("Seleksi sudah dinyatakan lolos. Tes tambahan tidak lagi dapat dimulai.");
   const now = Date.now();
   if (assignment.due_at && now >= Date.parse(assignment.due_at)) throw new Error("Batas penugasan telah lewat.");
   if (test.available_from && now < Date.parse(test.available_from)) throw new Error("Tes belum dibuka.");
@@ -37,7 +40,6 @@ export async function startSelectionAttemptAction(formData: FormData) {
   if (attempt?.status === "in_progress" && attempt.expires_at && now < Date.parse(attempt.expires_at)) return;
   if (attempt && !["graded", "expired", "cancelled"].includes(attempt.status)) throw new Error("Percobaan sebelumnya belum selesai.");
   if ((attempt?.attempt_number ?? 0) >= assignment.max_attempts) throw new Error("Batas percobaan tercapai.");
-  const db = await createUteroAcademyServiceRoleClient();
   const { error } = await db.from("selection_attempts").insert({ assignment_id: assignmentId, applicant_user_id: user.id, attempt_number: (attempt?.attempt_number ?? 0) + 1, status: "in_progress", started_at: new Date(now).toISOString(), expires_at: new Date(now + test.duration_minutes * 60000).toISOString() });
   if (error) throw new Error(error.message);
   const { error: assignmentError } = await db.from("selection_assignments").update({ status: "in_progress" }).eq("id", assignmentId);
