@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/features/auth/guards";
 import { getSelectionWorkspace } from "@/features/selection/queries";
@@ -23,7 +24,7 @@ export default async function SelectionReviewDetailPage({ params }: { params: Pr
   const publishedTests = workspace.tests.filter((test) => test.is_published && test.is_active);
 
   return <main className="mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-6 sm:py-6">
-    <Link href="/dashboard/mentor/selection#review" className="text-sm font-semibold text-teal-800 hover:underline">Kembali ke daftar review</Link>
+    <Link href="/dashboard/mentor/selection#review" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"><ArrowLeft size={16} aria-hidden="true" />Kembali ke daftar review</Link>
     <header className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><p className="text-xs font-bold uppercase tracking-wide text-teal-800">Review tes seleksi</p><h1 className="mt-1 text-xl font-bold text-slate-950">{assignment.applicant?.full_name ?? assignment.application_id}</h1><p className="mt-1 text-sm text-slate-600">{assignment.applicant?.email} · {assignment.test?.title ?? "Paket tes"}</p></div>
