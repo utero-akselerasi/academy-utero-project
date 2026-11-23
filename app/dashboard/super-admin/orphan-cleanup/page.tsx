@@ -19,7 +19,10 @@ export default async function SuperAdminOrphanCleanupPage() {
           <p className="text-sm font-bold uppercase text-red-700">Super Admin</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-950">Pembersih Data Orphan</h1>
           <p className="mt-2 max-w-3xl leading-7 text-slate-600">
-            Deteksi dan bersihkan data broken: perwakilan sekolah tanpa user valid, siswa terhubung ke sekolah yang sudah dihapus.
+            Deteksi kontak yang tidak punya akun aktif atau instansi valid, serta peserta yang masih terhubung ke instansi yang sudah dihapus.
+          </p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+            Daftar di bawah hanya pratinjau. Pembersihan dijalankan setelah Anda memilih tindakan: kontak tanpa relasi valid dihapus, sedangkan peserta hanya dilepaskan dari instansi yang sudah tidak ada. Akun peserta dan berkas tidak dihapus.
           </p>
         </div>
         <div className="flex gap-2">
@@ -51,7 +54,7 @@ export default async function SuperAdminOrphanCleanupPage() {
               <section className="surface overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
                 <div className="border-b border-slate-100 bg-slate-50 px-6 py-4">
                   <h3 className="text-lg font-black text-slate-950">Perwakilan Sekolah Orphan ({orphanContacts.length})</h3>
-                  <p className="mt-1 text-sm text-slate-600">User tidak ada atau sekolah sudah dihapus</p>
+                  <p className="mt-1 text-sm text-slate-600">Kontak tanpa akun aktif atau instansi yang masih terdaftar.</p>
                 </div>
                 <div className="p-6">
                   <div className="mb-4 max-h-64 overflow-y-auto space-y-2">

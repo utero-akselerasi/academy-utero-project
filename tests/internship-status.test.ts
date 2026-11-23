@@ -112,7 +112,7 @@ describe("validasi menghentikan nilai asing sebelum menyentuh kueri", () => {
 });
 
 describe("bentuknya dikunci di sumber", () => {
-  const HALAMAN = "app/dashboard/super-admin/schools/page.tsx";
+  const HALAMAN = "app/dashboard/super-admin/schools/[schoolId]/page.tsx";
 
   it("halaman tidak lagi menulis tangan satu pun <option value=...>", () => {
     // Satu opsi tertulis tangan cukup untuk menghidupkan kembali kedua cacatnya.

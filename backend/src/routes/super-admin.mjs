@@ -84,7 +84,7 @@ export async function superAdminRoutes(app, { db, config }) {
       ]);
       const schoolIds = new Set(schools.rows.map((row) => row.id));
       const userIds = new Set(users.rows.map((row) => row.id));
-      const orphanContacts = contacts.rows.filter((row) => !row.user_id || !userIds.has(row.user_id));
+      const orphanContacts = contacts.rows.filter((row) => !row.user_id || !userIds.has(row.user_id) || !schoolIds.has(row.school_id));
       const orphanInterns = interns.rows.filter((row) => row.school_id && !schoolIds.has(row.school_id));
       const schoolContactsWithoutSchool = contacts.rows.filter((row) => !schoolIds.has(row.school_id));
       const internUsers = new Set(interns.rows.map((row) => row.user_id));

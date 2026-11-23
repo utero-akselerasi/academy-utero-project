@@ -32,9 +32,9 @@ export default async function SuperAdminDashboardPage() {
           </p>
         </Link>
         <Link className="group rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-red-300 hover:shadow-md" href="/dashboard/super-admin/orphan-cleanup">
-          <h2 className="font-bold text-slate-950">Cleanup Orphan</h2>
+          <h2 className="font-bold text-slate-950">Perbaikan relasi data</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Deteksi dan bersihkan relasi data yang sudah tidak valid.
+            Tinjau kontak tanpa akun aktif dan peserta yang terhubung ke instansi tidak tersedia sebelum memperbaikinya.
           </p>
         </Link>
         <Link className="group rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-red-300 hover:shadow-md" href="/dashboard/super-admin/audit-logs">

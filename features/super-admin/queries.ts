@@ -168,8 +168,7 @@ export async function detectOrphanData() {
   const schoolIds = new Set(allSchools.data?.map(s => s.id) || []);
 
   const orphanContacts = allSchoolContacts.data?.filter((contact) => {
-    if (!contact.user_id) return true;
-    return !authUserIds.has(contact.user_id);
+    return !contact.user_id || !authUserIds.has(contact.user_id) || !schoolIds.has(contact.school_id);
   }) || [];
 
   const orphanInterns = allInterns.data?.filter((intern) => {
@@ -185,7 +184,7 @@ export async function detectOrphanData() {
     orphanContacts,
     orphanInterns,
     schoolContactsWithoutSchool,
-    total: orphanContacts.length + orphanInterns.length + schoolContactsWithoutSchool.length,
+    total: orphanContacts.length + orphanInterns.length,
     // Selalu null di jalur ini: kegagalan baca sudah kembali lebih awal di atas,
     // dan `listAllAuthUsers` melempar alih-alih mengembalikan `{ error }`.
     error: null,

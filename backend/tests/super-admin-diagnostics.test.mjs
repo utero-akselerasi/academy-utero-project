@@ -11,9 +11,14 @@ test("diagnostik super-admin membatasi akses dan menghitung data yatim", async (
   const db = { async transaction(identity, callback) {
     assert.deepEqual(identity.roles, ["super_admin"]);
     const rows = [
-      [{ id: "contact", user_id: null, school_id: "missing", name: "Kontak" }],
+      [
+        { id: "contact-without-user", user_id: null, school_id: "school", name: "Kontak tanpa akun" },
+        { id: "contact-without-school", user_id: "active-user", school_id: "missing", name: "Kontak tanpa instansi" },
+        { id: "valid-contact", user_id: "active-user", school_id: "school", name: "Kontak valid" },
+      ],
       [{ id: "intern", user_id: "user", school_id: "missing", full_name: "Peserta" }],
-      [], [],
+      [{ id: "school" }],
+      [{ id: "active-user" }],
       [{ user_id: "user", code: "intern" }],
       [{ id: "user", full_name: "Peserta" }], []
     ];
@@ -25,7 +30,7 @@ test("diagnostik super-admin membatasi akses dan menghitung data yatim", async (
   role = "super_admin";
   const result = await app.inject("/v1/super-admin/diagnostics");
   assert.equal(result.statusCode, 200);
-  assert.equal(result.json().orphanContacts.length, 1);
+  assert.equal(result.json().orphanContacts.length, 2);
   assert.equal(result.json().orphanInterns.length, 1);
   assert.equal(result.json().missing.length, 0);
   await app.close();

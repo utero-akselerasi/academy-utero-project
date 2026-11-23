@@ -936,7 +936,7 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
               <input type="hidden" name="userId" value={deletingUser.id} />
 
               <div className="bg-red-50 text-red-800 p-4 rounded-lg text-xs leading-relaxed border border-red-100">
-                <strong>Peringatan!</strong> Menghapus user ini akan menghapus akun autentikasi beserta seluruh data profil, absensi, daily report, dan tugas yang berelasi secara permanen. Tindakan ini tidak dapat dibatalkan.
+                <strong>Peringatan!</strong> Akun login dihapus permanen. Data yang terhubung dapat terhapus atau kehilangan relasi sesuai aturan database; data seleksi tertentu dapat menggagalkan penghapusan. Berkas di storage tidak otomatis ikut terhapus. Periksa data terkait sebelum melanjutkan.
               </div>
 
               <div>
