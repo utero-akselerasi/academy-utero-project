@@ -105,6 +105,6 @@ export type SelectionWorkspace = {
   materials: SelectionMaterial[];
   tests: SelectionTest[];
   questions: SelectionQuestion[];
-  applications: Array<{ id: string; full_name: string; email: string; major: string | null; selection_status: string | null }>;
+  applications: Array<{ id: string; full_name: string; email: string; major: string | null; selection_status: string | null; status: string }>;
   assignments: SelectionAssignmentReview[];
 };

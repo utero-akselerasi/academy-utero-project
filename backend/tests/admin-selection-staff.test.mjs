@@ -256,3 +256,54 @@ test("archive refuses already inactive package without audit write", async () =>
   assert.equal(queries.length, 1);
   await app.close();
 });
+
+test("deleting an unpublished draft removes its questions but keeps published versions and participant history", async () => {
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
+  const queries = [];
+  const { app } = await fixture(identity, async (sql, params) => {
+    queries.push([sql, params]);
+    if (sql.includes("select id,is_published")) return { rows: [{ id: uuid, is_published: false }], rowCount: 1 };
+    if (sql.includes("from utero_academy.selection_assignments where package_id")) return { rows: [], rowCount: 0 };
+    return { rows: [], rowCount: 1 };
+  });
+  const response = await app.inject({ method: "POST", url: `/v1/selection/staff/tests/${uuid}/delete` });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), { id: uuid, deleted: true });
+  assert.ok(queries.some(([sql]) => sql.includes("delete from utero_academy.selection_test_packages where id=$1")));
+  assert.ok(queries.some(([sql, params]) => sql.includes("append_audit_log") && params[0] === "delete_selection_test_draft"));
+  assert.ok(!queries.some(([sql]) => sql.includes("delete from utero_academy.selection_assignments")));
+  await app.close();
+});
+
+test("published and assigned packages cannot be deleted", async () => {
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
+  for (const published of [true, false]) {
+    const queries = [];
+    const { app } = await fixture(identity, async (sql) => {
+      queries.push(sql);
+      if (sql.includes("select id,is_published")) return { rows: [{ id: uuid, is_published: published }], rowCount: 1 };
+      return { rows: [{ id: uuid }], rowCount: 1 };
+    });
+    const response = await app.inject({ method: "POST", url: `/v1/selection/staff/tests/${uuid}/delete` });
+    assert.equal(response.statusCode, 409);
+    assert.equal(response.json().error, published ? "published_test_cannot_be_deleted" : "assigned_test_cannot_be_deleted");
+    assert.ok(!queries.some((sql) => sql.startsWith("delete ") || sql.includes("append_audit_log")));
+    await app.close();
+  }
+});
+
+test("accepted participants cannot receive another test even via direct API call", async () => {
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
+  const queries = [];
+  const { app } = await fixture(identity, async (sql) => {
+    queries.push(sql);
+    if (sql.includes("select track_id, is_published, is_active")) return { rows: [{ track_id: uuid, is_published: true, is_active: true }], rowCount: 1 };
+    if (sql.includes("select selection_track_id,status")) return { rows: [{ selection_track_id: uuid, status: "accepted" }], rowCount: 1 };
+    return { rows: [], rowCount: 0 };
+  });
+  const response = await app.inject({ method: "POST", url: "/v1/selection/staff/assignments", payload: { applicationId: uuid, testId: uuid } });
+  assert.equal(response.statusCode, 409);
+  assert.equal(response.json().error, "application_closed");
+  assert.ok(!queries.some((sql) => sql.includes("assign_selection_test($1")));
+  await app.close();
+});

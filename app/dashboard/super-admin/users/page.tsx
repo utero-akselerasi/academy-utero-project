@@ -13,12 +13,12 @@ export default async function SuperAdminUsersPage() {
   const { profiles, roles, userRoles, schools, error } = await getSuperAdminUserManagementData();
 
   return (
-    <main className="w-full px-4 py-5 sm:px-6 sm:py-6">
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <main className="w-full space-y-3 px-3 py-3 sm:px-4 sm:py-4">
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-sm font-bold uppercase text-teal-700">Super Admin</p>
-          <h1 className="mt-1 text-2xl font-bold text-slate-950">User dan Role</h1>
-          <p className="mt-1 text-sm leading-6 text-slate-600">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-red-700">Super Admin</p>
+          <h1 className="mt-0.5 text-xl font-bold tracking-tight text-slate-950">User dan Role</h1>
+          <p className="mt-0.5 text-xs leading-5 text-slate-600">
             Kelola akun, status, dan role pengguna.
           </p>
         </div>

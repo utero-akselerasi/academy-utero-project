@@ -28,8 +28,8 @@ export function AssignSelectionForm({ applications, tests }: Props) {
     });
   }
 
-  return <form action={submit} className="mt-5 grid gap-4 rounded-lg bg-slate-50 p-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">
-    <label className="form-field"><span className="form-label">Calon peserta</span><select className="form-input w-full" name="applicationId" required><option value="">Pilih pelamar</option>{applications.map((applicant) => <option key={applicant.id} value={applicant.id}>{applicant.full_name} · {applicant.email}</option>)}</select></label>
+  return <form action={submit} className="mt-3 grid gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">
+    <label className="form-field"><span className="form-label">Calon peserta</span><select className="form-input w-full" name="applicationId" required><option value="">Pilih pelamar aktif</option>{applications.map((applicant) => <option key={applicant.id} value={applicant.id}>{applicant.full_name} · {applicant.email}</option>)}</select></label>
     <label className="form-field"><span className="form-label">Paket tes aktif</span><select className="form-input w-full" name="testId" required><option value="">Pilih tes terbit</option>{tests.map((test) => <option key={test.id} value={test.id}>{test.title}</option>)}</select></label>
     <label className="form-field"><span className="form-label">Batas waktu (opsional)</span><input className="form-input w-full" name="dueAt" type="datetime-local" /></label>
     <button className="button-primary min-h-11 text-sm" disabled={pending}>{pending ? "Memproses..." : retry ? "Buat penugasan ulang" : "Tugaskan tes"}</button>

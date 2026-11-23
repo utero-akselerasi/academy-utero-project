@@ -172,6 +172,13 @@ export async function archiveSelectionTestAction(formData: FormData) {
   revalidatePath(mentorPath);
 }
 
+export async function deleteSelectionTestDraftAction(formData: FormData) {
+  await requireAdmin();
+  const testId = z.string().uuid().parse(formData.get("testId"));
+  if (!usesLocalBackend()) throw new Error("Penghapusan draf paket tes harus diproses backend Academy.");
+  await selectionRequest(`/tests/${testId}/delete`, "POST");
+  revalidatePath(mentorPath);
+}
 export async function versionSelectionTestAction(formData: FormData) {
   const user = await requireAdmin();
   const testId = z.string().uuid().parse(formData.get("testId"));

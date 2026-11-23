@@ -7,11 +7,11 @@ import { Users, GraduationCap, CheckSquare, BarChart2, ChevronRight, FileText, S
 
 function StatCard({ title, value, description, icon, color = "bg-teal-50 text-teal-700" }: { title: string; value: string | number; description: string; icon: React.ReactNode, color?: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-slate-500">{title}</p>
-          <h3 className="mt-2 text-3xl font-bold text-slate-900">{value}</h3>
+          <h3 className="mt-2 text-2xl font-bold text-slate-900">{value}</h3>
           <p className="mt-1 text-sm text-slate-500">{description}</p>
         </div>
         <div className={"rounded-xl p-3 " + color}>{icon}</div>
@@ -38,15 +38,15 @@ export default async function AdminDashboardPage() {
   ];
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 md:py-10 space-y-8">
+    <main className="w-full px-3 py-4 sm:px-4 sm:py-5 space-y-4">
       {/* Header Panel */}
-      <section className="rounded-3xl border border-slate-200 bg-gradient-to-r from-teal-700 to-emerald-700 p-8 text-white shadow-lg">
+      <section className="rounded-xl border border-slate-200 bg-gradient-to-r from-red-800 via-rose-800 to-slate-900 p-5 sm:p-6 text-white shadow-lg">
         <p className="text-sm/6 text-teal-100 font-bold uppercase tracking-wider">Dashboard Utama</p>
-        <h1 className="mt-2 text-3xl font-bold md:text-4xl">Utero Academy Admin</h1>
+        <h1 className="mt-2 text-2xl font-bold md:text-3xl">Utero Academy Admin</h1>
         <p className="mt-3 max-w-3xl text-sm text-teal-50 md:text-base">
           Kelola modul pembelajaran LMS, validasi pendaftaran magang, review monitoring absensi, dan pengaturan CMS situs.
         </p>
-        <div className="mt-6 flex flex-wrap gap-3 text-sm">
+        <div className="mt-4 flex flex-wrap gap-2 text-xs">
           <Link href="/dashboard/admin/pendaftaran" className="rounded-full bg-slate-950 px-4 py-2 font-bold text-white hover:bg-slate-800 shadow-sm transition-all">Review Pendaftaran</Link>
           <Link href="/dashboard/admin/programs" className="rounded-full border border-white/40 bg-white/10 px-4 py-2 font-bold text-white hover:bg-white/20 transition-all">Kelola Program</Link>
           <Link href="/dashboard/admin/cms" className="rounded-full border border-white/40 bg-white/10 px-4 py-2 font-bold text-white hover:bg-white/20 transition-all">Manajemen CMS</Link>
@@ -54,7 +54,7 @@ export default async function AdminDashboardPage() {
       </section>
 
       {/* Metrics Cards */}
-      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard title="Peserta Aktif" value={metrics.totalInterns} description="Siswa magang aktif" icon={<Users size={22} />} color="bg-teal-50 text-teal-700" />
         <StatCard title="Instansi Partner" value={metrics.totalSchools} description="Sekolah/kampus terdaftar" icon={<GraduationCap size={22} />} color="bg-blue-50 text-blue-700" />
         <StatCard title="Total Tugas" value={metrics.totalTasks} description={metrics.completedTasks + " tugas selesai"} icon={<CheckSquare size={22} />} color="bg-amber-50 text-amber-700" />
@@ -62,7 +62,7 @@ export default async function AdminDashboardPage() {
       </section>
 
       {/* Interactive Charts */}
-      <section className="grid gap-6 md:grid-cols-2">
+      <section className="grid gap-3 md:grid-cols-2">
         <StatsVisualization 
           title="Keaktifan Absensi Mingguan" 
           subtitle="Tingkat kehadiran harian (Senin - Sabtu)" 
@@ -82,7 +82,7 @@ export default async function AdminDashboardPage() {
       {/* Bottom Grid: Activities & Shortcuts */}
       <section className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         {/* Aktivitas Terbaru */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm flex flex-col justify-between">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-900">Aktivitas Absensi Terbaru</h2>
             <p className="text-sm text-slate-500">Log kehadiran terakhir anak magang.</p>
@@ -108,7 +108,7 @@ export default async function AdminDashboardPage() {
         </div>
 
         {/* Shortcut Quick Links */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
           <h2 className="text-lg font-bold text-slate-900">Menu Pengelola</h2>
           <div className="flex flex-col gap-2">
             <Link href="/dashboard/admin/pendaftaran" className="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-teal-500 hover:bg-slate-50 transition-all font-semibold text-xs text-slate-700 group">

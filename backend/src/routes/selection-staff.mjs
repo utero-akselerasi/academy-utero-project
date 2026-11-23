@@ -18,7 +18,7 @@ export async function selectionStaffRoutes(app, { db }) {
         client.query("select id,code,track_id,title,description,version,passing_score,duration_minutes,max_attempts,is_published,is_active,available_until from utero_academy.selection_test_packages order by title"),
         client.query("select id,package_id,question_type,prompt,points,order_index,answer_key from utero_academy.selection_questions order by order_index"),
         client.query("select id,question_id,label,is_correct,order_index from utero_academy.selection_question_options order by order_index"),
-        client.query("select id,full_name,email,major,selection_status from utero_academy.internship_applications order by created_at desc limit 200"),
+        client.query("select id,full_name,email,major,selection_status,status from utero_academy.internship_applications order by created_at desc limit 200"),
         client.query("select id,application_id,package_id,status,assigned_at,due_at from utero_academy.selection_assignments order by assigned_at desc limit 200"),
         client.query("select id,assignment_id,status,started_at,expires_at,final_score,submitted_at,created_at from utero_academy.selection_attempts order by created_at desc"),
         client.query("select id,attempt_id,question_id,answer_text,attachment_path,manual_score from utero_academy.selection_answers"),
@@ -102,7 +102,20 @@ export async function selectionStaffRoutes(app, { db }) {
       return reply.code(201).send({ id: copy.id, existing: false });
     });
   });
-  app.post("/v1/selection/staff/tests/:id/archive", async (request, reply) => {
+  app.post("/v1/selection/staff/tests/:id/delete", async (request, reply) => {
+    const identity = staff(request, reply); if (!identity) return;
+    if (!id(request.params.id)) return reply.code(400).send({ error: "invalid_id" });
+    return db.transaction(identity, async (client) => {
+      const draft = (await client.query("select id,is_published from utero_academy.selection_test_packages where id=$1 for update", [request.params.id])).rows[0];
+      if (!draft) return reply.code(404).send({ error: "test_not_found" });
+      if (draft.is_published) return reply.code(409).send({ error: "published_test_cannot_be_deleted" });
+      const assigned = await client.query("select 1 from utero_academy.selection_assignments where package_id=$1 limit 1", [draft.id]);
+      if (assigned.rowCount) return reply.code(409).send({ error: "assigned_test_cannot_be_deleted" });
+      await audit(client, "delete_selection_test_draft", "selection_test_packages", draft.id);
+      await client.query("delete from utero_academy.selection_test_packages where id=$1", [draft.id]);
+      return { id: draft.id, deleted: true };
+    });
+  });  app.post("/v1/selection/staff/tests/:id/archive", async (request, reply) => {
     const identity = staff(request, reply); if (!identity) return;
     if (!id(request.params.id)) return reply.code(400).send({ error: "invalid_id" });
     return db.transaction(identity, async (client) => {
@@ -122,8 +135,9 @@ export async function selectionStaffRoutes(app, { db }) {
     if (body.dueAt && (Number.isNaN(Date.parse(body.dueAt)) || Date.parse(body.dueAt) <= Date.now())) return reply.code(400).send({ error: "invalid_due_date" });
     try { return await db.transaction(identity, async (client) => {
       const test = (await client.query("select track_id, is_published, is_active from utero_academy.selection_test_packages where id=$1", [body.testId])).rows[0];
-      const applicant = (await client.query("select selection_track_id from utero_academy.internship_applications where id=$1 for update", [body.applicationId])).rows[0];
+      const applicant = (await client.query("select selection_track_id,status from utero_academy.internship_applications where id=$1 for update", [body.applicationId])).rows[0];
       if (!test || !applicant) return reply.code(404).send({ error: "assignment_target_missing" });
+      if (["accepted", "converted", "rejected", "cancelled"].includes(applicant.status)) return reply.code(409).send({ error: "application_closed" });
       if (!test.is_published || !test.is_active) return reply.code(409).send({ error: "test_not_published" });
       if (applicant.selection_track_id && applicant.selection_track_id !== test.track_id) return reply.code(409).send({ error: "track_mismatch" });
       const existing = (await client.query("select s.id, s.status, t.status attempt_status, t.expires_at from utero_academy.selection_assignments s join utero_academy.selection_test_packages previous on previous.id=s.package_id left join lateral (select status, expires_at from utero_academy.selection_attempts where assignment_id=s.id order by attempt_number desc limit 1) t on true where s.application_id=$1 and previous.code=(select code from utero_academy.selection_test_packages where id=$2) order by s.assigned_at desc limit 1", [body.applicationId, body.testId])).rows[0];

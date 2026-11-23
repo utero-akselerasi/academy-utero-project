@@ -43,7 +43,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
 
   if (setupRequired) {
     return (
-      <main className="mx-auto max-w-6xl px-4 py-8">
+      <main className="w-full px-3 py-4 sm:px-4 sm:py-5">
         <div className="surface p-6 text-sm font-semibold text-red-700">
           Profil pembimbing belum ditemukan. Hubungi super admin untuk setup profil.
         </div>
@@ -218,13 +218,13 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
   const currentMonth = today.slice(0, 7);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 relative">
+    <main className="w-full px-3 py-4 sm:px-4 sm:py-5 relative">
       {/* Header */}
-      <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+      <div className="mb-4 flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-sm font-bold uppercase text-teal-700">Admin</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-950">Kelola & Review Absensi</h1>
-          <p className="mt-2 max-w-2xl leading-7 text-slate-600">
+          <h1 className="mt-2 text-xl font-bold tracking-tight text-slate-950">Kelola & Review Absensi</h1>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600">
             Peninjauan kehadiran, kalkulasi rata-rata kehadiran, jam magang, dan toleransi keterlambatan anak magang.
           </p>
         </div>

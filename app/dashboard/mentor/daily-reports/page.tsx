@@ -20,7 +20,7 @@ export default async function MentorDailyReportsPage({ searchParams }: PageProps
 
   if (scope?.kind === "setup_required") {
     return (
-      <main className="mx-auto max-w-6xl px-4 py-8">
+      <main className="w-full px-3 py-4 sm:px-4 sm:py-5">
         <div className="surface p-6 text-sm font-semibold text-red-700">
           Profil pembimbing belum ditemukan. Hubungi super admin untuk setup profil.
         </div>
@@ -37,12 +37,12 @@ export default async function MentorDailyReportsPage({ searchParams }: PageProps
   const pendingCount = (reports || []).filter((r) => r.status === "submitted").length;
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 relative">
-      <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+    <main className="w-full px-3 py-4 sm:px-4 sm:py-5 relative">
+      <div className="mb-4 flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-sm font-bold uppercase text-teal-700">Mentor</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-950">Review Daily Report</h1>
-          <p className="mt-2 max-w-2xl leading-7 text-slate-600">
+          <h1 className="mt-2 text-xl font-bold tracking-tight text-slate-950">Review Daily Report</h1>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600">
             Laporan harian dari peserta bimbingan. Setujui atau minta revisi untuk setiap laporan.
           </p>
         </div>

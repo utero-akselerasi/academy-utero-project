@@ -26,6 +26,7 @@ export default async function MentorSelectionPage() {
   await requireAdmin();
   const workspace = await getSelectionWorkspace();
   const publishedTests = workspace.tests.filter((test) => test.is_published && test.is_active);
+  const eligibleApplications = workspace.applications.filter((application) => !["accepted", "converted", "rejected", "cancelled"].includes(application.status));
   const awaitingReview = workspace.assignments.filter((assignment) =>
     ["submitted", "grading"].includes(assignment.attempt?.status ?? "") ||
     (assignment.attempt?.status === "graded" && !["passed", "failed", "waitlisted"].includes(assignment.status))
@@ -43,22 +44,22 @@ export default async function MentorSelectionPage() {
     return Number(needsReview(second)) - Number(needsReview(first));
   });
 
-  return <main className="selection-workspace mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 sm:py-6">
-    <header className="relative isolate overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-r from-white via-white to-teal-50 px-4 py-5 shadow-sm sm:px-6">
+  return <main className="selection-workspace w-full space-y-3 px-3 py-3 sm:px-4 sm:py-4">
+    <header className="relative isolate overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-r from-white via-white to-teal-50 px-3 py-3 shadow-sm sm:px-4">
       <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-16 size-48 rounded-full bg-teal-100/70 blur-3xl" />
       <div className="relative flex items-center gap-4">
-        <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-teal-800 text-white shadow-sm sm:size-14"><Users size={26} aria-hidden="true" /></span>
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-teal-800 text-white shadow-sm sm:size-14"><Users size={26} aria-hidden="true" /></span>
         <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-wider text-teal-800">Pendaftaran / Seleksi</p>
-          <h1 className="mt-0.5 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Seleksi calon peserta</h1>
+          <h1 className="mt-0.5 text-lg font-bold tracking-tight text-slate-950 sm:text-xl">Seleksi calon peserta</h1>
           <p className="mt-1 text-sm leading-5 text-slate-600">Atur jalur, susun tes, bagikan kepada pelamar, lalu tinjau hasilnya.</p>
         </div>
       </div>
     </header>
 
-    <section aria-label="Ringkasan seleksi" className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+    <section aria-label="Ringkasan seleksi" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {[
-        { label: "Pelamar", value: workspace.applications.length, detail: "Dalam seleksi", Icon: Users, tone: "bg-violet-50 text-violet-700" },
+        { label: "Pelamar", value: eligibleApplications.length, detail: "Dapat ditugaskan", Icon: Users, tone: "bg-violet-50 text-violet-700" },
         { label: "Tes siap", value: publishedTests.length, detail: "Paket terbit", Icon: ClipboardCheck, tone: "bg-amber-50 text-amber-700" },
         { label: "Ditugaskan", value: workspace.assignments.length, detail: "Tes dibagikan", Icon: Monitor, tone: "bg-slate-100 text-slate-700" },
         { label: "Perlu ditinjau", value: awaitingReview, detail: "Menunggu tindakan", Icon: Eye, tone: "bg-rose-50 text-rose-700" },
@@ -110,7 +111,7 @@ export default async function MentorSelectionPage() {
 
     <section id="penugasan" className="scroll-mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <StepHeading number="03" title="Tugaskan tes ke pelamar" description="Hanya paket tes berstatus Terbit yang dapat dipilih. Batas waktu boleh dikosongkan." />
-      {publishedTests.length && workspace.applications.length ? <AssignSelectionForm applications={workspace.applications} tests={publishedTests} /> : <p className="mt-5 rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-950">{!publishedTests.length ? "Terbitkan paket tes yang sudah memiliki soal terlebih dahulu." : "Belum ada pelamar yang dapat dipilih."}</p>}
+      {publishedTests.length && eligibleApplications.length ? <AssignSelectionForm applications={eligibleApplications} tests={publishedTests} /> : <p className="mt-5 rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-950">{!publishedTests.length ? "Terbitkan paket tes yang sudah memiliki soal terlebih dahulu." : "Tidak ada pelamar aktif yang dapat ditugaskan. Peserta diterima atau pendaftaran ditutup tidak ditampilkan."}</p>}
       <p className="mt-3 text-xs text-slate-500">Setelah ditugaskan, tes muncul pada menu <strong>Tes Seleksi</strong> di dashboard pelamar.</p>
     </section>
 

@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 type AuthenticatedUser = {
   id: string;
   email?: string | null;
+  roleCodes?: RoleCode[];
 };
 
 export class RouteAuthorizationError extends Error {
@@ -38,12 +39,14 @@ export async function requireUser(): Promise<AuthenticatedUser> {
 }
 
 export async function requireRole(allowedRoles: RoleCode[]): Promise<AuthenticatedUser> {
-  const user = await requireUser();
-
-  if (!(await userHasAnyRole(user.id, allowedRoles))) {
-    redirect("/dashboard/forbidden");
+  if (usesLocalBackend()) {
+    const identity = await getBackendIdentity();
+    if (!identity) redirect("/login");
+    if (!identity.roles.some((role) => allowedRoles.includes(role as RoleCode))) redirect("/dashboard/forbidden");
+    return { id: identity.id, email: identity.email, roleCodes: identity.roles as RoleCode[] };
   }
-
+  const user = await requireUser();
+  if (!(await userHasAnyRole(user.id, allowedRoles))) redirect("/dashboard/forbidden");
   return user;
 }
 

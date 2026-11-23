@@ -119,9 +119,9 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Search & Filter & Add User Panel */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-2.5">
         <div className="flex flex-col md:flex-row gap-3 justify-between md:items-center">
           <div className="relative flex-1 max-w-md">
             <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 pointer-events-none">
@@ -192,17 +192,17 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
       {/* Tabel Pengguna Premium */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm border-collapse">
+          <table className="w-full text-left text-[13px] border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider">
-                <th className="p-3">Nama Pengguna</th>
-                <th className="p-3">Email</th>
-                <th className="p-3">Role</th>
-                <th className="p-3">Login Terakhir</th>
-                <th className="p-3">Kontak / Label</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Bergabung</th>
-                <th className="p-3 text-center">Aksi</th>
+                <th className="px-2.5 py-2">Nama Pengguna</th>
+                <th className="px-2.5 py-2">Email</th>
+                <th className="px-2.5 py-2">Role</th>
+                <th className="px-2.5 py-2">Login Terakhir</th>
+                <th className="px-2.5 py-2">Kontak / Label</th>
+                <th className="px-2.5 py-2">Status</th>
+                <th className="px-2.5 py-2">Bergabung</th>
+                <th className="px-2.5 py-2 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -219,10 +219,10 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
 
                   return (
                     <tr key={profile.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-all">
-                      <td className="p-3">
+                      <td className="px-2.5 py-2">
                         <div className="font-bold text-slate-900 leading-snug">{profile.full_name}</div>
                       </td>
-                      <td className="p-3 text-slate-600 font-medium">
+                      <td className="px-2.5 py-2 text-slate-600 font-medium">
                         <div>{profile.email || "-"}</div>
                         {profile.activation_pending && (
                           <span className="mt-1 inline-flex rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-extrabold uppercase text-amber-800">
@@ -230,7 +230,7 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                           </span>
                         )}
                       </td>
-                      <td className="p-3">
+                      <td className="px-2.5 py-2">
                         <div className="flex flex-wrap gap-1">
                           {assignedRoles.length === 0 ? (
                             <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-50 border border-amber-200 text-amber-800 uppercase">
@@ -240,6 +240,7 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                             assignedRoles.map((ur) => (
                               <span 
                                 key={ur.id}
+                                title={ur.roles?.code === "applicant" && isIntern ? "Role pelamar tetap memberi akses pendaftaran setelah diterima." : undefined}
                                 className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-teal-50 border border-teal-200 text-teal-800 uppercase"
                               >
                                 {ur.roles?.name || "Role"}
@@ -247,17 +248,18 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                             ))
                           )}
                         </div>
+                        {isIntern && assignedRoles.some((ur) => ur.roles?.code === "applicant") ? <p className="mt-1 text-[10px] text-slate-500">Akses pendaftaran tetap aktif; role peserta dipakai untuk magang.</p> : null}
                       </td>
-                      <td className="p-3 text-slate-500 text-xs font-medium">
+                      <td className="px-2.5 py-2 text-slate-500 text-xs font-medium">
                         {formatDateTime(profile.last_sign_in_at, profile.auth_linked)}
                       </td>
-                      <td className="p-3">
+                      <td className="px-2.5 py-2">
                         <div className="text-xs text-slate-800 font-semibold">{profile.phone || "-"}</div>
                         {profile.school_name && (
                           <div className="text-[10px] text-teal-700 font-bold mt-1">Sekolah: {profile.school_name}</div>
                         )}
                       </td>
-                      <td className="p-3">
+                      <td className="px-2.5 py-2">
                         <span className={"px-2 py-0.5 rounded text-[10px] font-extrabold uppercase " + (
                           profile.is_active 
                             ? "bg-teal-50 border border-teal-200 text-teal-800" 
@@ -269,7 +271,7 @@ export function UserRoleManager({ profiles, roles, userRoles, schools = [], isSu
                       <td className="p-3 text-slate-500 text-xs font-semibold">
                         {formatDate(profile.created_at)}
                       </td>
-                      <td className="p-3 text-center">
+                      <td className="px-2.5 py-2 text-center">
                         {/* Dropdown Menu Aksi ... */}
                         <div className="inline-block text-left">
                           <button

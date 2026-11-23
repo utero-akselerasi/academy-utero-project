@@ -114,7 +114,7 @@ export async function ProtectedDashboardLayout({ allowedRoles, homeHref, childre
   // menandatangani di tempat lain berarti mengulanginya di setiap halaman.
   const avatarUrl = await resolveStorageUrl("academy-private", profile?.avatar_path);
 
-  const userRolesList = await getUserRoleCodes(user.id);
+  const userRolesList = user.roleCodes ?? await getUserRoleCodes(user.id);
 
   // Peran aktif dipilih menurut rolePriority, bukan urutan baris dari database:
   // user ber-peran ganda (super_admin + admin wajar terjadi) harus mendapat
