@@ -61,23 +61,6 @@ export async function getInternProfileId(userId: string): Promise<string | null>
   return data?.id ?? null;
 }
 
-export async function getMentorProfileId(userId: string): Promise<string | null> {
-  if (usesLocalBackend()) return (await localProfiles()).mentorProfileId;
-  const db = await createUteroAcademyServiceRoleClient();
-  const { data, error } = await db
-    .from("mentor_profiles")
-    .select("id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) {
-    console.error("Gagal membaca profil admin pembimbing:", error);
-    return null;
-  }
-
-  return data?.id ?? null;
-}
-
 type ReportListOptions = { page?: number; status?: string; limit?: number };
 
 export async function getInternDailyReports(internProfileId: string, options: ReportListOptions = {}) {
@@ -213,7 +196,7 @@ export async function getReportReviews(reportId: string) {
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db
     .from("daily_report_reviews")
-    .select("id, report_id, mentor_id, status, note, created_at")
+    .select("id, report_id, reviewed_by, status, note, created_at")
     .eq("report_id", reportId)
     .order("created_at", { ascending: false })
     .returns<DailyReportReview[]>();

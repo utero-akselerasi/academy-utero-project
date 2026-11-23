@@ -29,11 +29,8 @@ export async function dailyReportRoutes(app, { db, config }) {
     const identity = requireIdentity(request, reply);
     if (!identity) return;
     const result = await db.transaction(identity, async (client) => {
-      const [intern, mentor] = await Promise.all([
-        client.query("select id from utero_academy.intern_profiles where user_id = $1", [identity.id]),
-        client.query("select id from utero_academy.mentor_profiles where user_id = $1", [identity.id]),
-      ]);
-      return { internProfileId: intern.rows[0]?.id ?? null, mentorProfileId: mentor.rows[0]?.id ?? null };
+      const intern = await client.query("select id from utero_academy.intern_profiles where user_id = $1", [identity.id]);
+      return { internProfileId: intern.rows[0]?.id ?? null };
     });
     return result;
   });
@@ -181,26 +178,11 @@ export async function dailyReportRoutes(app, { db, config }) {
       if (!report.rows[0]) return "not_found";
       const denied = await requireScopedIntern(client, identity, report.rows[0].intern_id);
       if (denied) return denied;
-      let mentor = await client.query("select id from utero_academy.mentor_profiles where user_id=$1", [identity.id]);
-      if (!mentor.rows[0]) {
-        mentor = await client.query(
-          `with inserted as (
-             insert into utero_academy.mentor_profiles(user_id) values($1)
-             on conflict(user_id) do nothing returning id
-           )
-           select id from inserted
-           union all
-           select id from utero_academy.mentor_profiles where user_id=$1
-           limit 1`,
-          [identity.id],
-        );
-      }
-      if (!mentor.rows[0]) return "setup_required";
-      await client.query("insert into utero_academy.daily_report_reviews (report_id,mentor_id,status,note) values ($1,$2,$3,$4)", [request.params.id, mentor.rows[0].id, request.body.status, note]);
+      await client.query("insert into utero_academy.daily_report_reviews (report_id,reviewed_by,status,note) values ($1,$2,$3,$4)", [request.params.id, identity.id, request.body.status, note]);
       await client.query("update utero_academy.daily_reports set status=$2,updated_at=now() where id=$1", [request.params.id, request.body.status]);
       return "ok";
     });
-    const statuses = { not_found: 404, setup_required: 409, forbidden: 403 };
+    const statuses = { not_found: 404, forbidden: 403 };
     if (result !== "ok") return apiError(reply, statuses[result], result);
     return { ok: true };
   });

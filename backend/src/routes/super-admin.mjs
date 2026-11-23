@@ -73,14 +73,13 @@ export async function superAdminRoutes(app, { db, config }) {
   app.get("/v1/super-admin/diagnostics", async (request, reply) => {
     const identity = superAdmin(request, reply); if (!identity) return;
     return db.transaction(identity, async (client) => {
-      const [contacts, interns, schools, users, roles, profiles, mentors] = await Promise.all([
+      const [contacts, interns, schools, users, roles, profiles] = await Promise.all([
         client.query("select id,user_id,school_id,name from utero_academy.school_contacts"),
         client.query("select id,user_id,school_id,full_name from utero_academy.intern_profiles"),
         client.query("select id,name from utero_academy.schools"),
         client.query("select id from auth.users where deleted_at is null"),
         client.query("select ur.user_id,r.code from utero_academy.user_roles ur join utero_academy.roles r on r.id=ur.role_id"),
         client.query("select id,full_name from utero_academy.user_profiles"),
-        client.query("select user_id from utero_academy.mentor_profiles"),
       ]);
       const schoolIds = new Set(schools.rows.map((row) => row.id));
       const userIds = new Set(users.rows.map((row) => row.id));
@@ -88,12 +87,11 @@ export async function superAdminRoutes(app, { db, config }) {
       const orphanInterns = interns.rows.filter((row) => row.school_id && !schoolIds.has(row.school_id));
       const schoolContactsWithoutSchool = contacts.rows.filter((row) => !schoolIds.has(row.school_id));
       const internUsers = new Set(interns.rows.map((row) => row.user_id));
-      const mentorUsers = new Set(mentors.rows.map((row) => row.user_id));
       const names = new Map(profiles.rows.map((row) => [row.id, row.full_name]));
       const missing = [];
       const seen = new Set();
       for (const row of roles.rows) {
-        const table = row.code === "intern" && !internUsers.has(row.user_id) ? "intern_profiles" : ["admin", "admin_academy", "mentor"].includes(row.code) && !mentorUsers.has(row.user_id) ? "mentor_profiles" : null;
+        const table = row.code === "intern" && !internUsers.has(row.user_id) ? "intern_profiles" : null;
         if (!table || seen.has(`${row.user_id}:${table}`)) continue;
         seen.add(`${row.user_id}:${table}`);
         missing.push({ userId: row.user_id, fullName: names.get(row.user_id) || "(tanpa profil dasar)", roleCode: row.code, table });
@@ -203,7 +201,6 @@ export async function superAdminRoutes(app, { db, config }) {
         await client.query("insert into utero_academy.user_roles(user_id,role_id) values($1,$2)", [user.id, role.id]);
         await client.query("set local role authenticated");
         if (role.code === "intern") await client.query("insert into utero_academy.intern_profiles(user_id,full_name,email,phone,status) values($1,$2,$3,$4,'active')", [user.id, parsed.value.fullName, parsed.value.email, phone]);
-        if (role.code === "admin") await client.query("insert into utero_academy.mentor_profiles(user_id) values($1) on conflict(user_id) do nothing", [user.id]);
         await audit(client, "create_user", "user_profiles", user.id, null, { email: parsed.value.email, fullName: parsed.value.fullName, roleId, roleCode: role.code });
         return { status: 201, id: user.id };
       });
@@ -341,12 +338,11 @@ export async function superAdminRoutes(app, { db, config }) {
   app.post("/v1/super-admin/domain-profiles/backfill", async (request, reply) => {
     const identity = superAdmin(request, reply); if (!identity) return;
     return db.transaction(identity, async (client) => {
-      const missingProfiles = (await client.query(`select ur.user_id,r.code,p.full_name,p.phone,u.email from utero_academy.user_roles ur join utero_academy.roles r on r.id=ur.role_id join auth.users u on u.id=ur.user_id and u.deleted_at is null left join utero_academy.user_profiles p on p.id=ur.user_id where (r.code='intern' and not exists(select 1 from utero_academy.intern_profiles ip where ip.user_id=ur.user_id)) or (r.code in ('admin','admin_academy','mentor') and not exists(select 1 from utero_academy.mentor_profiles mp where mp.user_id=ur.user_id)) for update of ur`)).rows;
+      const missingProfiles = (await client.query(`select ur.user_id,r.code,p.full_name,p.phone,u.email from utero_academy.user_roles ur join utero_academy.roles r on r.id=ur.role_id join auth.users u on u.id=ur.user_id and u.deleted_at is null left join utero_academy.user_profiles p on p.id=ur.user_id where r.code='intern' and not exists(select 1 from utero_academy.intern_profiles ip where ip.user_id=ur.user_id) for update of ur`)).rows;
       let created = 0; const failures = [];
       for (const row of missingProfiles) {
         if (row.code === "intern" && !row.full_name) { failures.push({ userId: row.user_id, reason: "Profil dasar user belum ada." }); continue; }
-        if (row.code === "intern") await client.query("insert into utero_academy.intern_profiles(user_id,full_name,email,phone,status) values($1,$2,$3,$4,'active') on conflict(user_id) do nothing", [row.user_id, row.full_name, row.email, row.phone]);
-        else await client.query("insert into utero_academy.mentor_profiles(user_id) values($1) on conflict(user_id) do nothing", [row.user_id]);
+        await client.query("insert into utero_academy.intern_profiles(user_id,full_name,email,phone,status) values($1,$2,$3,$4,'active') on conflict(user_id) do nothing", [row.user_id, row.full_name, row.email, row.phone]);
         created += 1;
       }
       await audit(client, "backfill_domain_profiles", "system", null, null, { attempted: missingProfiles.length, created, failed: failures.length, failures });

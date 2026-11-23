@@ -83,22 +83,6 @@ async function provisionDomainProfile(
     return;
   }
 
-  // Kode legacy `admin_academy` dan `mentor` SENGAJA masih diterima di sini.
-  // Keduanya bukan lagi peran login — dropdown penetapan peran tidak
-  // menawarkannya (disaring di queries.ts) — tapi baris `user_roles` lama
-  // dibiarkan hidup oleh migrasi 0028, dan backfillDomainProfilesAction masih
-  // bisa menyampaikan kode itu ke fungsi ini untuk user lama.
-  //
-  // Aman karena baris `mentor_profiles` BUKAN bukti otorisasi (keputusan C-2):
-  // otorisasi hanya dari `user_roles` lewat current_user_has_role(). Fungsi ini
-  // murni menyediakan baris data domain.
-  if (roleCode === "admin" || roleCode === "admin_academy" || roleCode === "mentor") {
-    const { error } = await db.from("mentor_profiles").insert({ user_id: userId });
-
-    if (error && error.code !== "23505") {
-      throw new Error("Gagal membuat profil pembimbing: " + error.message);
-    }
-  }
 }
 
 export async function assignUserRoleAction(formData: FormData) {

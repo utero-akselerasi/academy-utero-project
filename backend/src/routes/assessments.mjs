@@ -55,7 +55,7 @@ export async function assessmentsRoutes(app, { db }) {
       );
       return rows.rows;
     });
-    if (result === undefined) return apiError(reply, 403, "mentor_profile_required");
+    if (result === undefined) return apiError(reply, 403, "forbidden");
     return { interns: result };
   });
 
@@ -114,7 +114,7 @@ export async function assessmentsRoutes(app, { db }) {
       }
       return { assessment: assessment.rows[0] };
     });
-    if (result.error === "setup_required") return apiError(reply, 403, "mentor_profile_required");
+    if (result.error === "setup_required") return apiError(reply, 403, "forbidden");
     if (result.error === "forbidden") return apiError(reply, 404, "intern_not_found");
     if (result.error) return apiError(reply, 409, result.error);
     return result;

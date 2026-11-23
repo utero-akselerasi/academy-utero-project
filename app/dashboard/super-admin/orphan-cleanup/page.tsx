@@ -124,7 +124,7 @@ export default async function SuperAdminOrphanCleanupPage() {
         <div className="border-b border-slate-100 bg-slate-50 px-6 py-4">
           <h3 className="text-lg font-black text-slate-950">Profil Domain Belum Lengkap ({missingProfiles.length})</h3>
           <p className="mt-1 text-sm text-slate-600">
-            User sudah punya role tapi belum punya baris <code>intern_profiles</code> / <code>mentor_profiles</code>.
+            User sudah punya role peserta tapi belum punya baris <code>intern_profiles</code>.
             Tanpa profil ini dashboard-nya menampilkan pesan setup. Aksi di bawah hanya menambah baris yang kurang,
             tidak menghapus atau mengubah data apa pun.
           </p>

@@ -6,17 +6,9 @@ import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
  * `mentor` tidak lagi menjadi peran login, dan `admin_academy` melebur ke
  * `admin` (migrasi 0028).
  *
- * Kode legacy TIDAK dihapus dari tabel `roles` dan baris `user_roles` lama
- * dibiarkan utuh — `roles.role_id` adalah ON DELETE CASCADE, jadi menghapusnya
- * akan menghapus riwayat penempatan. Yang mematikan kode legacy adalah union
- * ini: `rolePriority` di bawah berfungsi sebagai allowlist di
- * `getUserRoleCodes`, sehingga kode di luar union disaring keluar dari setiap
- * guard. Menambahkan kembali "mentor" atau "admin_academy" di sini akan
- * menghidupkan ulang keduanya sebagai peran login.
- *
- * Entitas domain tetap bernama `mentor_profiles` / `mentor_assignments` /
- * `mentor_id`, dan kolom audit lama tetap tersimpan. Nama-nama itu
- * bukan peran — jangan ikut diubah.
+ * Kode legacy tidak mendapat akses login; role-code allowlist di bawah
+ * menolak role yang sudah dinonaktifkan. Data profil dan penugasan mentor lama
+ * dipindahkan ke skema arsip oleh migrasi backend 9031.
  */
 export type RoleCode = "super_admin" | "admin" | "school" | "intern" | "applicant";
 

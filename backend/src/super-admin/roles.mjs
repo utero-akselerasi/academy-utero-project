@@ -19,9 +19,6 @@ export async function assignRole(db, identity, userId, roleId) {
       [userId, roleId],
     );
     if (!inserted.rows[0]) return { status: 200, unchanged: true };
-    if (role.code === "admin") {
-      await client.query("insert into utero_academy.mentor_profiles (user_id) values ($1) on conflict (user_id) do nothing", [userId]);
-    }
     if (role.code === "intern") {
       await client.query(
         `insert into utero_academy.intern_profiles (user_id, full_name, email, phone, status)

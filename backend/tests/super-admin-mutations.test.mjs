@@ -79,16 +79,18 @@ test("create user memisahkan parameter text dan uuid untuk auth identity", async
 });
 
 for (const roleCode of ["intern", "admin"]) {
-  test(`create user ` + roleCode + ` memindahkan role DB sebelum provisioning profil`, async () => {
+  test(`create user ` + roleCode + ` hanya memprovisikan profil domain intern`, async () => {
+    const queries = [];
     let authenticated = false;
     let domainInserted = false;
     const db = { async apiTransaction(callback) {
       return callback({ async query(sql) {
+        queries.push(sql);
         if (sql.includes("from utero_academy.roles")) return { rows: [{ id: targetId, code: roleCode }] };
         if (sql.includes("select 1 from auth.users")) return { rows: [], rowCount: 0 };
         if (sql.includes("insert into auth.users")) return { rows: [{ id: targetId }] };
         if (sql === "set local role authenticated") authenticated = true;
-        if (sql.includes("insert into utero_academy.intern_profiles") || sql.includes("insert into utero_academy.mentor_profiles")) {
+        if (sql.includes("insert into utero_academy.intern_profiles")) {
           assert.equal(authenticated, true);
           domainInserted = true;
         }
@@ -101,7 +103,8 @@ for (const roleCode of ["intern", "admin"]) {
       fullName: "User Uji", email: roleCode + "@example.test", password: "password-kuat-123", roleId: targetId,
     } });
     assert.equal(response.statusCode, 201);
-    assert.equal(domainInserted, true);
+    assert.equal(domainInserted, roleCode === "intern");
+    assert.equal(queries.some((sql) => sql.includes("mentor_profiles")), false);
     await app.close();
   });
 }

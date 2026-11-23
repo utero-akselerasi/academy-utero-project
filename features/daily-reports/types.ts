@@ -52,7 +52,7 @@ export type DailyReportWithIntern = DailyReportWithDetails & {
 export type DailyReportReview = {
   id: string;
   report_id: string;
-  mentor_id: string;
+  reviewed_by: string | null;
   status: ReportStatus;
   note: string | null;
   created_at: string;

@@ -15,7 +15,7 @@ async function signAttachments(attachments: DailyReportAttachment[]) {
 export async function localProfiles() {
   const response = await backendRequest("/v1/daily-reports/profile");
   if (!response.ok) throw new Error("Gagal membaca profil lokal.");
-  return response.json() as Promise<{ internProfileId: string | null; mentorProfileId: string | null }>;
+  return response.json() as Promise<{ internProfileId: string | null }>;
 }
 
 export async function localInternForPrint(internId: string) {
@@ -89,7 +89,6 @@ export async function localReview(formData: FormData): Promise<{ ok: boolean; me
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: string } | null;
     const messages: Record<string, string> = {
-      setup_required: "Profil reviewer belum disiapkan. Hubungi super admin.",
       forbidden: "Kamu tidak berhak mereview laporan peserta ini.",
       not_found: "Laporan tidak ditemukan.",
     };

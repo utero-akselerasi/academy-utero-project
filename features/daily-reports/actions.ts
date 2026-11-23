@@ -7,7 +7,6 @@ import { resolveStaffInternScope } from "@/features/auth/scope";
 import { createSupabaseServiceRoleClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { UploadValidationError, buildStoragePath, validateUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
-import { getMentorProfileId } from "./queries";
 import { requireActiveInternProfile } from "@/features/intern/activation";
 import { dailyReportSchema, reviewReportSchema } from "./schemas";
 import { usesLocalBackend } from "@/lib/backend/mode";
@@ -86,7 +85,7 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
         progress: parsed.data.progress || null,
         blockers: parsed.data.blockers || null,
         tomorrow_plan: parsed.data.tomorrowPlan || null,
-        status: "submitted", // Reset status ke submitted agar mentor mereview kembali
+        status: "submitted", // Reset status ke submitted agar admin mereview kembali
         updated_at: new Date().toISOString(),
       })
       .eq("id", reportId)
@@ -182,13 +181,7 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
 
 export async function reviewDailyReportAction(_: ReviewReportState, formData: FormData): Promise<ReviewReportState> {
   if (usesLocalBackend()) { await requireAdmin(); return localReview(formData); }
-  // Review laporan adalah pekerjaan staff. Guard lama hanya mengandalkan
-  // keberadaan mentor_profiles, yang bukan bukti otorisasi.
   const user = await requireAdmin();
-  const mentorProfileId = await getMentorProfileId(user.id);
-  if (!mentorProfileId) {
-    return { ok: false, message: "Profil pembimbing belum disiapkan. Hubungi super admin." };
-  }
   const parsed = reviewReportSchema.safeParse({
     reportId: formData.get("reportId"),
     status: formData.get("status"),
@@ -199,7 +192,6 @@ export async function reviewDailyReportAction(_: ReviewReportState, formData: Fo
   }
   const db = await createUteroAcademyServiceRoleClient();
 
-  // Admin hanya boleh mereview laporan intern yang dibimbingnya.
   const { data: targetReport, error: targetError } = await db
     .from("daily_reports")
     .select("id, intern_id")
@@ -216,15 +208,15 @@ export async function reviewDailyReportAction(_: ReviewReportState, formData: Fo
 
   const scope = await resolveStaffInternScope(user.id);
   if (scope.kind === "setup_required") {
-    return { ok: false, message: "Profil pembimbing belum disiapkan. Hubungi super admin." };
+    return { ok: false, message: "Akun tidak memiliki akses admin." };
   }
   if (scope.kind === "scoped" && !scope.internIds.includes(targetReport.intern_id as string)) {
-    return { ok: false, message: "Kamu tidak membimbing peserta ini." };
+    return { ok: false, message: "Peserta tidak tersedia untuk akun ini." };
   }
 
   const { error: reviewError } = await db.from("daily_report_reviews").insert({
     report_id: parsed.data.reportId,
-    mentor_id: mentorProfileId,
+    reviewed_by: user.id,
     status: parsed.data.status,
     note: parsed.data.note || null,
   });

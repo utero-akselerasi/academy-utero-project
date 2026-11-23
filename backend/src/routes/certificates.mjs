@@ -1,4 +1,4 @@
-import { requireIdentity, requirePermission } from "../auth/identity.mjs";
+import { requirePermission } from "../auth/identity.mjs";
 import { requireScopedIntern } from "../attendance/access.mjs";
 import { validId } from "../assessments/input.mjs";
 import { createStorageToken } from "../storage/signing.mjs";
@@ -34,7 +34,7 @@ export async function certificatesRoutes(app, { db, config }) {
       ]);
       return { internProfile: profile.rows[0] ?? null, settings: settings.rows[0] ?? null };
     });
-    if (context.error === "setup_required") return apiError(reply, 403, "mentor_profile_required");
+    if (context.error === "setup_required") return apiError(reply, 403, "forbidden");
     if (context.error === "forbidden" || !context.internProfile) return apiError(reply, 404, "intern_not_found");
     const objectPath = context.settings?.certificate_template_path;
     if (objectPath && config?.storageSigningSecret) {
@@ -65,7 +65,7 @@ export async function certificatesRoutes(app, { db, config }) {
       );
       return row.rows[0] ?? null;
     });
-    if (result?.error === "setup_required") return apiError(reply, 403, "mentor_profile_required");
+    if (result?.error === "setup_required") return apiError(reply, 403, "forbidden");
     if (result?.error === "forbidden") return apiError(reply, 404, "certificate_not_found");
     if (!result) return apiError(reply, 404, "certificate_not_found");
     return { certificate: result };

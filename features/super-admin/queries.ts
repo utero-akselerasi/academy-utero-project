@@ -196,7 +196,7 @@ export type MissingDomainProfile = {
   userId: string;
   fullName: string;
   roleCode: string;
-  table: "intern_profiles" | "mentor_profiles";
+  table: "intern_profiles";
 };
 
 /**
@@ -218,11 +218,10 @@ export async function detectMissingDomainProfiles() {
   }
   const db = await createUteroAcademyServiceRoleClient();
 
-  const [userRolesResult, profilesResult, internsResult, mentorsResult] = await Promise.all([
+  const [userRolesResult, profilesResult, internsResult] = await Promise.all([
     db.from("user_roles").select("user_id, roles(code)").returns<any[]>(),
     db.from("user_profiles").select("id, full_name").returns<Array<{ id: string; full_name: string }>>(),
     db.from("intern_profiles").select("user_id").returns<Array<{ user_id: string | null }>>(),
-    db.from("mentor_profiles").select("user_id").returns<Array<{ user_id: string | null }>>(),
   ]);
 
   /**
@@ -238,25 +237,16 @@ export async function detectMissingDomainProfiles() {
    * `backfillDomainProfilesAction` sendiri sudah `throw` saat `error` terisi,
    * jadi penulisannya aman. Yang ditutup di sini adalah angka palsu di layar.
    */
-  const readError = userRolesResult.error || profilesResult.error || internsResult.error || mentorsResult.error;
+  const readError = userRolesResult.error || profilesResult.error || internsResult.error;
   if (readError) {
     return { missing: [] as MissingDomainProfile[], total: 0, error: readError };
   }
 
   const nameById = new Map((profilesResult.data ?? []).map((p) => [p.id, p.full_name]));
   const hasIntern = new Set((internsResult.data ?? []).map((r) => r.user_id).filter(Boolean) as string[]);
-  const hasMentor = new Set((mentorsResult.data ?? []).map((r) => r.user_id).filter(Boolean) as string[]);
 
   const missing: MissingDomainProfile[] = [];
-  // Satu user bisa memegang beberapa role staf (admin + admin_academy), tapi
-  // profil pembimbingnya hanya satu baris. Tanpa dedup, satu kekurangan yang
-  // sama akan terhitung dua kali di laporan maupun di hasil backfill.
-  //
-  // Kode legacy `admin_academy`/`mentor` SENGAJA masih dihitung di bawah: baris
-  // `user_roles` lama dibiarkan hidup oleh migrasi 0028, dan user lama itu tetap
-  // butuh baris `mentor_profiles`-nya. Baris itu bukan bukti otorisasi
-  // (keputusan C-2) — otorisasi tetap lewat `getUserRoleCodes`, yang menyaring
-  // kode legacy — jadi menghitungnya di sini tidak memberi hak apa pun.
+  // Satu user bisa memegang beberapa role; hitung kekurangan profil peserta sekali.
   const seen = new Set<string>();
 
   for (const row of userRolesResult.data ?? []) {
@@ -273,15 +263,6 @@ export async function detectMissingDomainProfiles() {
         fullName: nameById.get(userId) || "(tanpa profil dasar)",
         roleCode: code,
         table: "intern_profiles",
-      });
-    } else if ((code === "admin" || code === "admin_academy" || code === "mentor") && !hasMentor.has(userId)) {
-      if (seen.has(userId + ":mentor_profiles")) continue;
-      seen.add(userId + ":mentor_profiles");
-      missing.push({
-        userId,
-        fullName: nameById.get(userId) || "(tanpa profil dasar)",
-        roleCode: code,
-        table: "mentor_profiles",
       });
     }
   }

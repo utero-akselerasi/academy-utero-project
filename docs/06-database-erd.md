@@ -1,8 +1,8 @@
 # ERD Database
 
-ERD ini adalah model logis awal. Detail tabel dan kolom perlu disempurnakan sebelum migration final digunakan untuk production.
+ERD ini merangkum relasi domain aktif. Tabel historis mentor disimpan terpisah setelah migrasi 9031.
 
-Semua tabel aplikasi berada di schema `utero_academy`. Tabel user Supabase tetap berada di schema bawaan `auth`.
+Tabel aplikasi aktif berada di schema `utero_academy`; identitas akun berada di `auth.users` pada backend self-hosted. Arsip mentor berada di schema `utero_academy_archive` dan tidak tersedia untuk role aplikasi.
 
 ```mermaid
 erDiagram
@@ -14,7 +14,6 @@ erDiagram
 
     schools ||--o{ school_contacts : has
     schools ||--o{ intern_profiles : sends
-    users ||--o| mentor_profiles : may_be
     users ||--o| intern_profiles : may_be
 
     programs ||--o{ curriculums : has
@@ -24,8 +23,6 @@ erDiagram
     intern_profiles ||--o{ class_enrollments : joins
 
     internship_applications ||--o| intern_profiles : creates
-    mentor_profiles ||--o{ mentor_assignments : supervises
-    intern_profiles ||--o{ mentor_assignments : assigned
 
     courses ||--o{ lessons : has
     courses ||--o{ course_enrollments : has
@@ -45,16 +42,14 @@ erDiagram
     task_cards ||--o{ task_comments : has
     task_cards ||--o{ task_attachments : has
     intern_profiles ||--o{ task_cards : assigned
-    mentor_profiles ||--o{ task_cards : supervises
 
     intern_profiles ||--o{ attendances : submits
     intern_profiles ||--o{ daily_reports : submits
     daily_reports ||--o{ daily_report_attachments : has
-    mentor_profiles ||--o{ daily_report_reviews : reviews
+    users ||--o{ daily_report_reviews : reviews
     daily_reports ||--o{ daily_report_reviews : receives
 
     intern_profiles ||--o{ assessments : receives
-    mentor_profiles ||--o{ assessments : scores
     assessments ||--o| certificates : generates
 
     cms_sites ||--o{ cms_pages : has
@@ -84,7 +79,6 @@ erDiagram
 
 - `schools`
 - `school_contacts`
-- `mentor_profiles`
 - `intern_profiles`
 
 ### CMS
@@ -107,7 +101,6 @@ erDiagram
 - `classes`
 - `class_enrollments`
 - `internship_applications`
-- `mentor_assignments`
 
 ### LMS
 
@@ -135,3 +128,7 @@ erDiagram
 - `assessments`
 - `certificates`
 - `audit_logs`
+
+## Arsip mentor
+
+Migrasi `9031_archive_mentor_domain.sql` memindahkan `mentor_profiles` dan `mentor_assignments` ke `utero_academy_archive` tanpa menghapus data. `daily_report_reviews.reviewed_by` menyimpan ID akun peninjau; `legacy_mentor_profile_id` pada review, asesmen, kelas, dan kartu tugas mempertahankan ID lama tanpa FK aktif ke arsip. Data arsip hanya untuk audit, bukan otorisasi atau penugasan baru.

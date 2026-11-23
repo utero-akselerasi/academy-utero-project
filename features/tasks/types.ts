@@ -20,7 +20,7 @@ export type TaskCard = {
   id: string;
   list_id: string;
   intern_id: string | null;
-  mentor_id: string | null;
+  legacy_mentor_profile_id: string | null;
   title: string;
   description: string | null;
   priority: "urgent" | "high" | "medium" | "low";

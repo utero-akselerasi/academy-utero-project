@@ -13,10 +13,6 @@ export async function getMyPermits() {
   return localMyPermits();
 }
 
-export async function getMentorAttendances(_mentorProfileId: string) {
-  return { data: await localAttendanceList(), error: null };
-}
-
 export async function getAllAttendances() {
   return { data: await localAttendanceList(), error: null };
 }

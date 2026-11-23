@@ -17,6 +17,19 @@ test("legacy role ditolak sebelum insert", async () => {
   assert.equal(queries.some((sql) => sql.includes("insert into utero_academy.user_roles")), false);
 });
 
+test("assign role admin tidak membuat profil mentor", async () => {
+  const queries = [];
+  const db = { transaction: async (_identity, callback) => callback({ query: async (sql) => {
+    queries.push(sql);
+    if (sql.includes("from utero_academy.roles")) return { rows: [{ id: roleId, code: "admin" }] };
+    if (sql.includes("from auth.users")) return { rows: [{ id: userId }] };
+    if (sql.includes("insert into utero_academy.user_roles")) return { rows: [{ id: roleId }] };
+    return { rows: [] };
+  } }) };
+  assert.equal((await assignRole(db, identity, userId, roleId)).status, 201);
+  assert.equal(queries.some((sql) => sql.includes("mentor_profiles")), false);
+});
+
 test("assign idempoten tidak membuat audit duplikat", async () => {
   const queries = [];
   const db = { transaction: async (_identity, callback) => callback({ query: async (sql) => {
@@ -54,9 +67,10 @@ test("hapus role super_admin sendiri ditolak tanpa mutasi", async () => {
 
 test("route role menolak sesi tanpa super_admin", async () => {
   const handlers = new Map();
-  await superAdminRoutes({ get: (path, handler) => handlers.set(path, handler), post: (path, handler) => handlers.set(path, handler), delete: (path, handler) => handlers.set(path, handler) }, { db: { query() { throw new Error("should not query"); } } });
+  const register = (method) => (path, ...args) => handlers.set(`${method} ${path}`, args.at(-1));
+  await superAdminRoutes({ get: register("GET"), post: register("POST"), patch: register("PATCH"), put: register("PUT"), delete: register("DELETE") }, { db: { query() { throw new Error("should not query"); } } });
   const reply = { code(status) { this.status = status; return this; }, send(body) { this.body = body; return this; } };
-  await handlers.get("/v1/super-admin/users")({ identity: { roles: ["admin"] } }, reply);
+  await handlers.get("GET /v1/super-admin/users")({ identity: { roles: ["admin"] } }, reply);
   assert.equal(reply.status, 403);
   assert.equal(reply.body.error, "forbidden");
 });
