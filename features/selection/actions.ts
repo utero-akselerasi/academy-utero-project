@@ -16,6 +16,10 @@ import { usesLocalBackend } from "@/lib/backend/server";
 import { selectionRequest } from "./local-api";
 
 const mentorPath = "/dashboard/mentor/selection";
+function revalidateSelectionWorkspace() {
+  revalidatePath(mentorPath);
+  revalidatePath("/dashboard/mentor/selection/tests/[testId]", "page");
+}
 const superAdminPath = "/dashboard/super-admin/selection";
 
 function parsed<T>(result: { success: boolean; data?: T; error?: { issues: Array<{ message: string }> } }): T {
@@ -62,7 +66,7 @@ export async function publishSelectionMaterialAction(formData: FormData) {
 export async function createSelectionTestAction(formData: FormData) {
   const user = await requireAdmin();
   const input = parsed(createTestSchema.safeParse(formDataObject(formData)));
-  if (usesLocalBackend()) { await selectionRequest("/tests", "POST", input); revalidatePath(mentorPath); return; }
+  if (usesLocalBackend()) { await selectionRequest("/tests", "POST", input); revalidateSelectionWorkspace(); return; }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db.from("selection_test_packages").insert({
     code: input.code, track_id: input.trackId, title: input.title, description: input.description || null, version: 1,
@@ -71,13 +75,13 @@ export async function createSelectionTestAction(formData: FormData) {
   }).select("id").single();
   if (error) throw new Error(`Gagal membuat tes: ${error.message}`);
   await writeAuditLog(user.id, "create_selection_test", "selection_test_packages", data.id, null, input);
-  revalidatePath(mentorPath);
+  revalidateSelectionWorkspace();
 }
 
 export async function createSelectionQuestionAction(formData: FormData) {
   const user = await requireAdmin();
   const input = parsed(createQuestionSchema.safeParse(formDataObject(formData)));
-  if (usesLocalBackend()) { await selectionRequest(`/tests/${input.testId}/questions`, "POST", { ...input, options: ["multiple_choice", "true_false"].includes(input.type) ? parseOptionLines(input.type === "true_false" ? "Benar\nSalah" : input.options) : [] }); revalidatePath(mentorPath); return; }
+  if (usesLocalBackend()) { await selectionRequest(`/tests/${input.testId}/questions`, "POST", { ...input, options: ["multiple_choice", "true_false"].includes(input.type) ? parseOptionLines(input.type === "true_false" ? "Benar\nSalah" : input.options) : [] }); revalidateSelectionWorkspace(); return; }
   const db = await createUteroAcademyServiceRoleClient();
   const { data: test, error: testError } = await db.from("selection_test_packages").select("id,is_published").eq("id", input.testId).single();
   if (testError || !test) throw new Error("Tes tidak ditemukan.");
@@ -98,7 +102,7 @@ export async function createSelectionQuestionAction(formData: FormData) {
     }
   }
   await writeAuditLog(user.id, "create_selection_question", "selection_questions", question.id, null, { ...input, correctOption: input.correctOption ? "[configured]" : "" });
-  revalidatePath(mentorPath);
+  revalidateSelectionWorkspace();
 }
 
 export async function updateSelectionTestAction(formData: FormData) {
@@ -106,7 +110,7 @@ export async function updateSelectionTestAction(formData: FormData) {
   const input = parsed(updateTestSchema.safeParse(formDataObject(formData)));
   if (usesLocalBackend()) {
     await selectionRequest("/tests/" + input.testId, "PUT", input);
-    revalidatePath(mentorPath);
+    revalidateSelectionWorkspace();
     return;
   }
   const db = await createUteroAcademyServiceRoleClient();
@@ -117,7 +121,7 @@ export async function updateSelectionTestAction(formData: FormData) {
   }).eq("id", testId).eq("is_published", false).select("id").maybeSingle();
   if (error || !data) throw new Error(error?.message ?? "Paket terbit tidak dapat diedit. Buat versi baru.");
   await writeAuditLog(user.id, "update_selection_test", "selection_test_packages", testId);
-  revalidatePath(mentorPath);
+  revalidateSelectionWorkspace();
 }
 
 export async function updateSelectionQuestionAction(formData: FormData) {
@@ -128,7 +132,7 @@ export async function updateSelectionQuestionAction(formData: FormData) {
     : [];
   if (usesLocalBackend()) {
     await selectionRequest("/tests/" + input.testId + "/questions/" + input.questionId, "PUT", { ...input, options });
-    revalidatePath(mentorPath);
+    revalidateSelectionWorkspace();
     return;
   }
   const db = await createUteroAcademyServiceRoleClient();
@@ -148,12 +152,12 @@ export async function updateSelectionQuestionAction(formData: FormData) {
     if (insertError) throw new Error("Gagal memperbarui opsi: " + insertError.message);
   }
   await writeAuditLog(user.id, "update_selection_question", "selection_questions", input.questionId);
-  revalidatePath(mentorPath);
+  revalidateSelectionWorkspace();
 }
 export async function publishSelectionTestAction(formData: FormData) {
   const user = await requireAdmin();
   const testId = z.string().uuid().parse(formData.get("testId"));
-  if (usesLocalBackend()) { await selectionRequest(`/tests/${testId}/publish`, "POST"); revalidatePath(mentorPath); return; }
+  if (usesLocalBackend()) { await selectionRequest(`/tests/${testId}/publish`, "POST"); revalidateSelectionWorkspace(); return; }
   const db = await createUteroAcademyServiceRoleClient();
   const { count, error: countError } = await db.from("selection_questions").select("id", { count: "exact", head: true }).eq("package_id", testId);
   if (countError || !count) throw new Error("Tes minimal memiliki satu pertanyaan sebelum diterbitkan.");
@@ -161,7 +165,7 @@ export async function publishSelectionTestAction(formData: FormData) {
   if (error) throw new Error(`Gagal menerbitkan tes: ${error.message}`);
   if (!published) throw new Error("Tes sudah terbit atau tidak ditemukan.");
   await writeAuditLog(user.id, "publish_selection_test", "selection_test_packages", testId);
-  revalidatePath(mentorPath);
+  revalidateSelectionWorkspace();
 }
 
 export async function archiveSelectionTestAction(formData: FormData) {
@@ -169,7 +173,7 @@ export async function archiveSelectionTestAction(formData: FormData) {
   const testId = z.string().uuid().parse(formData.get("testId"));
   if (!usesLocalBackend()) throw new Error("Arsip paket tes harus diproses backend Academy.");
   await selectionRequest(`/tests/${testId}/archive`, "POST");
-  revalidatePath(mentorPath);
+  revalidateSelectionWorkspace();
 }
 
 export async function deleteSelectionTestDraftAction(formData: FormData) {
@@ -177,12 +181,12 @@ export async function deleteSelectionTestDraftAction(formData: FormData) {
   const testId = z.string().uuid().parse(formData.get("testId"));
   if (!usesLocalBackend()) throw new Error("Penghapusan draf paket tes harus diproses backend Academy.");
   await selectionRequest(`/tests/${testId}/delete`, "POST");
-  revalidatePath(mentorPath);
+  revalidateSelectionWorkspace();
 }
 export async function versionSelectionTestAction(formData: FormData) {
   const user = await requireAdmin();
   const testId = z.string().uuid().parse(formData.get("testId"));
-  if (usesLocalBackend()) { await selectionRequest(`/tests/${testId}/version`, "POST"); revalidatePath(mentorPath); return; }
+  if (usesLocalBackend()) { await selectionRequest(`/tests/${testId}/version`, "POST"); revalidateSelectionWorkspace(); return; }
   const db = await createUteroAcademyServiceRoleClient();
   const { data: source, error } = await db.from("selection_test_packages").select("code,track_id,title,description,version,passing_score,duration_minutes,max_attempts").eq("id", testId).single();
   if (error || !source) throw new Error("Tes sumber tidak ditemukan.");
@@ -201,7 +205,7 @@ export async function versionSelectionTestAction(formData: FormData) {
     }
   }
   await writeAuditLog(user.id, "version_selection_test", "selection_test_packages", copy.id, { source_id: testId }, { version: source.version + 1 });
-  revalidatePath(mentorPath);
+  revalidateSelectionWorkspace();
 }
 
 export async function assignSelectionTestAction(formData: FormData) {
