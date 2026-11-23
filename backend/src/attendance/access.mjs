@@ -7,7 +7,7 @@ export async function activeInternProfile(client, identity) {
 }
 
 export async function staffScope(client, identity) {
-  if (identity.roles.includes("super_admin")) return null;
+  if (identity.roles.includes("admin") || identity.roles.includes("super_admin")) return null;
   const mentor = await client.query("select id from utero_academy.mentor_profiles where user_id = $1", [identity.id]);
   if (!mentor.rows[0]) return undefined;
   const assignments = await client.query(

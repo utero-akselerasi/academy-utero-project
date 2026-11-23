@@ -24,9 +24,9 @@ async function makeApp(calls) {
         if (sql.includes("from utero_academy.mentor_profiles")) return { rows: [{ id: "44444444-4444-4444-8444-444444444444" }] };
         if (sql.includes("from utero_academy.mentor_assignments")) return { rows: [{ intern_id: assignedIntern }] };
         if (sql.includes("from utero_academy.attendance_settings")) return { rows: [{ check_in_time: "08:00" }] };
-        if (sql.includes("from utero_academy.intern_profiles ip where ip.status")) return { rows: [{ id: assignedIntern, full_name: "Assigned" }] };
-        if (sql.includes("from utero_academy.intern_profiles\n")) return { rows: [{ id: assignedIntern, full_name: "Assigned", email: "assigned@example.test" }] };
-        if (sql.includes("from utero_academy.attendances")) return { rows: [{ intern_id: assignedIntern, attendance_date: "2026-10-14" }] };
+        if (sql.includes("from utero_academy.intern_profiles ip where ip.status")) return { rows: [{ id: assignedIntern, full_name: "Assigned" }, { id: otherIntern, full_name: "Unassigned" }] };
+        if (sql.includes("from utero_academy.intern_profiles\n")) return { rows: [{ id: assignedIntern, full_name: "Assigned", email: "assigned@example.test" }, { id: otherIntern, full_name: "Unassigned", email: "unassigned@example.test" }] };
+        if (sql.includes("from utero_academy.attendances")) return { rows: [{ intern_id: assignedIntern, attendance_date: "2026-10-14" }, { intern_id: otherIntern, attendance_date: "2026-10-14" }] };
         return { rows: [] };
       },
     }),
@@ -34,31 +34,29 @@ async function makeApp(calls) {
   return app;
 }
 
-test("mentor dashboard membatasi intern, absensi, dan izin ke assignment", async () => {
+test("admin dashboard menampilkan seluruh peserta aktif tanpa bergantung pada assignment mentor", async () => {
   const calls = [];
   const app = await makeApp(calls);
   try {
     const response = await app.inject({ url: "/v1/attendance/mentor-dashboard" });
     assert.equal(response.statusCode, 200);
-    assert.deepEqual(response.json().interns.map((row) => row.id), [assignedIntern]);
-    const scopedReads = calls.filter((entry) => entry.sql.includes("any($1::uuid[])"));
-    assert.equal(scopedReads.length, 3);
-    for (const entry of scopedReads) assert.deepEqual(entry.values, [[assignedIntern]]);
+    assert.deepEqual(response.json().interns.map((row) => row.id), [assignedIntern, otherIntern]);
+    assert.equal(calls.some((entry) => entry.sql.includes("from utero_academy.mentor_assignments")), false);
     const attendanceRead = calls.find((entry) => entry.sql.includes("from utero_academy.attendances"));
+    assert.deepEqual(attendanceRead.values, [[assignedIntern, otherIntern]]);
     assert.ok(attendanceRead.sql.includes("select a.*, a.attendance_date::text as attendance_date"));
     assert.match(attendanceRead.sql, /order by a.attendance_date desc/);
-    assert.equal(calls.some((entry) => entry.values?.includes(otherIntern)), false);
   } finally { await app.close(); }
 });
 
-test("mentor export menggunakan scope dan mencatat audit", async () => {
+test("admin export memuat semua peserta aktif dan mencatat audit", async () => {
   const calls = [];
   const app = await makeApp(calls);
   try {
     const response = await app.inject({ url: "/v1/attendance/export-data?startDate=2026-10-01&endDate=2026-10-14&mode=range" });
     assert.equal(response.statusCode, 200);
-    assert.deepEqual(response.json().interns.map((row) => row.id), [assignedIntern]);
-    assert.deepEqual(calls.find((entry) => entry.sql.includes("between $2 and $3")).values, [[assignedIntern], "2026-10-01", "2026-10-14"]);
+    assert.deepEqual(response.json().interns.map((row) => row.id), [assignedIntern, otherIntern]);
+    assert.deepEqual(calls.find((entry) => entry.sql.includes("between $2 and $3")).values, [[assignedIntern, otherIntern], "2026-10-01", "2026-10-14"]);
     assert.equal(calls.filter((entry) => entry.sql.includes("utero_academy.append_audit_log")).length, 1);
     const denied = await app.inject({ url: "/v1/attendance/export-data?startDate=2026-10-01&endDate=2026-10-14", headers: { "x-test-role": "intern" } });
     assert.equal(denied.statusCode, 403);
