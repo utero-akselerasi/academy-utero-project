@@ -164,6 +164,14 @@ export async function publishSelectionTestAction(formData: FormData) {
   revalidatePath(mentorPath);
 }
 
+export async function archiveSelectionTestAction(formData: FormData) {
+  await requireAdmin();
+  const testId = z.string().uuid().parse(formData.get("testId"));
+  if (!usesLocalBackend()) throw new Error("Arsip paket tes harus diproses backend Academy.");
+  await selectionRequest(`/tests/${testId}/archive`, "POST");
+  revalidatePath(mentorPath);
+}
+
 export async function versionSelectionTestAction(formData: FormData) {
   const user = await requireAdmin();
   const testId = z.string().uuid().parse(formData.get("testId"));

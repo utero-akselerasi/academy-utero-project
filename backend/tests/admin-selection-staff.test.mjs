@@ -193,3 +193,66 @@ test("publishing revision keeps older published package accessible but inactive"
   assert.ok(!queries.some(([sql]) => /^delete /i.test(sql)));
   await app.close();
 });
+
+test("version request opens existing draft instead of inserting a duplicate", async () => {
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
+  const draftId = "22222222-2222-4222-8222-222222222222";
+  const queries = [];
+  const { app } = await fixture(identity, async (sql, params) => {
+    queries.push([sql, params]);
+    if (sql.includes("and is_published and is_active for update")) return { rows: [{ id: uuid, code: "FUNDAMENTAL_IT", version: 1 }], rowCount: 1 };
+    if (sql.includes("not is_published order by version")) return { rows: [{ id: draftId }], rowCount: 1 };
+    return { rows: [], rowCount: 0 };
+  });
+  const response = await app.inject({ method: "POST", url: "/v1/selection/staff/tests/" + uuid + "/version" });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), { id: draftId, existing: true });
+  assert.ok(queries.some(([sql]) => sql.includes("pg_advisory_xact_lock")));
+  assert.ok(!queries.some(([sql]) => sql.includes("insert into utero_academy.selection_test_packages")));
+  await app.close();
+});
+
+test("version request uses next available version when old published versions exist", async () => {
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
+  const queries = [];
+  const { app } = await fixture(identity, async (sql, params) => {
+    queries.push([sql, params]);
+    if (sql.includes("and is_published and is_active for update")) return { rows: [{ id: uuid, code: "FUNDAMENTAL_IT", track_id: uuid, version: 1 }], rowCount: 1 };
+    if (sql.includes("not is_published order by version")) return { rows: [], rowCount: 0 };
+    if (sql.includes("max(version)")) return { rows: [{ version: 4 }], rowCount: 1 };
+    if (sql.includes("select * from utero_academy.selection_questions")) return { rows: [], rowCount: 0 };
+    return { rows: [{ id: uuid }], rowCount: 1 };
+  });
+  const response = await app.inject({ method: "POST", url: "/v1/selection/staff/tests/" + uuid + "/version" });
+  assert.equal(response.statusCode, 201);
+  assert.deepEqual(response.json(), { id: uuid, existing: false });
+  assert.ok(queries.some(([sql, params]) => sql.includes("insert into utero_academy.selection_test_packages") && params[4] === 4));
+  await app.close();
+});
+
+test("archive deactivates published package without deleting assignments or answers", async () => {
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
+  const queries = [];
+  const { app } = await fixture(identity, async (sql, params) => {
+    queries.push([sql, params]);
+    if (sql.includes("select id,is_published,is_active")) return { rows: [{ id: uuid, is_published: true, is_active: true }], rowCount: 1 };
+    return { rows: [{ id: uuid }], rowCount: 1 };
+  });
+  const response = await app.inject({ method: "POST", url: "/v1/selection/staff/tests/" + uuid + "/archive" });
+  assert.equal(response.statusCode, 200);
+  assert.ok(queries[1][0].includes("set is_active=false,updated_at=now() where id=$1"));
+  assert.ok(queries.some(([sql, params]) => sql.includes("append_audit_log") && params[0] === "archive_selection_test"));
+  assert.ok(!queries.some(([sql]) => /^delete /i.test(sql)));
+  await app.close();
+});
+
+test("archive refuses already inactive package without audit write", async () => {
+  const identity = { id: uuid, roles: ["admin"], permissions: ["applications.review"] };
+  const queries = [];
+  const { app } = await fixture(identity, async (sql) => { queries.push(sql); return { rows: [{ id: uuid, is_published: true, is_active: false }], rowCount: 1 }; });
+  const response = await app.inject({ method: "POST", url: "/v1/selection/staff/tests/" + uuid + "/archive" });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), { id: uuid, alreadyArchived: true });
+  assert.equal(queries.length, 1);
+  await app.close();
+});

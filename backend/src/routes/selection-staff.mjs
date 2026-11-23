@@ -82,7 +82,39 @@ export async function selectionStaffRoutes(app, { db }) {
       return updated.rows[0];
     });
   });  app.post("/v1/selection/staff/tests/:id/publish", async (request, reply) => { const identity=staff(request,reply);if(!identity)return;if(!id(request.params.id))return reply.code(400).send({error:"invalid_id"});return db.transaction(identity,async(client)=>{const c=await client.query("select count(*)::int count from utero_academy.selection_questions where package_id=$1",[request.params.id]);if(!c.rows[0].count)return reply.code(409).send({error:"questions_required"});const target=(await client.query("select id,code,track_id from utero_academy.selection_test_packages where id=$1 and not is_published for update",[request.params.id])).rows[0];if(!target)return reply.code(409).send({error:"not_publishable"});await client.query("select pg_advisory_xact_lock(hashtextextended($1,0))",[target.code]);await client.query("update utero_academy.selection_test_packages set is_active=false where code=$1 and is_published",[target.code]);const r=await client.query("update utero_academy.selection_test_packages set is_published=true,is_active=true,published_at=now() where id=$1 returning id",[request.params.id]);await audit(client,"publish_selection_test","selection_test_packages",request.params.id);return r.rows[0];}); });
-  app.post("/v1/selection/staff/tests/:id/version", async (request, reply) => { const identity=staff(request,reply);if(!identity)return;if(!id(request.params.id))return reply.code(400).send({error:"invalid_id"});return db.transaction(identity,async(client)=>{const source=await client.query("select * from utero_academy.selection_test_packages where id=$1 and is_active for update",[request.params.id]);if(!source.rowCount)return reply.code(404).send({error:"test_not_found"});const b=source.rows[0];const copy=(await client.query(`insert into utero_academy.selection_test_packages(code,track_id,title,description,version,passing_score,duration_minutes,max_attempts,is_published,created_by) values($1,$2,$3,$4,$5,$6,$7,$8,false,$9) returning id`,[b.code,b.track_id,b.title,b.description,b.version+1,b.passing_score,b.duration_minutes,b.max_attempts,identity.id])).rows[0];const questions=await client.query("select * from utero_academy.selection_questions where package_id=$1 order by order_index",[request.params.id]);for(const q of questions.rows){const newQuestion=(await client.query("insert into utero_academy.selection_questions(package_id,question_type,prompt,points,order_index,answer_key,created_by) values($1,$2,$3,$4,$5,$6,$7) returning id",[copy.id,q.question_type,q.prompt,q.points,q.order_index,q.answer_key,identity.id])).rows[0];await client.query("insert into utero_academy.selection_question_options(question_id,label,content,is_correct,order_index) select $1,label,content,is_correct,order_index from utero_academy.selection_question_options where question_id=$2",[newQuestion.id,q.id]);}await audit(client,"version_selection_test","selection_test_packages",copy.id,{source_id:request.params.id,version:b.version+1});return reply.code(201).send(copy);}); });
+  app.post("/v1/selection/staff/tests/:id/version", async (request, reply) => {
+    const identity = staff(request, reply); if (!identity) return;
+    if (!id(request.params.id)) return reply.code(400).send({ error: "invalid_id" });
+    return db.transaction(identity, async (client) => {
+      const source = (await client.query("select * from utero_academy.selection_test_packages where id=$1 and is_published and is_active for update", [request.params.id])).rows[0];
+      if (!source) return reply.code(409).send({ error: "test_not_active" });
+      await client.query("select pg_advisory_xact_lock(hashtextextended($1,0))", [source.code]);
+      const draft = (await client.query("select id from utero_academy.selection_test_packages where code=$1 and not is_published order by version desc limit 1", [source.code])).rows[0];
+      if (draft) return { id: draft.id, existing: true };
+      const nextVersion = (await client.query("select coalesce(max(version),0)+1 as version from utero_academy.selection_test_packages where code=$1", [source.code])).rows[0].version;
+      const copy = (await client.query(`insert into utero_academy.selection_test_packages(code,track_id,title,description,version,passing_score,duration_minutes,max_attempts,is_published,created_by) values($1,$2,$3,$4,$5,$6,$7,$8,false,$9) returning id`, [source.code,source.track_id,source.title,source.description,nextVersion,source.passing_score,source.duration_minutes,source.max_attempts,identity.id])).rows[0];
+      const questions = await client.query("select * from utero_academy.selection_questions where package_id=$1 order by order_index", [request.params.id]);
+      for (const question of questions.rows) {
+        const newQuestion = (await client.query("insert into utero_academy.selection_questions(package_id,question_type,prompt,points,order_index,answer_key,created_by) values($1,$2,$3,$4,$5,$6,$7) returning id", [copy.id,question.question_type,question.prompt,question.points,question.order_index,question.answer_key,identity.id])).rows[0];
+        await client.query("insert into utero_academy.selection_question_options(question_id,label,content,is_correct,order_index) select $1,label,content,is_correct,order_index from utero_academy.selection_question_options where question_id=$2", [newQuestion.id,question.id]);
+      }
+      await audit(client,"version_selection_test","selection_test_packages",copy.id,{source_id:request.params.id,version:nextVersion});
+      return reply.code(201).send({ id: copy.id, existing: false });
+    });
+  });
+  app.post("/v1/selection/staff/tests/:id/archive", async (request, reply) => {
+    const identity = staff(request, reply); if (!identity) return;
+    if (!id(request.params.id)) return reply.code(400).send({ error: "invalid_id" });
+    return db.transaction(identity, async (client) => {
+      const current = (await client.query("select id,is_published,is_active from utero_academy.selection_test_packages where id=$1 for update", [request.params.id])).rows[0];
+      if (!current) return reply.code(404).send({ error: "test_not_found" });
+      if (!current.is_published) return reply.code(409).send({ error: "test_not_published" });
+      if (!current.is_active) return { id: current.id, alreadyArchived: true };
+      await client.query("update utero_academy.selection_test_packages set is_active=false,updated_at=now() where id=$1", [request.params.id]);
+      await audit(client,"archive_selection_test","selection_test_packages",request.params.id);
+      return { id: current.id, alreadyArchived: false };
+    });
+  });
   app.post("/v1/selection/staff/assignments", async (request, reply) => {
     const identity = staff(request, reply); if (!identity) return;
     const body = request.body || {};
