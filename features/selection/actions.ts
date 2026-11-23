@@ -82,14 +82,14 @@ export async function createSelectionTestAction(formData: FormData) {
 export async function createSelectionQuestionAction(formData: FormData) {
   const user = await requireAdmin();
   const input = parsed(createQuestionSchema.safeParse(formDataObject(formData)));
-  if (usesLocalBackend()) { await selectionRequest(`/tests/${input.testId}/questions`, "POST", { ...input, options: ["multiple_choice", "true_false"].includes(input.type) ? parseOptionLines(input.type === "true_false" ? "Benar\nSalah" : input.options) : [] }); revalidateSelectionWorkspace(); return; }
+  if (usesLocalBackend()) { await selectionRequest(`/tests/${input.testId}/questions`, "POST", { ...input, options: ["multiple_choice", "true_false"].includes(input.type) ? parseOptionLines(input.type === "true_false" ? "Benar\nSalah" : input.options) : [], answerKey: input.type === "file_upload" ? { responseMode: input.responseMode, allowedExtensions: input.allowedExtensions.split(",").map((item) => item.trim()).filter(Boolean) } : input.expectedAnswer ? { value: input.expectedAnswer } : null }); revalidateSelectionWorkspace(); return; }
   const db = await createUteroAcademyServiceRoleClient();
   const { data: test, error: testError } = await db.from("selection_test_packages").select("id,is_published").eq("id", input.testId).single();
   if (testError || !test) throw new Error("Tes tidak ditemukan.");
   if (test.is_published) throw new Error("Tes yang sudah terbit tidak dapat diubah. Buat versi baru.");
   const { data: question, error } = await db.from("selection_questions").insert({
     package_id: input.testId, question_type: input.type, prompt: { text: input.prompt }, points: input.points,
-    order_index: input.orderIndex, answer_key: input.expectedAnswer ? { value: input.expectedAnswer } : null, created_by: user.id,
+    order_index: input.orderIndex, answer_key: input.type === "file_upload" ? { responseMode: input.responseMode, allowedExtensions: input.allowedExtensions.split(",").map((item) => item.trim()).filter(Boolean) } : input.expectedAnswer ? { value: input.expectedAnswer } : null, created_by: user.id,
   }).select("id").single();
   if (error) throw new Error(`Gagal membuat pertanyaan: ${error.message}`);
   if (["multiple_choice", "true_false"].includes(input.type)) {
@@ -132,7 +132,7 @@ export async function updateSelectionQuestionAction(formData: FormData) {
     ? parseOptionLines(input.type === "true_false" ? "Benar\nSalah" : input.options)
     : [];
   if (usesLocalBackend()) {
-    await selectionRequest("/tests/" + input.testId + "/questions/" + input.questionId, "PUT", { ...input, options });
+    await selectionRequest("/tests/" + input.testId + "/questions/" + input.questionId, "PUT", { ...input, options, answerKey: input.type === "file_upload" ? { responseMode: input.responseMode, allowedExtensions: input.allowedExtensions.split(",").map((item) => item.trim()).filter(Boolean) } : input.expectedAnswer ? { value: input.expectedAnswer } : null });
     revalidateSelectionWorkspace();
     return;
   }
@@ -141,7 +141,7 @@ export async function updateSelectionQuestionAction(formData: FormData) {
   if (test?.is_published) throw new Error("Tes terbit tidak dapat diubah. Buat versi baru.");
   const { data: question, error } = await db.from("selection_questions").update({
     question_type: input.type, prompt: { text: input.prompt }, points: input.points, order_index: input.orderIndex,
-    answer_key: input.expectedAnswer ? { value: input.expectedAnswer } : null,
+    answer_key: input.type === "file_upload" ? { responseMode: input.responseMode, allowedExtensions: input.allowedExtensions.split(",").map((item) => item.trim()).filter(Boolean) } : input.expectedAnswer ? { value: input.expectedAnswer } : null,
   }).eq("id", input.questionId).eq("package_id", input.testId).select("id").maybeSingle();
   if (error || !question) throw new Error(error?.message ?? "Soal tidak ditemukan.");
   const { error: deleteError } = await db.from("selection_question_options").delete().eq("question_id", input.questionId);

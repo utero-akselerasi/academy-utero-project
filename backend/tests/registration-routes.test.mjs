@@ -152,3 +152,49 @@ test("selection submit computes objective score from stored answer key", async (
   assert.ok(queries.some(([sql, params]) => /advance_applicant_selection\(\$1, 'grading'\)/.test(sql) && params[0] === programId));
   await app.close();
 });
+
+
+test("Google Drive answer accepts only secure Google sharing URLs", async () => {
+  const queries = [];
+  const app = await fixture({ id: userId, roles: ["applicant"] }, async (sql, params) => {
+    queries.push([sql, params]);
+    if (/from utero_academy\.selection_attempts t/.test(sql)) return { rows: [{ id: otherId, expires_at: new Date(Date.now() + 60_000).toISOString() }], rowCount: 1 };
+    if (/select q\.question_type/.test(sql)) return { rows: [{ question_type: "file_upload", answer_key: { responseMode: "google_drive", allowedExtensions: [] } }], rowCount: 1 };
+    return { rows: [], rowCount: 1 };
+  });
+  const invalid = await app.inject({ method: "PUT", url: "/v1/registration/selection/" + programId + "/answers/" + programId, payload: { optionId: null, answerText: "https://example.com/file", attachmentPath: null } });
+  assert.equal(invalid.statusCode, 400);
+  const valid = await app.inject({ method: "PUT", url: "/v1/registration/selection/" + programId + "/answers/" + programId, payload: { optionId: null, answerText: "https://drive.google.com/file/d/abc/view", attachmentPath: null } });
+  assert.equal(valid.statusCode, 200);
+  const saved = queries.find(([sql]) => /insert into utero_academy\.selection_answers/.test(sql));
+  assert.equal(saved[1][3], "https://drive.google.com/file/d/abc/view");
+  await app.close();
+});
+
+test("file upload answer rejects extensions outside question policy", async () => {
+  const app = await fixture({ id: userId, roles: ["applicant"] }, async (sql) => {
+    if (/from utero_academy\.selection_attempts t/.test(sql)) return { rows: [{ id: otherId, expires_at: new Date(Date.now() + 60_000).toISOString() }], rowCount: 1 };
+    if (/select q\.question_type/.test(sql)) return { rows: [{ question_type: "file_upload", answer_key: { responseMode: "file", allowedExtensions: ["pdf"] } }], rowCount: 1 };
+    throw new Error("Disallowed file must be rejected before object lookup or answer write");
+  });
+  const response = await app.inject({ method: "PUT", url: "/v1/registration/selection/" + programId + "/answers/" + programId, payload: { optionId: null, answerText: "", attachmentPath: userId + "/selection/" + otherId + "/" + programId + "/answer.docx" } });
+  assert.equal(response.statusCode, 400);
+  await app.close();
+});
+
+
+test("applicant receives submission settings without answer keys", async () => {
+  const app = await fixture({ id: userId, roles: ["applicant"] }, async (sql) => {
+    if (/from utero_academy\.selection_assignments s/.test(sql)) return { rows: [{ id: programId, package_id: programId, due_at: null }], rowCount: 1 };
+    if (/from utero_academy\.selection_test_packages where/.test(sql)) return { rows: [{ id: programId, is_published: true }], rowCount: 1 };
+    if (/from utero_academy\.selection_attempts where/.test(sql)) return { rows: [{ id: otherId, status: "in_progress", expires_at: new Date(Date.now() + 60_000).toISOString() }], rowCount: 1 };
+    if (/from utero_academy\.selection_questions where/.test(sql)) return { rows: [{ id: programId, question_type: "file_upload", answer_key: { value: "private-key", responseMode: "google_drive", allowedExtensions: [] } }], rowCount: 1 };
+    return { rows: [], rowCount: 0 };
+  });
+  const response = await app.inject({ method: "GET", url: "/v1/registration/selection/" + programId });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json().questions[0].response_config, { mode: "google_drive", allowedExtensions: [] });
+  assert.equal(response.json().questions[0].answer_key, undefined);
+  assert.equal(response.body.includes("private-key"), false);
+  await app.close();
+});

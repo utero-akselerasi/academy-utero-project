@@ -1,6 +1,6 @@
 export const BUCKETS = Object.freeze({
   "academy-private": { public: false, maxBytes: 20 * 1024 * 1024, mime: ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] },
-  "selection-answers": { public: false, maxBytes: 20 * 1024 * 1024, mime: ["image/jpeg", "image/png", "image/webp", "application/pdf"] },
+  "selection-answers": { public: false, maxBytes: 20 * 1024 * 1024, mime: ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] },
   avatars: { public: false, maxBytes: 5 * 1024 * 1024, mime: ["image/jpeg", "image/png", "image/webp"] },
   "daily-report": { public: false, maxBytes: 20 * 1024 * 1024, mime: ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] },
   task: { public: false, maxBytes: 20 * 1024 * 1024, mime: ["image/jpeg", "image/png", "image/webp", "application/pdf", "text/plain"] },

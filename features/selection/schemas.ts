@@ -39,11 +39,17 @@ export const createQuestionSchema = z.object({
   expectedAnswer: z.string().trim().max(5000).optional().default(""),
   options: z.string().trim().max(10000).optional().default(""),
   correctOption: z.string().trim().max(500).optional().default(""),
+  responseMode: z.enum(["file", "google_drive"]).optional().default("file"),
+  allowedExtensions: z.string().trim().max(100).optional().default("pdf,docx"),
 }).superRefine((value, ctx) => {
   if (["multiple_choice", "true_false"].includes(value.type)) {
     const options = parseOptionLines(value.type === "true_false" ? "Benar\nSalah" : value.options);
     if (options.length < 2) ctx.addIssue({ code: "custom", path: ["options"], message: "Minimal dua opsi wajib diisi." });
     if (!options.includes(value.correctOption)) ctx.addIssue({ code: "custom", path: ["correctOption"], message: "Jawaban benar harus sama dengan salah satu opsi." });
+  }
+  if (value.type === "file_upload" && value.responseMode === "file") {
+    const extensions = value.allowedExtensions.split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
+    if (!extensions.length || extensions.some((ext) => !["pdf", "docx", "png", "jpg", "jpeg", "gif", "webp"].includes(ext))) ctx.addIssue({ code: "custom", path: ["allowedExtensions"], message: "Pilih minimal satu ekstensi berkas yang didukung." });
   }
 });
 

@@ -108,7 +108,7 @@ export async function registrationRoutes(app, { db }) {
       const attempt = (await client.query("select id, status, expires_at, attempt_number from utero_academy.selection_attempts where assignment_id = $1 and applicant_user_id = $2 order by attempt_number desc limit 1", [assignment.id, identity.id])).rows[0] ?? null;
       const active = attempt?.status === "in_progress" && attempt.expires_at && Date.now() < Date.parse(attempt.expires_at) && (!assignment.due_at || Date.now() < Date.parse(assignment.due_at));
       if (!active) return { assignment, test, attempt, questions: [], options: [], answers: [], active: false };
-      const questions = (await client.query("select id, question_type, prompt, points, order_index, is_required from utero_academy.selection_questions where package_id = $1 order by order_index", [test.id])).rows;
+      const questions = (await client.query("select id, question_type, prompt, points, order_index, is_required, answer_key from utero_academy.selection_questions where package_id = $1 order by order_index", [test.id])).rows.map(({ answer_key, ...question }) => ({ ...question, response_config: answer_key?.responseMode === "file" || answer_key?.responseMode === "google_drive" ? { mode: answer_key.responseMode, allowedExtensions: Array.isArray(answer_key.allowedExtensions) ? answer_key.allowedExtensions : [] } : { mode: "file", allowedExtensions: ["pdf", "docx", "png", "jpg", "jpeg", "gif", "webp"] } }));
       const options = (await client.query("select id, question_id, label, content, order_index from utero_academy.selection_question_options where question_id = any($1::uuid[]) order by order_index", [questions.map((row) => row.id)])).rows;
       const answers = (await client.query("select question_id, selected_option_ids, answer_text, attachment_path from utero_academy.selection_answers where attempt_id = $1", [attempt.id])).rows;
       return { assignment, test, attempt, questions, options, answers, active: true };
@@ -164,7 +164,7 @@ export async function registrationRoutes(app, { db }) {
       if (!attempt || !attempt.expires_at || now >= Date.parse(attempt.expires_at) ||
         [attempt.due_at, attempt.available_until].some((value) => value && now >= Date.parse(value)) ||
         (attempt.available_from && now < Date.parse(attempt.available_from))) return { status: 409, error: "attempt_unavailable" };
-      const question = (await client.query(`select q.question_type from utero_academy.selection_questions q
+      const question = (await client.query(`select q.question_type, q.answer_key from utero_academy.selection_questions q
         join utero_academy.selection_assignments s on s.package_id = q.package_id where s.id = $1 and q.id = $2`, [assignmentId, questionId])).rows[0];
       if (!question) return { status: 404, error: "question_not_found" };
       const objective = ["multiple_choice", "true_false"].includes(question.question_type);
@@ -174,8 +174,17 @@ export async function registrationRoutes(app, { db }) {
         const option = await client.query("select 1 from utero_academy.selection_question_options where id = $1 and question_id = $2", [optionId, questionId]);
         if (!option.rowCount) return { status: 400, error: "invalid_option" };
       }
+      const responseMode = question.answer_key?.responseMode === "google_drive" ? "google_drive" : "file";
+      const allowedExtensions = Array.isArray(question.answer_key?.allowedExtensions) && question.answer_key.allowedExtensions.length ? question.answer_key.allowedExtensions : ["pdf", "docx", "png", "jpg", "jpeg", "gif", "webp"];
+      if (question.question_type === "file_upload" && responseMode === "google_drive") {
+        let url; try { url = new URL(answerText); } catch { return { status: 400, error: "invalid_drive_link" }; }
+        if (url.protocol !== "https:" || !["drive.google.com", "docs.google.com"].includes(url.hostname) || url.username || url.password || url.pathname === "/") return { status: 400, error: "invalid_drive_link" };
+        if (attachmentPath) return { status: 400, error: "invalid_attachment" };
+      }
+      if (question.question_type === "file_upload" && responseMode === "file" && answerText.trim()) return { status: 400, error: "invalid_answer" };
       if (attachmentPath) {
-        if (question.question_type !== "file_upload" || !attachmentPath.startsWith(`${identity.id}/selection/${attempt.id}/${questionId}/`)) return { status: 400, error: "invalid_attachment" };
+        const extension = attachmentPath.split("/").pop()?.split(".").pop()?.toLowerCase();
+        if (question.question_type !== "file_upload" || responseMode !== "file" || !allowedExtensions.some((ext) => (ext === "jpeg" ? "jpg" : ext) === (extension === "jpeg" ? "jpg" : extension)) || !attachmentPath.startsWith(`${identity.id}/selection/${attempt.id}/${questionId}/`)) return { status: 400, error: "invalid_attachment" };
         const file = await client.query("select 1 from academy_storage.objects where bucket_id = 'selection-answers' and owner_id = $1 and name = $2 and deleted_at is null", [identity.id, attachmentPath]);
         if (!file.rowCount) return { status: 400, error: "attachment_missing" };
       }
@@ -185,7 +194,7 @@ export async function registrationRoutes(app, { db }) {
         values ($1,$2,$3::uuid[],$4,$5,now()) on conflict (attempt_id, question_id) do update set
         selected_option_ids = excluded.selected_option_ids, answer_text = excluded.answer_text,
         attachment_path = coalesce(excluded.attachment_path, utero_academy.selection_answers.attachment_path), answered_at = now()`,
-      [attempt.id, questionId, optionId ? [optionId] : [], question.question_type === "file_upload" ? null : answerText.trim() || null, attachmentPath ?? null]);
+      [attempt.id, questionId, optionId ? [optionId] : [], question.question_type === "file_upload" ? (responseMode === "google_drive" ? answerText.trim() || null : null) : answerText.trim() || null, attachmentPath ?? null]);
       return { ok: true, previousAttachmentPath: previous };
     });
     return result.error ? reply.code(result.status).send({ error: result.error }) : result;

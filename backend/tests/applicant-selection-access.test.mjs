@@ -13,7 +13,8 @@ test("participant access stays scoped to published, assigned tests and owned mat
   assert.match(migration, /application\.applicant_user_id = \(select auth\.uid\(\)\)/);
   assert.match(migration, /application\.selection_track_id = selection_materials\.track_id/);
   assert.match(migration, /package\.is_published/);
-  assert.match(registrationRoute, /select id, question_type, prompt, points, order_index, is_required from utero_academy\.selection_questions/);
+  assert.match(registrationRoute, /select id, question_type, prompt, points, order_index, is_required, answer_key from utero_academy\.selection_questions/);
+  assert.match(registrationRoute, /\.rows\.map\(\(\{ answer_key, \.\.\.question \}\)/);
   assert.match(registrationRoute, /select id, question_id, label, content, order_index from utero_academy\.selection_question_options/);
 });
 

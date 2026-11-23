@@ -67,7 +67,7 @@ export type SelectionQuestion = {
   prompt: { text?: string };
   points: number;
   order_index: number;
-  answer_key: { value?: string } | null;
+  answer_key: { value?: string; responseMode?: "file" | "google_drive"; allowedExtensions?: string[] } | null;
   options?: SelectionQuestionOption[];
 };
 

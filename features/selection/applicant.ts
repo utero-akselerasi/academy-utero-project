@@ -16,7 +16,7 @@ type ApplicantAttemptData = {
   assignment: { id: string; application_id: string; package_id: string; status: string; due_at: string | null; max_attempts: number };
   test: { id: string; title: string; description: string | null; duration_minutes: number; is_published: boolean; available_from: string | null; available_until: string | null };
   attempt: { id: string; status: string; expires_at: string | null; attempt_number: number } | null;
-  questions: Array<{ id: string; question_type: string; prompt: { text?: string }; points: number; order_index: number; is_required: boolean }>;
+  questions: Array<{ id: string; question_type: string; prompt: { text?: string }; points: number; order_index: number; is_required: boolean; response_config?: { mode: "file" | "google_drive"; allowedExtensions: string[] } }>;
   options: Array<{ id: string; question_id: string; label: string; content: unknown; order_index: number }>;
   answers: Array<{ question_id: string; selected_option_ids: string[]; answer_text: string | null; attachment_path: string | null }>;
   active: boolean;

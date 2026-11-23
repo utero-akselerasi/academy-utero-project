@@ -1,6 +1,16 @@
 import { requirePermission, requireIdentity } from "../auth/identity.mjs";
 import { UUID } from "../super-admin/roles.mjs";
 
+const FILE_EXTENSIONS = ["pdf", "docx", "png", "jpg", "jpeg", "gif", "webp"];
+function questionKey(body) {
+  if (body.type === "file_upload") {
+    if (!["file", "google_drive"].includes(body.answerKey?.responseMode)) return undefined;
+    const allowed = body.answerKey.allowedExtensions;
+    if (body.answerKey.responseMode === "file" && (!Array.isArray(allowed) || !allowed.length || allowed.some((ext) => !FILE_EXTENSIONS.includes(ext)))) return undefined;
+    return { responseMode: body.answerKey.responseMode, allowedExtensions: body.answerKey.responseMode === "file" ? [...new Set(allowed)] : [] };
+  }
+  return body.expectedAnswer ? { value: body.expectedAnswer } : null;
+}
 function staff(request, reply) { return requirePermission(request, reply, ["applications.review"]); }
 function id(value) { return UUID.test(value || ""); }
 function text(value, max) { return typeof value === "string" && value.trim() && value.trim().length <= max ? value.trim() : null; }
@@ -66,15 +76,15 @@ export async function selectionStaffRoutes(app, { db }) {
       await audit(client,"update_selection_test","selection_test_packages",request.params.id,b);
       return r.rows[0];
     });
-  });  app.post("/v1/selection/staff/tests/:id/questions", async (request, reply) => { const identity=staff(request,reply);if(!identity)return;const b=request.body||{};if(!id(request.params.id)||!text(b.prompt,5000))return reply.code(400).send({error:"invalid_question"});return db.transaction(identity,async(client)=>{const locked=await client.query("select is_published from utero_academy.selection_test_packages where id=$1",[request.params.id]);if(!locked.rowCount||locked.rows[0].is_published)return reply.code(409).send({error:"test_locked"});const q=(await client.query(`insert into utero_academy.selection_questions(package_id,question_type,prompt,points,order_index,answer_key,created_by) values($1,$2,$3,$4,$5,$6,$7) returning id`,[request.params.id,b.type,JSON.stringify({text:b.prompt}),b.points,b.orderIndex,b.expectedAnswer?JSON.stringify({value:b.expectedAnswer}):null,identity.id])).rows[0];const values=(b.options||[]);for(let i=0;i<values.length;i++)await client.query("insert into utero_academy.selection_question_options(question_id,label,content,order_index,is_correct) values($1,$2,$3,$4,$5)",[q.id,values[i],JSON.stringify({text:values[i]}),i,values[i]===b.correctOption]);await audit(client,"create_selection_question","selection_questions",q.id,{...b,correctOption:b.correctOption?"[configured]":""});return reply.code(201).send(q);}); });
+  });  app.post("/v1/selection/staff/tests/:id/questions", async (request, reply) => { const identity=staff(request,reply);if(!identity)return;const b=request.body||{};if(!id(request.params.id)||!text(b.prompt,5000)||questionKey(b)===undefined)return reply.code(400).send({error:"invalid_question"});return db.transaction(identity,async(client)=>{const locked=await client.query("select is_published from utero_academy.selection_test_packages where id=$1",[request.params.id]);if(!locked.rowCount||locked.rows[0].is_published)return reply.code(409).send({error:"test_locked"});const q=(await client.query(`insert into utero_academy.selection_questions(package_id,question_type,prompt,points,order_index,answer_key,created_by) values($1,$2,$3,$4,$5,$6,$7) returning id`,[request.params.id,b.type,JSON.stringify({text:b.prompt}),b.points,b.orderIndex,questionKey(b)?JSON.stringify(questionKey(b)):null,identity.id])).rows[0];const values=(b.options||[]);for(let i=0;i<values.length;i++)await client.query("insert into utero_academy.selection_question_options(question_id,label,content,order_index,is_correct) values($1,$2,$3,$4,$5)",[q.id,values[i],JSON.stringify({text:values[i]}),i,values[i]===b.correctOption]);await audit(client,"create_selection_question","selection_questions",q.id,{...b,correctOption:b.correctOption?"[configured]":""});return reply.code(201).send(q);}); });
   app.put("/v1/selection/staff/tests/:id/questions/:questionId", async (request, reply) => {
     const identity=staff(request,reply); if(!identity)return;
     const b=request.body||{};
-    if(!id(request.params.id)||!id(request.params.questionId)||!["multiple_choice","true_false","short_answer","essay","file_upload"].includes(b.type)||!text(b.prompt,5000)||!Number.isFinite(Number(b.points))||Number(b.points)<=0||Number(b.points)>1000||!Number.isInteger(b.orderIndex)||b.orderIndex<0||b.orderIndex>10000||!Array.isArray(b.options)||b.options.some((option)=>!text(option,500))||(["multiple_choice","true_false"].includes(b.type)&&(b.options.length<2||!b.options.includes(b.correctOption))))return reply.code(400).send({error:"invalid_question"});
+    if(!id(request.params.id)||!id(request.params.questionId)||!["multiple_choice","true_false","short_answer","essay","file_upload"].includes(b.type)||!text(b.prompt,5000)||!Number.isFinite(Number(b.points))||Number(b.points)<=0||Number(b.points)>1000||!Number.isInteger(b.orderIndex)||b.orderIndex<0||b.orderIndex>10000||!Array.isArray(b.options)||questionKey(b)===undefined||b.options.some((option)=>!text(option,500))||(["multiple_choice","true_false"].includes(b.type)&&(b.options.length<2||!b.options.includes(b.correctOption))))return reply.code(400).send({error:"invalid_question"});
     return db.transaction(identity,async(client)=>{
       const test=await client.query("select is_published from utero_academy.selection_test_packages where id=$1 for update",[request.params.id]);
       if(!test.rowCount||test.rows[0].is_published)return reply.code(409).send({error:"test_locked"});
-      const updated=await client.query("update utero_academy.selection_questions set question_type=$3,prompt=$4,points=$5,order_index=$6,answer_key=$7,updated_at=now() where id=$1 and package_id=$2 returning id",[request.params.questionId,request.params.id,b.type,JSON.stringify({text:b.prompt.trim()}),b.points,b.orderIndex,b.expectedAnswer?JSON.stringify({value:b.expectedAnswer}):null]);
+      const updated=await client.query("update utero_academy.selection_questions set question_type=$3,prompt=$4,points=$5,order_index=$6,answer_key=$7,updated_at=now() where id=$1 and package_id=$2 returning id",[request.params.questionId,request.params.id,b.type,JSON.stringify({text:b.prompt.trim()}),b.points,b.orderIndex,questionKey(b)?JSON.stringify(questionKey(b)):null]);
       if(!updated.rowCount)return reply.code(404).send({error:"question_not_found"});
       await client.query("delete from utero_academy.selection_question_options where question_id=$1",[request.params.questionId]);
       for(let index=0;index<b.options.length;index++)await client.query("insert into utero_academy.selection_question_options(question_id,label,content,order_index,is_correct) values($1,$2,$3,$4,$5)",[request.params.questionId,b.options[index],JSON.stringify({text:b.options[index]}),index,b.options[index]===b.correctOption]);
