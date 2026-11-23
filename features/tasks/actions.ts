@@ -33,16 +33,16 @@ async function localTask(path: string, method: string, body?: unknown) {
   return response;
 }
 
-/** Admin hanya boleh menugaskan intern yang dibimbingnya; super_admin bebas. */
+/** Admin dan super admin dapat mengelola semua peserta magang. */
 async function requireInternInScope(userId: string, internId: string) {
   const scope = await resolveStaffInternScope(userId);
 
   if (scope.kind === "global") return;
   if (scope.kind === "setup_required") {
-    throw new Error("Profil pembimbing belum disiapkan. Hubungi super admin.");
+    throw new Error("Akun admin tidak memiliki akses ke halaman ini.");
   }
   if (!scope.internIds.includes(internId)) {
-    throw new Error("Kamu tidak membimbing peserta ini.");
+    throw new Error("Peserta magang tidak ditemukan dalam sistem.");
   }
 }
 
@@ -50,7 +50,7 @@ async function requireInternInScope(userId: string, internId: string) {
  * Pastikan user boleh menyentuh satu task card.
  *
  * - `super_admin`: bebas.
- * - `admin`: hanya card milik intern yang dibimbingnya, atau card tanpa intern.
+ * - `admin`: seluruh card.
  * - peserta: hanya card yang di-assign ke dirinya.
  */
 async function requireCardAccess(userId: string, cardId: string) {
@@ -74,13 +74,7 @@ async function requireCardAccess(userId: string, cardId: string) {
 
   if (roles.includes("super_admin")) return card;
 
-  if (roles.includes("admin")) {
-    if (!card.intern_id) return card;
-    const scope = await resolveStaffInternScope(userId);
-    if (scope.kind === "global") return card;
-    if (scope.kind === "scoped" && scope.internIds.includes(card.intern_id)) return card;
-    throw new Error("Kamu tidak membimbing peserta pemilik task ini.");
-  }
+  if (roles.includes("admin")) return card;
 
   const internProfileId = await requireActiveInternProfile(userId);
   if (internProfileId && card.intern_id === internProfileId) return card;
@@ -132,7 +126,7 @@ export async function createBoardAction(
 
   if (usesLocalBackend()) {
     await localTask("/v1/tasks/boards", "POST", parsed.data);
-    revalidatePath("/dashboard/mentor/tasks");
+    revalidatePath("/dashboard/admin/tasks");
     return { ok: true, message: "Board berhasil dibuat." };
   }
 
@@ -148,7 +142,7 @@ export async function createBoardAction(
     return { ok: false, message: "Board belum berhasil dibuat." };
   }
 
-  revalidatePath("/dashboard/mentor/tasks");
+  revalidatePath("/dashboard/admin/tasks");
   return { ok: true, message: "Board berhasil dibuat." };
 }
 
@@ -163,7 +157,7 @@ export async function createListAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error("Data list tidak valid.");
   }
-  if (usesLocalBackend()) { await localTask("/v1/tasks/lists","POST",parsed.data); revalidatePath("/dashboard/mentor/tasks"); return; }
+  if (usesLocalBackend()) { await localTask("/v1/tasks/lists","POST",parsed.data); revalidatePath("/dashboard/admin/tasks"); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -188,7 +182,7 @@ export async function createListAction(formData: FormData) {
     throw new Error("List belum berhasil dibuat.");
   }
 
-  revalidatePath("/dashboard/mentor/tasks");
+  revalidatePath("/dashboard/admin/tasks");
 }
 
 export async function createCardAction(formData: FormData) {
@@ -205,7 +199,7 @@ export async function createCardAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "Data card tidak valid.");
   }
-  if (usesLocalBackend()) { await localTask("/v1/tasks/cards","POST",parsed.data); revalidatePath("/dashboard/mentor/tasks"); return; }
+  if (usesLocalBackend()) { await localTask("/v1/tasks/cards","POST",parsed.data); revalidatePath("/dashboard/admin/tasks"); return; }
 
   if (parsed.data.internId) {
     await requireInternInScope(user.id, parsed.data.internId);
@@ -238,7 +232,7 @@ export async function createCardAction(formData: FormData) {
     throw new Error("Task belum berhasil dibuat.");
   }
 
-  revalidatePath("/dashboard/mentor/tasks");
+  revalidatePath("/dashboard/admin/tasks");
 }
 
 export async function addChecklistAction(formData: FormData) {
@@ -252,7 +246,7 @@ export async function addChecklistAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error("Data checklist tidak valid.");
   }
-  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${parsed.data.cardId}/checklists`,"POST",{title:parsed.data.title}); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${parsed.data.cardId}/checklists`,"POST",{title:parsed.data.title}); revalidatePath("/dashboard/admin/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccess(user.id, parsed.data.cardId);
 
@@ -279,7 +273,7 @@ export async function addChecklistAction(formData: FormData) {
     throw new Error("Checklist belum berhasil ditambahkan.");
   }
 
-  revalidatePath("/dashboard/mentor/tasks");
+  revalidatePath("/dashboard/admin/tasks");
   revalidatePath("/dashboard/intern/tasks");
 }
 
@@ -294,7 +288,7 @@ export async function toggleChecklistAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error("Data checklist tidak valid.");
   }
-  if (usesLocalBackend()) { await localTask(`/v1/tasks/checklists/${parsed.data.checklistId}`,"PATCH",{isDone:parsed.data.isDone==="true"}); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/checklists/${parsed.data.checklistId}`,"PATCH",{isDone:parsed.data.isDone==="true"}); revalidatePath("/dashboard/admin/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccessVia(user.id, "task_checklists", parsed.data.checklistId);
 
@@ -312,7 +306,7 @@ export async function toggleChecklistAction(formData: FormData) {
     throw new Error("Checklist belum berhasil diperbarui.");
   }
 
-  revalidatePath("/dashboard/mentor/tasks");
+  revalidatePath("/dashboard/admin/tasks");
   revalidatePath("/dashboard/intern/tasks");
 }
 
@@ -347,7 +341,7 @@ export async function addTaskAttachmentAction(formData: FormData) {
     if(!stored.ok)throw new Error("Gagal mengunggah file lampiran.");
     try { await localTask(`/v1/tasks/cards/${cardId}/attachments`,"POST",{path:filePath,name:attachment.displayName}); }
     catch(error){ await backendRequest(`/v1/storage/task/${filePath.split("/").map(encodeURIComponent).join("/")}`,{method:"DELETE"}); throw error; }
-    revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return;
+    revalidatePath("/dashboard/admin/tasks"); revalidatePath("/dashboard/intern/tasks"); return;
   }
 
   const supabase = createSupabaseServiceRoleClient(); // Gunakan service role untuk storage upload
@@ -383,7 +377,7 @@ export async function addTaskAttachmentAction(formData: FormData) {
     throw new Error("Gagal menyimpan data lampiran.");
   }
 
-  revalidatePath("/dashboard/mentor/tasks");
+  revalidatePath("/dashboard/admin/tasks");
   revalidatePath("/dashboard/intern/tasks");
 }
 
@@ -391,7 +385,7 @@ export async function deleteBoardAction(formData: FormData) {
   const user = await requireStaff();
   const boardId = formData.get("boardId") as string;
   if (!boardId) throw new Error("Board ID tidak valid.");
-  if (usesLocalBackend()) { await localTask(`/v1/tasks/boards/${boardId}`,"DELETE"); revalidatePath("/dashboard/mentor/tasks"); return; }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/boards/${boardId}`,"DELETE"); revalidatePath("/dashboard/admin/tasks"); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -437,7 +431,7 @@ export async function deleteBoardAction(formData: FormData) {
     throw new Error("Board tidak terhapus: tidak ada baris yang terpengaruh.");
   }
 
-  revalidatePath("/dashboard/mentor/tasks");
+  revalidatePath("/dashboard/admin/tasks");
 }
 
 export async function deleteCardAction(formData: FormData) {
@@ -445,7 +439,7 @@ export async function deleteCardAction(formData: FormData) {
   const cardId = formData.get("cardId") as string;
   const boardId = formData.get("boardId") as string;
   if (!cardId) throw new Error("Card ID tidak valid.");
-  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${cardId}`,"DELETE"); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${cardId}`,"DELETE"); revalidatePath("/dashboard/admin/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccess(user.id, cardId);
 
@@ -458,10 +452,10 @@ export async function deleteCardAction(formData: FormData) {
   }
 
   if (boardId) {
-    revalidatePath("/dashboard/mentor/tasks/" + boardId);
+    revalidatePath("/dashboard/admin/tasks/" + boardId);
     revalidatePath("/dashboard/intern/tasks");
   } else {
-    revalidatePath("/dashboard/mentor/tasks");
+    revalidatePath("/dashboard/admin/tasks");
     revalidatePath("/dashboard/intern/tasks");
   }
 }
@@ -473,7 +467,7 @@ export async function assignCardToInternAction(formData: FormData) {
   const boardId = formData.get("boardId") as string;
 
   if (!cardId) throw new Error("Card ID tidak valid.");
-  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${cardId}`,"PATCH",{internId}); revalidatePath("/dashboard/mentor/tasks/"+boardId); revalidatePath("/dashboard/intern/tasks"); return; }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${cardId}`,"PATCH",{internId}); revalidatePath("/dashboard/admin/tasks/"+boardId); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccess(user.id, cardId);
   if (internId) {
@@ -494,7 +488,7 @@ export async function assignCardToInternAction(formData: FormData) {
     throw new Error("Gagal menetapkan peserta magang.");
   }
 
-  revalidatePath("/dashboard/mentor/tasks/" + boardId);
+  revalidatePath("/dashboard/admin/tasks/" + boardId);
   revalidatePath("/dashboard/intern/tasks");
 }
 
@@ -503,13 +497,13 @@ export async function deleteListAction(formData: FormData) {
   const listId = formData.get("listId") as string;
   const boardId = formData.get("boardId") as string;
   if (!listId) throw new Error("List ID tidak valid.");
-  if (usesLocalBackend()) { await localTask(`/v1/tasks/lists/${listId}`,"DELETE"); revalidatePath("/dashboard/mentor/tasks/"+boardId); return; }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/lists/${listId}`,"DELETE"); revalidatePath("/dashboard/admin/tasks/"+boardId); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
   // Menghapus list ikut menghapus semua card di dalamnya (cascade). Board
   // bersifat bersama antar staf, jadi tanpa cek ini seorang admin bisa
-  // menghapus task peserta yang bukan bimbingannya. Setiap card di list harus
+  // menghapus task peserta yang bukan bimbingannya. Setiap card pada list harus
   // lolos requireCardAccess dulu.
   const { data: cards, error: cardsError } = await db
     .from("task_cards")
@@ -532,7 +526,7 @@ export async function deleteListAction(formData: FormData) {
     throw new Error("Gagal menghapus list.");
   }
 
-  revalidatePath("/dashboard/mentor/tasks/" + boardId);
+  revalidatePath("/dashboard/admin/tasks/" + boardId);
 }
 
 export async function deleteChecklistItemAction(formData: FormData) {
@@ -540,7 +534,7 @@ export async function deleteChecklistItemAction(formData: FormData) {
   const checklistId = formData.get("checklistId") as string;
   const boardId = formData.get("boardId") as string;
   if (!checklistId) throw new Error("Checklist ID tidak valid.");
-  if (usesLocalBackend()) { await localTask(`/v1/tasks/checklists/${checklistId}`,"DELETE"); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/checklists/${checklistId}`,"DELETE"); revalidatePath("/dashboard/admin/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccessVia(user.id, "task_checklists", checklistId);
 
@@ -553,9 +547,9 @@ export async function deleteChecklistItemAction(formData: FormData) {
   }
 
   if (boardId) {
-    revalidatePath("/dashboard/mentor/tasks/" + boardId);
+    revalidatePath("/dashboard/admin/tasks/" + boardId);
   } else {
-    revalidatePath("/dashboard/mentor/tasks");
+    revalidatePath("/dashboard/admin/tasks");
   }
   revalidatePath("/dashboard/intern/tasks");
 }
@@ -571,7 +565,7 @@ export async function createSubtaskAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error("Data subtask tidak valid.");
   }
-  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${parsed.data.cardId}/subtasks`,"POST",{title:parsed.data.title}); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${parsed.data.cardId}/subtasks`,"POST",{title:parsed.data.title}); revalidatePath("/dashboard/admin/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccess(user.id, parsed.data.cardId);
 
@@ -599,7 +593,7 @@ export async function createSubtaskAction(formData: FormData) {
     throw new Error("Gagal menambahkan sub-task.");
   }
 
-  revalidatePath("/dashboard/mentor/tasks");
+  revalidatePath("/dashboard/admin/tasks");
   revalidatePath("/dashboard/intern/tasks");
 }
 
@@ -614,7 +608,7 @@ export async function toggleSubtaskAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error("Data subtask tidak valid.");
   }
-  if (usesLocalBackend()) { await localTask(`/v1/tasks/subtasks/${parsed.data.subtaskId}`,"PATCH",{isDone:parsed.data.isDone==="true"}); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/subtasks/${parsed.data.subtaskId}`,"PATCH",{isDone:parsed.data.isDone==="true"}); revalidatePath("/dashboard/admin/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccessVia(user.id, "task_subtasks", parsed.data.subtaskId);
 
@@ -632,7 +626,7 @@ export async function toggleSubtaskAction(formData: FormData) {
     throw new Error("Gagal memperbarui status sub-task.");
   }
 
-  revalidatePath("/dashboard/mentor/tasks");
+  revalidatePath("/dashboard/admin/tasks");
   revalidatePath("/dashboard/intern/tasks");
 }
 
@@ -640,7 +634,7 @@ export async function deleteSubtaskAction(formData: FormData) {
   const user = await requireUser();
   const subtaskId = formData.get("subtaskId") as string;
   if (!subtaskId) throw new Error("Subtask ID tidak valid.");
-  if (usesLocalBackend()) { await localTask(`/v1/tasks/subtasks/${subtaskId}`,"DELETE"); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/subtasks/${subtaskId}`,"DELETE"); revalidatePath("/dashboard/admin/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccessVia(user.id, "task_subtasks", subtaskId);
 
@@ -652,7 +646,7 @@ export async function deleteSubtaskAction(formData: FormData) {
     throw new Error("Gagal menghapus sub-task.");
   }
 
-  revalidatePath("/dashboard/mentor/tasks");
+  revalidatePath("/dashboard/admin/tasks");
   revalidatePath("/dashboard/intern/tasks");
 }
 
@@ -667,7 +661,7 @@ export async function updateCardPriorityAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error("Data prioritas tidak valid.");
   }
-  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${parsed.data.cardId}`,"PATCH",{priority:parsed.data.priority}); revalidatePath("/dashboard/mentor/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${parsed.data.cardId}`,"PATCH",{priority:parsed.data.priority}); revalidatePath("/dashboard/admin/tasks"); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccess(user.id, parsed.data.cardId);
 
@@ -685,7 +679,7 @@ export async function updateCardPriorityAction(formData: FormData) {
     throw new Error("Gagal memperbarui prioritas tugas.");
   }
 
-  revalidatePath("/dashboard/mentor/tasks");
+  revalidatePath("/dashboard/admin/tasks");
   revalidatePath("/dashboard/intern/tasks");
 }
 
@@ -693,7 +687,7 @@ export async function updateCardPriorityAction(formData: FormData) {
 export async function moveCardAction(cardId: string, listId: string, boardId: string) {
   const user = await requireStaff();
   if (!cardId || !listId) throw new Error("ID kartu atau list tidak valid.");
-  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${cardId}`,"PATCH",{listId}); revalidatePath("/dashboard/mentor/tasks/"+boardId); revalidatePath("/dashboard/intern/tasks"); return; }
+  if (usesLocalBackend()) { await localTask(`/v1/tasks/cards/${cardId}`,"PATCH",{listId}); revalidatePath("/dashboard/admin/tasks/"+boardId); revalidatePath("/dashboard/intern/tasks"); return; }
 
   await requireCardAccess(user.id, cardId);
 
@@ -724,6 +718,6 @@ export async function moveCardAction(cardId: string, listId: string, boardId: st
     throw new Error("Gagal memindahkan kartu.");
   }
 
-  revalidatePath("/dashboard/mentor/tasks/" + boardId);
+  revalidatePath("/dashboard/admin/tasks/" + boardId);
   revalidatePath("/dashboard/intern/tasks");
 }

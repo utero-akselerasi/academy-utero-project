@@ -111,7 +111,7 @@ Dokumen ini mencatat seluruh fitur yang telah diperbaiki, dikembangkan, serta re
 ### H. Peta Visual Lokasi Absensi (GPS Map Integration)
 * **Integrasi OpenStreetMap (OSM):**
   * Membuat komponen `AttendanceMap.tsx` di `features/attendance/AttendanceMap.tsx` yang merender peta visual interaktif OpenStreetMap menggunakan iframe embed.
-  * Menambahkan tombol toggle "Lihat Peta" untuk check-in dan check-out di dasbor peninjauan absensi admin (`app/dashboard/mentor/attendance/page.tsx`) guna mencocokkan koordinat lokasi GPS secara visual langsung di halaman dashboard tanpa membuka tab baru.
+  * Menambahkan tombol toggle "Lihat Peta" untuk check-in dan check-out di dasbor peninjauan absensi admin (`app/dashboard/admin/attendance/page.tsx`) guna mencocokkan koordinat lokasi GPS secara visual langsung di halaman dashboard tanpa membuka tab baru.
 
 
 ### J. Notifikasi Sistem Otomatis (Email SMTP & WhatsApp WAHA)
@@ -143,7 +143,7 @@ Dokumen ini mencatat seluruh fitur yang telah diperbaiki, dikembangkan, serta re
   * Kuis interaktif dengan skor yang dihitung otomatis di server-side serta log riwayat percobaan kuis.
   * Pengumpulan tugas kelas dengan mengunggah berkas bukti tugas (PDF/Gambar) ke bucket storage `learning`.
 * **LMS Penilaian & Pembuatan Modul (Admin):**
-  * Halaman manajemen kelas mentor/admin di `app/dashboard/mentor/lms/[courseId]/page.tsx` untuk menambahkan materi baru (`createLessonAction`) dan tugas kelas baru (`createAssignmentAction`).
+  * Halaman manajemen kelas mentor/admin di `app/dashboard/admin/lms/[courseId]/page.tsx` untuk menambahkan materi baru (`createLessonAction`) dan tugas kelas baru (`createAssignmentAction`).
   * Dasbor peninjauan tugas di mana admin dapat melihat tugas dikumpulkan, membuka modal detail jawaban & berkas bukti siswa, serta memberikan nilai (0-100) dan masukan feedback secara instan.
 
 ---
@@ -182,7 +182,7 @@ Berikut adalah hasil analisis detail terhadap 9 poin evaluasi terbaru berserta r
 ### **Bagian 3: Global Monitoring Tugas (dashboard/mentor/tasks)**
 - **Masalah:** Halaman awal list board kurang menarik, dan admin belum bisa memantau seluruh aktivitas tugas intern secara global tanpa batasan pembimbing.
 - **Rencana Solusi:**
-  1. Memperbarui antarmuka utama Task Board (`app/dashboard/mentor/tasks/page.tsx`) dengan menambahkan statistik ringkasan (Total Tasks, Completed, Pending).
+  1. Memperbarui antarmuka utama Task Board (`app/dashboard/admin/tasks/page.tsx`) dengan menambahkan statistik ringkasan (Total Tasks, Completed, Pending).
   2. Menyediakan fitur toggle / filter "Tampilkan Semua Tugas Peserta" bagi Admin. Jika diaktifkan, query akan memotong pembatasan ID mentor (`owner_id`) sehingga admin dapat memantau seluruh board tugas yang didelegasikan oleh siapa saja.
   3. Menambahkan visual avatar/inisial bulat pembuat tugas (creator) pada setiap kartu tugas.
 
@@ -279,20 +279,20 @@ Berikut adalah status penyelesaian perbaikan bug dan peningkatan fitur terbaru y
 * **Masalah:** Sertifikat magang otomatis belum dapat disesuaikan menggunakan desain template visual buatan instansi sendiri.
 * **Solusi:**
   - Membuat migrasi `supabase/migrations/0013_certificate_template.sql` untuk menambahkan kolom `certificate_template_path` pada tabel `attendance_settings`.
-  - Menambahkan panel pengaturan unggah berkas gambar template sertifikat secara visual di bagian atas halaman Penilaian Akhir (`app/dashboard/mentor/assessments/page.tsx`) yang memicu server action `uploadCertificateTemplateAction`.
+  - Menambahkan panel pengaturan unggah berkas gambar template sertifikat secara visual di bagian atas halaman Penilaian Akhir (`app/dashboard/admin/assessments/page.tsx`) yang memicu server action `uploadCertificateTemplateAction`.
   - Memperbarui halaman cetak sertifikat (`app/dashboard/intern/certificate/print/page.tsx`) agar membaca `certificate_template_path`. Jika diisi, layout cetak otomatis menonaktifkan border default, sudut ornamen emas, dan watermark graduation cap, lalu mengganti seluruh latar belakang dengan gambar template kustom Anda, sementara teks dinamis (Nama, Nilai, Predikat, Nomor Sertifikat) tetap ter-overlay dengan presisi pada kertas ukuran A4 landscape.
 
 ### **I. Integrasi Geofencing GPS Absensi & Lokasi Kantor (2 Juli 2026)**
 * **Masalah:** Kehadiran peserta magang dapat dilakukan dari mana saja secara remote tanpa ada batasan jarak dari kantor Utero Academy.
 * **Solusi:**
   - Membuat migrasi `supabase/migrations/0014_attendance_geofencing.sql` untuk menambahkan kolom `office_latitude`, `office_longitude`, `allow_geofencing`, dan `radius_meters` pada tabel `attendance_settings`.
-  - Menyempurnakan panel Pengaturan Jam Kerja di dashboard absensi mentor (`app/dashboard/mentor/attendance/page.tsx`) dengan menambahkan formulir visual untuk mengatur koordinat kantor (Latitude/Longitude), radius aman absensi (dalam meter), dan tombol aktifkan/nonaktifkan pembatasan Geofencing.
+  - Menyempurnakan panel Pengaturan Jam Kerja di dashboard absensi mentor (`app/dashboard/admin/attendance/page.tsx`) dengan menambahkan formulir visual untuk mengatur koordinat kantor (Latitude/Longitude), radius aman absensi (dalam meter), dan tombol aktifkan/nonaktifkan pembatasan Geofencing.
   - Memperbarui Server Action check-in (`checkInAction`) dan check-out (`checkOutAction`) di `features/attendance/actions.ts` dengan menyertakan perhitungan jarak menggunakan rumus matematis Haversine. Jika Geofencing aktif dan jarak peserta melebihi radius aman (misal: 100 meter), permintaan absensi otomatis ditolak dengan informasi jarak deviasinya.
 
 ### **J. Pembenahan Statistik Absensi & Target Jam Bulanan (2 Juli 2026)**
 * **Masalah:** Nilai persentase pemenuhan target jam magang di bulan aktif (`totalHoursThisMonth`) bernilai kosong/NaN pada panel detail absensi peserta magang, serta belum tersedianya input untuk memfilter riwayat absensi berdasarkan tanggal tertentu.
 * **Solusi:**
-  - Memperbaiki kueri pemetaan data pada `app/dashboard/mentor/attendance/page.tsx` untuk mengembalikan properti `totalHoursThisMonth` ke objek ter-render.
+  - Memperbaiki kueri pemetaan data pada `app/dashboard/admin/attendance/page.tsx` untuk mengembalikan properti `totalHoursThisMonth` ke objek ter-render.
   - Menambahkan validasi pembagian dengan nol (`targetHours > 0`) untuk mencegah nilai `NaN` pada kalkulasi persentase pencapaian jam magang.
   - Mengintegrasikan input filter tanggal (`type="date"`) di samping tombol Pengaturan Jam Kerja pada panel atas absensi mentor agar pemantauan kehadiran harian spesifik dapat dilakukan secara instan.
 
@@ -305,7 +305,7 @@ Fitur-fitur baru yang telah diselesaikan dalam sprint terbaru:
 ### **K. Export Rekapitulasi Absensi Bulanan ke Excel/CSV (9 Juli 2026)**
 * **Masalah:** Mentor kesulitan membuat laporan rekapitulasi absensi peserta magang secara manual, terutama untuk ekspor data bulanan yang kompleks mencakup total jam, keterlambatan, izin, dan status pencapaian target.
 * **Solusi:**
-  - Membuat API endpoint `app/dashboard/mentor/attendance/export/route.ts` yang menghasilkan file CSV terstruktur berisi rekapitulasi absensi lengkap per peserta magang.
+  - Membuat API endpoint `app/dashboard/admin/attendance/export/route.ts` yang menghasilkan file CSV terstruktur berisi rekapitulasi absensi lengkap per peserta magang.
   - Endpoint mendukung dua mode ekspor: **Monthly** (ekspor seluruh data satu bulan berdasarkan parameter `?month=YYYY-MM`) dan **Range** (ekspor custom date range dengan parameter `?mode=range&start=YYYY-MM-DD&end=YYYY-MM-DD`).
   - CSV mencakup kolom: Nama, Email, Jurusan, No. HP, Periode, Tanggal Mulai, Tanggal Selesai, Total Hadir, Total Jam, Target Jam Bulanan, Mode Target, Status Target, Total Telat, Total Menit Telat, Total Izin, Total Sakit, Pending Review, dan Invalid.
   - Kalkulasi otomatis untuk total jam (dari check-in dan check-out), keterlambatan berdasarkan tolerance setting, dan status pencapaian target (Terpenuhi/Belum Terpenuhi).
@@ -423,7 +423,7 @@ Fitur-fitur baru yang telah diselesaikan dalam sprint terbaru:
 * **Penyelesaian:** Mengganti semua format penentuan tanggal hari ini dari `.toISOString().slice(0, 10)` (UTC) menjadi berbasis Asia/Jakarta (`Intl.DateTimeFormat`) di seluruh logika absensi.
 
 ### **Y. Perapihan Tampilan UI/UX Responsif**
-* **Penyelesaian:** Mengubah list absensi mentor (`app/dashboard/mentor/attendance/page.tsx`) dan daily report mentor (`features/daily-reports/MentorReportsManager.tsx`) menjadi grid responsif 2 kolom di layar HP.
+* **Penyelesaian:** Mengubah list absensi mentor (`app/dashboard/admin/attendance/page.tsx`) dan daily report mentor (`features/daily-reports/MentorReportsManager.tsx`) menjadi grid responsif 2 kolom di layar HP.
 * **Penyelesaian:** Merampingkan visual kartu profil, logo status, dan text wrap (`line-clamp-2 break-words`) untuk mencegah melubernya nama panjang.
 * **Penyelesaian:** Mengubah stats grid modal detail absensi menjadi 2 kolom di layar HP dan membungkus form Export Rekap CSV ke dalam accordion details yang praktis.
 * **Penyelesaian:** Memperbaiki teks tombol filter siswa school portal agar tetap kontras (putih) di atas warna biru.
@@ -474,7 +474,7 @@ Berdasarkan evaluasi terbaru dan file referensi gambar dari Anda, berikut adalah
 
 ### AC. Fitur Assessment & Generate Sertifikat Otomatis (24 Juli 2026)
 * **Penyelesaian - Database Schema:** Tabel `assessments` dan `certificates` sudah tersedia lengkap dengan relasi ke `intern_profiles` dan `mentor_profiles`.
-* **Penyelesaian - Halaman Penilaian Mentor:** Halaman `/dashboard/mentor/assessments` menampilkan daftar peserta magang aktif dengan status penilaian (Belum Dinilai, Draft, Finalized).
+* **Penyelesaian - Halaman Penilaian Mentor:** Halaman `/dashboard/admin/assessments` menampilkan daftar peserta magang aktif dengan status penilaian (Belum Dinilai, Draft, Finalized).
 * **Penyelesaian - Form Penilaian Dinamis:** Modal penilaian interaktif (`AssessmentModal.tsx`) dengan fitur:
   - Kriteria penilaian custom yang dapat ditambah/hapus secara dinamis.
   - Input skor (0-100) untuk setiap kriteria penilaian.

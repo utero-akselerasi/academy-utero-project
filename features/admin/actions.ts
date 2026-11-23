@@ -4,7 +4,7 @@ import { type ApplicationStatus } from "@/features/admin/types";
 import { requireAdmin } from "@/features/auth/guards";
 import { createUteroAcademyClient } from "@/lib/supabase/server";
 import { usesLocalBackend } from "@/lib/backend/server";
-import { approveLocalOnboarding, createLocalPlacement, deleteLocalPlacement, updateLocalApplication } from "./local";
+import { approveLocalOnboarding, updateLocalApplication } from "./local";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSuperAdmin } from "@/features/auth/guards";
@@ -15,11 +15,6 @@ const updateApplicationSchema = z.object({
   status: z.enum(["reviewed", "accepted", "rejected", "cancelled"]),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
-});
-
-const assignMentorSchema = z.object({
-  internId: z.string().uuid("Peserta magang tidak valid."),
-  mentorId: z.string().uuid("Mentor tidak valid."),
 });
 
 const approveOnboardingSchema = z.object({
@@ -98,66 +93,6 @@ export async function approveApplicationOnboardingAction(formData: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath("/dashboard/admin/pendaftaran");
   revalidatePath("/dashboard/admin/pendaftaran/" + parsed.data.id);
-}
-
-export async function assignMentorAction(formData: FormData) {
-  const user = await requireStaff();
-
-  const parsed = assignMentorSchema.safeParse({
-    internId: formData.get("internId"),
-    mentorId: formData.get("mentorId"),
-  });
-
-  if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "Pilih peserta magang dan mentor.");
-  }
-
-  if (usesLocalBackend()) {
-    await createLocalPlacement(parsed.data);
-    revalidatePath("/dashboard/admin/penempatan");
-    return;
-  }
-
-  const db = await createUteroAcademyClient();
-  const { error } = await db.from("mentor_assignments").insert({
-    intern_id: parsed.data.internId,
-    mentor_id: parsed.data.mentorId,
-    assigned_by: user.id,
-    started_at: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())
-  });
-
-  if (error) {
-    console.error("Gagal assign mentor:", error);
-    throw new Error("Gagal menyimpan penempatan magang.");
-  }
-
-  revalidatePath("/dashboard/admin/penempatan");
-}
-
-export async function removeMentorAssignmentAction(formData: FormData) {
-  await requireStaff();
-
-  const parsedId = z.string().uuid().safeParse(formData.get("assignmentId"));
-
-  if (!parsedId.success) {
-    throw new Error("ID penempatan tidak valid.");
-  }
-
-  if (usesLocalBackend()) {
-    await deleteLocalPlacement(parsedId.data);
-    revalidatePath("/dashboard/admin/penempatan");
-    return;
-  }
-
-  const db = await createUteroAcademyClient();
-  const { error } = await db.from("mentor_assignments").delete().eq("id", parsedId.data);
-
-  if (error) {
-    console.error("Gagal hapus assignment:", error);
-    throw new Error("Gagal menghapus penempatan magang.");
-  }
-
-  revalidatePath("/dashboard/admin/penempatan");
 }
 
 export type ApplicationStatusActionState = { ok: boolean; message: string };

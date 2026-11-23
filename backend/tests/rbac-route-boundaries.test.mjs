@@ -41,7 +41,8 @@ test("role school tidak dapat memakai permission bersama untuk membuka endpoint 
   const { app, transactions } = await fixture(school, adminRoutes, () => { throw new Error("database must not be touched"); });
 
   assert.equal((await app.inject("/v1/admin/dashboard")).statusCode, 403);
-  assert.equal((await app.inject("/v1/admin/placements")).statusCode, 403);
+  assert.equal((await app.inject("/v1/admin/interns")).statusCode, 403);
+  assert.equal((await app.inject("/v1/admin/placements")).statusCode, 404);
   assert.equal(transactions.length, 0);
   await app.close();
 });
@@ -69,7 +70,7 @@ test("role school tidak dapat masuk endpoint mentor atau review walau permission
   const reportFixture = await fixture(school, dailyReportRoutes, () => { throw new Error("database must not be touched"); });
   const resourceId = "22222222-2222-4222-8222-222222222222";
 
-  assert.equal((await attendanceFixture.app.inject("/v1/attendance/mentor-dashboard")).statusCode, 403);
+  assert.equal((await attendanceFixture.app.inject("/v1/attendance/admin-dashboard")).statusCode, 403);
   assert.equal((await attendanceFixture.app.inject("/v1/attendance/export-data?startDate=2026-10-01&endDate=2026-10-14")).statusCode, 403);
   assert.equal((await attendanceFixture.app.inject({ method: "PATCH", url: `/v1/attendance/${resourceId}/review`, payload: { status: "valid" } })).statusCode, 403);
   assert.equal((await attendanceFixture.app.inject({ method: "PATCH", url: `/v1/attendance/permits/${resourceId}/review`, payload: { status: "approved" } })).statusCode, 403);

@@ -2,7 +2,7 @@ import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 
 /**
- * Peran login yang berlaku. `admin` adalah administrator SEKALIGUS pembimbing —
+ * Peran login yang berlaku. `admin` mengelola seluruh operasional peserta magang —
  * `mentor` tidak lagi menjadi peran login, dan `admin_academy` melebur ke
  * `admin` (migrasi 0028).
  *
@@ -15,7 +15,7 @@ import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
  * menghidupkan ulang keduanya sebagai peran login.
  *
  * Entitas domain tetap bernama `mentor_profiles` / `mentor_assignments` /
- * `mentor_id`, dan `/dashboard/mentor/*` tetap area kerja `admin`. Nama-nama itu
+ * `mentor_id`, dan kolom audit lama tetap tersimpan. Nama-nama itu
  * bukan peran — jangan ikut diubah.
  */
 export type RoleCode = "super_admin" | "admin" | "school" | "intern" | "applicant";

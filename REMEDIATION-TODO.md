@@ -24,7 +24,7 @@ Referensi ID temuan mengikuti Master Deep Audit Report (C-x kritis, H-x tinggi, 
 - Assignment `mentor` / `admin_academy` lama dimigrasikan menjadi `admin`. **Tidak ada akun, profil,
   penempatan, atau data domain yang dihapus** karena konsolidasi peran ini.
 - Entitas domain tetap bernama `mentor_profiles`, `mentor_assignments`, `mentor_id`.
-- Login `admin` tetap mendarat di `/dashboard/admin`; route `/dashboard/mentor/*` tetap dipakai sebagai
+- Login `admin` tetap mendarat di `/dashboard/admin`; route `/dashboard/admin/*` tetap dipakai sebagai
   area kerja operasional admin.
 - Temuan C-5 (mentor lockout) **dibatalkan** — bukan bug, sesuai kebijakan di atas.
 - Baris `mentor_profiles` **bukan** bukti otorisasi (C-2). Otorisasi hanya dari `user_roles`.
@@ -411,13 +411,13 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
 - [~] B1.5 Migrasi SQL `0028_consolidate_staff_roles.sql` — **sudah ditulis & ter-push, belum dijalankan** (lihat B0.1). Judul lama di TODO ini salah: berkasnya **tidak menghapus role apa pun**. `user_roles.role_id` adalah `ON DELETE CASCADE`, jadi `delete from roles` akan **menghapus senyap** seluruh riwayat assignment yang merujuknya — melanggar batasan tanpa-penghapusan. Yang dipakai: role `admin` di-insert (tidak pernah di-seed), assignment lama di-*insert* jadi `admin`, baris legacy dibiarkan utuh, dan kedua role lama ditandai `is_assignable = false`. Baris legacy jadi mati sendiri setelah B0.2a, karena `rolePriority` berfungsi sebagai allowlist yang menyaring kode di luar union
 - [x] B1.6 Referensi string peran legacy diperbarui di `app/dashboard/profile/page.tsx` (badge disaring `isActiveRoleCode`), `features/lms/components/LessonComments.tsx` (`isMentorOrAdmin` + `getRoleBadge`; komponen ini terbukti **tidak pernah dirender** di repo — diperbaiki defensif saja), `features/lms/actions.ts`, `features/tasks/actions.ts`, `app/dashboard/intern/certificate/print/page.tsx`, `features/auth/guards.ts`, dan ketiga layout. `features/auth/edit-profile-action.ts` **tidak perlu diubah**: satu-satunya kemunculan "mentor" di sana adalah `getMentorProfileId` / `mentor_profiles`, yaitu identifier domain.
 
-      Identifier domain `mentor_profiles`/`mentor_assignments`/`mentor_id`, href `/dashboard/mentor/*`, dan teks "pembimbing" **tidak diubah** sesuai Keputusan Kebijakan. Yang tersisa dan memang dibiarkan: `features/tasks/ChecklistItem.tsx:15` (`segments.includes("mentor")` — itu segmen URL, bukan peran), komentar di `features/auth/scope.ts:23` dan `app/dashboard/school/reports/generate/download/route.ts:24`, serta dua titik provisioning di B0.2a
+      Identifier domain `mentor_profiles`/`mentor_assignments`/`mentor_id`, href `/dashboard/admin/*`, dan teks "pembimbing" **tidak diubah** sesuai Keputusan Kebijakan. Yang tersisa dan memang dibiarkan: `features/tasks/ChecklistItem.tsx:15` (`segments.includes("mentor")` — itu segmen URL, bukan peran), komentar di `features/auth/scope.ts:23` dan `app/dashboard/school/reports/generate/download/route.ts:24`, serta dua titik provisioning di B0.2a
 - [x] B1.7 `0027_super_admin_role.sql` sudah ter-track (H-9). **Status penerapan ke DB produksi belum dikonfirmasi**
 
 ## Batch 2 — Tutup lubang otorisasi terbukti (C-2, C-3, C-4)
 
 - [x] B2.1 Auto-insert `mentor_profiles` di `getMentorProfileId()` dihapus — eskalasi hak (C-2)
-- [x] B2.2 Guard role + scope pada `app/dashboard/mentor/attendance/export/route.ts` (C-3)
+- [x] B2.2 Guard role + scope pada `app/dashboard/admin/attendance/export/route.ts` (C-3)
 - [x] B2.3 Netralkan CSV formula injection di kedua jalur ekspor (`lib/csv.ts`) (H-10)
 - [x] B2.4 Otorisasi-sebelum-fetch di semua halaman super-admin
 - [x] B2.5 `select("*")` diganti kolom eksplisit di halaman super-admin (C-4)
@@ -508,14 +508,14 @@ security` tanpa syarat, `drop policy if exists` dengan nama persis sebelum setia
   - **`hourCycle: "h23"` wajib, dan ini diverifikasi empiris, bukan diasumsikan.** Tanpa opsi itu `Intl.DateTimeFormat("en-CA", …)` memakai siklus 12 jam: 00:30 Jakarta terformat `"12:30 a.m."`, jadi `Number(hourPart)` = 12 dan menitnya jadi 750 alih-alih 30 — salah 12 jam, senyap.
   - **`formatToParts` MELEMPAR `RangeError` untuk `Date` invalid** (diverifikasi), bukan mengembalikan bagian bernilai "NaN". Tanpa penjaga `Number.isNaN(getTime())`, satu timestamp rusak akan menggagalkan seluruh render halaman atau unduhan CSV, bukan satu baris.
   - **Bug kedua yang ketemu sambil jalan: tidak ada peserta yang pernah terhitung telat.** `check_in_time` diparse dengan `split(":").map(Number)` di dua titik; isi kolom yang rusak menghasilkan `NaN`, dan setiap perbandingan telat terhadap `NaN` bernilai false — jumlah telat terbaca nol tanpa satu pun error muncul. Sekarang lewat `parseWallClockMinutes()` dengan default 08:00 yang eksplisit.
-  - 4 salinan helper tanggal Jakarta dikonsolidasi ke `jakartaDateString()` (`features/attendance/actions.ts`, `features/attendance/queries.ts`, `features/auth/scope.ts`, `app/dashboard/mentor/attendance/page.tsx`).
+  - 4 salinan helper tanggal Jakarta dikonsolidasi ke `jakartaDateString()` (`features/attendance/actions.ts`, `features/attendance/queries.ts`, `features/auth/scope.ts`, `app/dashboard/admin/attendance/page.tsx`).
 - [x] B5.7 Koordinat/radius geofence default di-hardcode di `features/attendance/actions.ts` (`-7.9671`/`112.6375`); `||` → `??`; tangani update nol baris (M-1, M-2)
   - **Tiga bug berbeda, bukan satu.** (1) Koordinat Malang sebagai fallback `||` berarti kolom `null` **memindahkan** geofence, bukan menonaktifkannya — setiap peserta dinilai di luar radius lalu dipaksa mengunggah alasan + bukti. (2) `radius_meters || 100` menimpa radius `0` yang sah ("tepat di kantor"). (3) Baris settings yang hilang tidak bisa dibedakan dari geofence yang sengaja dimatikan.
   - `resolveGeofence()` mengembalikan union `disabled | misconfigured | active`. `misconfigured` **menolak** absensi, bukan melewati pemeriksaan: melewatinya berarti geofence mati tanpa terlihat dan bisa mati berbulan-bulan. `Number.isFinite`, bukan cuma cek null — `double precision` Postgres bisa mengembalikan `NaN`, dan `NaN` lolos setiap perbandingan jarak sebagai false.
   - `attendanceSettingsSchema` baru memvalidasi tulis: koordinat nullable, `radiusMeters` int ≥ 0, dan `.refine()` memblokir "geofencing aktif tapi koordinat kosong" di titik tulis.
   - **`toOptionalNumber`, bukan `parseFloat`** — diverifikasi: `parseFloat("12abc")` = `12` (memotong sampah, menyimpan koordinat salah ketik sebagai angka yang terlihat sah), sedangkan `Number("")` = `0` bukan `NaN`, jadi isian kosong harus dipetakan ke `null` lebih dulu — kalau tidak, mengosongkan latitude menyimpan `0,0` (Teluk Guinea).
   - **M-2 ditutup:** upsert yang tidak mengenai satu baris pun mengembalikan `error: null`, jadi RLS yang menolak tulis tampil ke admin sebagai penyimpanan berhasil. Sekarang `.select("id")` + pemeriksaan nol baris.
-  - **Prefill Malang di form ikut dihapus** (`app/dashboard/mentor/attendance/page.tsx`) — tanpa itu, lubang `||` yang baru dicabut dari action masuk kembali lewat UI: admin melihat kotak terisi, menyimpan, dan geofence terpasang di Malang tanpa pernah dipilih. `required` ikut dilepas karena kolomnya nullable; batas rentang ditegakkan di schema, bukan di atribut HTML.
+  - **Prefill Malang di form ikut dihapus** (`app/dashboard/admin/attendance/page.tsx`) — tanpa itu, lubang `||` yang baru dicabut dari action masuk kembali lewat UI: admin melihat kotak terisi, menyimpan, dan geofence terpasang di Malang tanpa pernah dipilih. `required` ikut dilepas karena kolomnya nullable; batas rentang ditegakkan di schema, bukan di atribut HTML.
   - UUID `attendance_settings` yang diduplikasi di **tujuh** tempat dikonsolidasi ke `ATTENDANCE_SETTINGS_ID`. Salah ketik di sana menghasilkan `maybeSingle()` = null, yang tidak melempar error — ia hanya berarti "pakai default", jadi salah ketiknya muncul sebagai geofence mati atau jam kerja berubah, bukan sebagai kegagalan.
 - [x] B5.8 Cleanup MediaStream saat unmount `LiveCameraInput` (M-4) — `features/attendance/LiveCameraInput.tsx`
   - **Lubang aslinya:** komponen hanya mengimpor `useRef, useState`. Tidak ada `useEffect` sama sekali, jadi tidak ada satu pun jalur yang menghentikan track video saat komponen dilepas. Berpindah halaman selagi kamera aktif meninggalkan lampu kamera menyala dan perangkat terpakai sampai tab ditutup. `<LiveCameraInput />` dirender tanpa syarat di `CheckInForm.tsx:77` dan `CheckOutForm.tsx:36`, jadi setiap peserta yang membuka form absensi lalu pergi tanpa mengambil foto meninggalkan satu stream hidup.
@@ -884,7 +884,7 @@ Ditemukan pada re-audit yang sama, dicatat supaya tidak hilang:
   - **Cacat nyata yang ditemukan lewat test ini: `parseWallClockMinutes` MELEMPAR
     `TypeError` untuk masukan non-string.** Bentuknya cuma `if (!value) return null`
     lalu `value.trim()`. Kedua pemanggilnya menyalurkan `settings?.check_in_time`
-    langsung dari Supabase (`app/dashboard/mentor/attendance/page.tsx:123` dan
+    langsung dari Supabase (`app/dashboard/admin/attendance/page.tsx:123` dan
     `.../export/route.ts:156`), jadi satu nilai bertipe lain merobohkan **seluruh
     render halaman absensi** dan **route unduh CSV** — bukan satu baris. Fungsi ini ada
     justru untuk menahan data rusak, jadi ia tidak boleh ikut runtuh. Diperbaiki:

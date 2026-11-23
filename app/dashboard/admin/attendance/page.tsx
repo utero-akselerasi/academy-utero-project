@@ -13,7 +13,7 @@ import { jakartaDateString, jakartaMinutesOfDay, parseWallClockMinutes } from "@
 import Link from "next/link";
 import { RouteModal } from "@/components/ui/route-modal";
 import { Clock, Settings, User, CheckCircle, AlertTriangle, Play, HelpCircle, MapPin, Eye, Download } from "lucide-react";
-import { localMentorAttendanceDashboard } from "@/features/attendance/local";
+import { localAdminAttendanceDashboard } from "@/features/attendance/local";
 import { parseAttendanceCoordinates } from "@/features/attendance/coordinates";
 
 type Props = {
@@ -29,12 +29,12 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date(value));
 }
 
-export default async function MentorAttendancePage({ searchParams }: Props) {
+export default async function AdminAttendancePage({ searchParams }: Props) {
   const { detailInternId, showSettings, date: filterDate } = await searchParams;
 
   await requireAdmin();
 
-  const dashboard = await localMentorAttendanceDashboard();
+  const dashboard = await localAdminAttendanceDashboard();
   const settings: any = dashboard.settings;
   const interns: any[] = dashboard.interns;
   const attendances: any[] = dashboard.attendances;
@@ -45,7 +45,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
     return (
       <main className="w-full px-3 py-4 sm:px-4 sm:py-5">
         <div className="surface p-6 text-sm font-semibold text-red-700">
-          Profil pembimbing belum ditemukan. Hubungi super admin untuk setup profil.
+          Akun admin tidak memiliki akses ke halaman ini.
         </div>
       </main>
     );
@@ -230,10 +230,10 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {/* Filter Tanggal */}
-          <DatePickerFilter actionUrl="/dashboard/mentor/attendance" defaultValue={filterDate || ""} detailInternId={detailInternId} showSettings={showSettings} />
+          <DatePickerFilter actionUrl="/dashboard/admin/attendance" defaultValue={filterDate || ""} detailInternId={detailInternId} showSettings={showSettings} />
 
           <Link
-            href={showSettings ? "/dashboard/mentor/attendance" : "/dashboard/mentor/attendance?showSettings=true"}
+            href={showSettings ? "/dashboard/admin/attendance" : "/dashboard/admin/attendance?showSettings=true"}
             className="button-secondary text-xs font-bold py-2 px-3 min-h-0 flex items-center gap-1.5 border border-slate-200"
           >
             <Settings size={14} />
@@ -261,7 +261,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
               Label yang tidak terhubung tidak diumumkan saat kontrolnya difokus —
               pembaca layar menyebut "edit text, blank" — dan mengkliknya tidak
               memindahkan fokus ke kontrolnya. */}
-          <form action="/dashboard/mentor/attendance/export" method="get" className="grid gap-3 md:grid-cols-5 md:items-end">
+          <form action="/dashboard/admin/attendance/export" method="get" className="grid gap-3 md:grid-cols-5 md:items-end">
             <div className="form-field">
               <label className="form-label text-xs font-bold text-slate-700" htmlFor="exportMode">Mode Export</label>
               <select id="exportMode" name="mode" defaultValue="monthly" className="form-input text-xs">
@@ -455,7 +455,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
                 </div>
 
                 <Link
-                  href={`/dashboard/mentor/attendance?detailInternId=${intern.id}`}
+                  href={`/dashboard/admin/attendance?detailInternId=${intern.id}`}
                   className="button-secondary text-[10px] sm:text-xs w-full py-1 sm:py-1.5 min-h-0 font-bold flex items-center justify-center gap-1 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300"
                 >
                   <Eye size={12} />
@@ -471,7 +471,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
 
           Dialog terakhir dari sebelas yang ditemukan audit (temuan #2). Ia
           dikendalikan URL, bukan state: dibuka lewat `?detailInternId=`, dan
-          ditutup dengan kembali ke `/dashboard/mentor/attendance`.
+          ditutup dengan kembali ke `/dashboard/admin/attendance`.
 
           Halaman ini server component, jadi ia tidak bisa menyerahkan `onClose`
           ke `Modal` — closure tidak melintasi batas server/klien. `RouteModal`
@@ -480,7 +480,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
           menyembunyikan panel selagi URL-nya masih menunjuk ke dialog terbuka. */}
       {selectedIntern && (
         <RouteModal
-          closeHref="/dashboard/mentor/attendance"
+          closeHref="/dashboard/admin/attendance"
           title={`Detail absensi ${selectedIntern.full_name}`}
           hideTitle
           closeLabel="Tutup detail absensi"
@@ -699,7 +699,7 @@ export default async function MentorAttendancePage({ searchParams }: Props) {
             {/* Footer Modal */}
             <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex justify-end">
               <Link
-                href="/dashboard/mentor/attendance"
+                href="/dashboard/admin/attendance"
                 className="button-secondary text-sm font-semibold"
               >
                 Tutup

@@ -175,7 +175,7 @@ export function KanbanBoard({ board, interns, boardId, userProfiles }: Props) {
                   >
                     <Link
                       href={
-                        "/dashboard/mentor/tasks/" +
+                        "/dashboard/admin/tasks/" +
                         boardId +
                         "?view=kanban&detailCardId=" +
                         card.id

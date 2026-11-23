@@ -296,8 +296,8 @@ Priority 2 fokus pada peningkatan **user engagement** dan **learning experience*
 - `/dashboard/intern/bookmarks` - All bookmarks page
 
 **Mentor Dashboard:**
-- `/dashboard/mentor/lms/[courseId]` - Create announcement
-- `/dashboard/mentor/lms/[courseId]/quizzes/[quizId]/edit` - Set max_attempts & retry_delay
+- `/dashboard/admin/lms/[courseId]` - Create announcement
+- `/dashboard/admin/lms/[courseId]/quizzes/[quizId]/edit` - Set max_attempts & retry_delay
 
 ---
 

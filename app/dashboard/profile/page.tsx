@@ -1,5 +1,5 @@
 import { createUteroAcademyClient } from "@/lib/supabase/server";
-import { getInternProfileId, getMentorProfileId } from "@/features/daily-reports/queries";
+import { getInternProfileId } from "@/features/daily-reports/queries";
 import { requireUser } from "@/features/auth/guards";
 import { isActiveRoleCode } from "@/features/auth/roles";
 import { resolveStorageUrl } from "@/lib/storage-urls";
@@ -23,32 +23,24 @@ export default async function EditProfilePage({ searchParams }: { searchParams: 
   const { internAccess } = await searchParams;
   let userProfile: any = null;
   let internProfile: InternProfileData | null = null;
-  let mentorProfile: any = null;
   let roles: Array<{ code: string; name: string }> = [];
   if (usesLocalBackend()) {
     const response = await backendRequest("/v1/profile");
     if (response.ok) {
-      const data = await response.json() as { profile: any; internProfile: InternProfileData | null; mentorProfile: any; roles: Array<{ code: string; name: string }> };
+      const data = await response.json() as { profile: any; internProfile: InternProfileData | null; roles: Array<{ code: string; name: string }> };
       userProfile = data.profile;
       internProfile = data.internProfile;
-      mentorProfile = data.mentorProfile;
       roles = data.roles.filter((role) => isActiveRoleCode(role.code));
     }
   } else {
     const db = await createUteroAcademyClient();
     const { data: profile } = await db.from("user_profiles").select("*").eq("id", user.id).maybeSingle();
     userProfile = profile;
-    const internId = await getInternProfileId(user.id);
-    const mentorId = await getMentorProfileId(user.id);
-    if (internId) {
+    const internId = await getInternProfileId(user.id);    if (internId) {
       const { data } = await db.from("intern_profiles")
         .select("id, full_name, phone, major, grade_or_semester, school_name, address, school_supervisor_name, school_supervisor_phone, emergency_contact_name, emergency_contact_phone, schools(name)")
         .eq("id", internId).returns<InternProfileData>().maybeSingle();
       internProfile = data;
-    }
-    if (mentorId) {
-      const { data } = await db.from("mentor_profiles").select("*").eq("id", mentorId).maybeSingle();
-      mentorProfile = data;
     }
     const { data: userRoles } = await db.from("user_roles").select("roles(code, name)").eq("user_id", user.id).returns<any[]>();
     roles = (userRoles || []).map((ur) => (Array.isArray(ur.roles) ? ur.roles[0] : ur.roles))
@@ -154,7 +146,7 @@ export default async function EditProfilePage({ searchParams }: { searchParams: 
           <p className="mt-4 border-t border-slate-200 pt-3 text-xs leading-5 text-slate-600">Foto dan perubahan data muncul setelah profil disimpan.</p>
         </div>
         <div>
-          <ProfileFormWrapper userProfile={userProfile} internProfile={internProfile} mentorProfile={mentorProfile} email={user.email ?? ""} />
+          <ProfileFormWrapper userProfile={userProfile} internProfile={internProfile} email={user.email ?? ""} />
         </div>
       </div>
     </main>

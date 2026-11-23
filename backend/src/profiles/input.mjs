@@ -16,12 +16,10 @@ function text(value, maximum, required = false) {
 export function parseGeneralProfile(body) {
   const fullName = text(body?.fullName, 150, true);
   const phoneValue = text(body?.phone, 25);
-  const headline = text(body?.headline, 150);
-  const bio = text(body?.bio, 2000);
-  if (fullName === undefined || phoneValue === undefined || headline === undefined || bio === undefined) return null;
+  if (fullName === undefined || phoneValue === undefined) return null;
   const phoneNumber = phoneValue ? phone(phoneValue) : null;
   if (phoneNumber === undefined) return null;
-  return { fullName, phone: phoneNumber, headline, bio, avatarPath: text(body?.avatarPath, 500) };
+  return { fullName, phone: phoneNumber, avatarPath: text(body?.avatarPath, 500) };
 }
 
 export function parseInternProfile(body) {

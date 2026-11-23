@@ -219,7 +219,7 @@ describe("parseWallClockMinutes — kolom teks, bukan instan", () => {
   it("menolak masukan bukan string TANPA MELEMPAR — cacat yang ketemu lewat test ini", () => {
     // Bentuk sebelumnya cuma `if (!value) return null`, lalu `value.trim()`.
     // Untuk nilai non-string yang truthy itu melempar `TypeError`, dan karena
-    // kedua pemanggil (`app/dashboard/mentor/attendance/page.tsx:123` dan
+    // kedua pemanggil (`app/dashboard/admin/attendance/page.tsx:123` dan
     // `.../export/route.ts:156`) menyalurkan `settings?.check_in_time` langsung
     // dari Supabase, yang runtuh adalah SELURUH halaman absensi dan route unduh
     // CSV — bukan satu baris. Fungsi ini ada untuk menahan data rusak, jadi ia

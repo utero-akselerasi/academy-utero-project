@@ -88,6 +88,6 @@ Semua user login dari satu halaman. Setelah login, redirect ditentukan oleh prim
 
 - `super_admin` -> `/dashboard/super-admin`
 - `admin_academy` -> `/dashboard/admin`
-- `mentor` -> `/dashboard/mentor`
+- `mentor` -> `/dashboard/admin`
 - `school` -> `/dashboard/school`
 - `intern` -> `/dashboard/intern`

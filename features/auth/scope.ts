@@ -1,7 +1,3 @@
-import { getMentorProfileId } from "@/features/daily-reports/queries";
-import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
-import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
-import { jakartaDateString } from "@/lib/time";
 import { getUserRoleCodes } from "./roles";
 
 export type InternScope =
@@ -12,45 +8,15 @@ export type InternScope =
 /**
  * Tentukan intern mana yang boleh dilihat user staff.
  *
- * - `super_admin` → global.
- * - `admin` (termasuk legacy `admin_academy`) → hanya intern dengan
- *   `mentor_assignments` yang masih aktif. Tidak ada fallback global: admin
- *   tanpa assignment mendapat daftar kosong, bukan seluruh intern.
+ * Admin dan super admin mengelola seluruh peserta magang.
  *
  * Pemanggil WAJIB sudah memverifikasi role lewat guard sebelum memakai ini.
  */
 export async function resolveStaffInternScope(userId: string): Promise<InternScope> {
   const roles = await getUserRoleCodes(userId);
 
-  if (roles.includes("super_admin")) {
+  if (roles.includes("super_admin") || roles.includes("admin")) {
     return { kind: "global" };
   }
-
-  if (usesLocalBackend()) {
-    const response = await backendRequest("/v1/profile/staff-scope");
-    if (!response.ok) return { kind: "scoped", internIds: [] };
-    return response.json() as Promise<InternScope>;
-  }
-
-  const mentorProfileId = await getMentorProfileId(userId);
-  if (!mentorProfileId) {
-    return { kind: "setup_required" };
-  }
-
-  const today = jakartaDateString();
-  const db = await createUteroAcademyServiceRoleClient();
-  const { data, error } = await db
-    .from("mentor_assignments")
-    .select("intern_id")
-    .eq("mentor_id", mentorProfileId)
-    .lte("started_at", today)
-    .or(`ended_at.is.null,ended_at.gte.${today}`);
-
-  if (error) {
-    console.error("Gagal membaca mentor_assignments:", error);
-    return { kind: "scoped", internIds: [] };
-  }
-
-  const internIds = Array.from(new Set((data ?? []).map((row) => row.intern_id as string)));
-  return { kind: "scoped", internIds };
+  return { kind: "setup_required" };
 }

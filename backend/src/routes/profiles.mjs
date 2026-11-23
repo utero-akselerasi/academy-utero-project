@@ -8,7 +8,7 @@ export async function profileRoutes(app, options) {
     const identity = requireIdentity(request, reply);
     if (!identity) return;
     const result = await db.transaction(identity, async (client) => {
-      const [profile, intern, mentor, roles, convertedApplication] = await Promise.all([
+      const [profile, intern, roles, convertedApplication] = await Promise.all([
         client.query("select * from utero_academy.user_profiles where id = $1", [identity.id]),
         client.query(
           `select id, full_name, phone, major, grade_or_semester, school_name,
@@ -17,9 +17,7 @@ export async function profileRoutes(app, options) {
                   emergency_contact_name, emergency_contact_phone
            from utero_academy.intern_profiles where user_id = $1`,
           [identity.id],
-        ),
-        client.query("select * from utero_academy.mentor_profiles where user_id = $1", [identity.id]),
-        client.query(
+        ),        client.query(
           `select r.code, r.name from utero_academy.user_roles ur
            join utero_academy.roles r on r.id = ur.role_id
            where ur.user_id = $1 and r.is_assignable
@@ -29,7 +27,7 @@ export async function profileRoutes(app, options) {
         ),
         client.query("select utero_academy.has_converted_application() as converted"),
       ]);
-      return { profile: profile.rows[0], internProfile: intern.rows[0] || null, mentorProfile: mentor.rows[0] || null, roles: roles.rows,
+      return { profile: profile.rows[0], internProfile: intern.rows[0] || null, roles: roles.rows,
         convertedApplication: Boolean(convertedApplication.rows[0]?.converted) };
     });
     if (!result.profile) return reply.code(404).send({ error: "profile_not_found" });
@@ -37,30 +35,18 @@ export async function profileRoutes(app, options) {
   });
 
   app.get("/v1/profile/staff-scope", async (request, reply) => {
-    const identity = requirePermission(request, reply, ["interns.read"]);
+    const identity = requireIdentity(request, reply);
     if (!identity) return;
-    if (identity.roles.includes("super_admin")) return { kind: "global" };
-    return db.transaction(identity, async (client) => {
-      const mentor = await client.query("select id from utero_academy.mentor_profiles where user_id = $1", [identity.id]);
-      if (!mentor.rows[0]) return { kind: "setup_required" };
-      const assignments = await client.query(
-        `select distinct intern_id from utero_academy.mentor_assignments
-         where mentor_id = $1 and started_at <= (now() at time zone 'Asia/Jakarta')::date
-           and (ended_at is null or ended_at >= (now() at time zone 'Asia/Jakarta')::date)`,
-        [mentor.rows[0].id],
-      );
-      return { kind: "scoped", internIds: assignments.rows.map((row) => row.intern_id) };
-    });
+    return identity.roles.includes("admin") || identity.roles.includes("super_admin")
+      ? { kind: "global" }
+      : reply.code(403).send({ error: "forbidden" });
   });
 
   app.patch("/v1/profile", async (request, reply) => {
     const identity = requireIdentity(request, reply);
     if (!identity) return;
     const updated = await db.transaction(identity, async (client) => {
-      const [internResult, mentorResult] = await Promise.all([
-        client.query("select id from utero_academy.intern_profiles where user_id = $1", [identity.id]),
-        client.query("select id from utero_academy.mentor_profiles where user_id = $1", [identity.id]),
-      ]);
+      const internResult = await client.query("select id from utero_academy.intern_profiles where user_id = $1", [identity.id]);
       if (internResult.rows[0]) {
         const profile = parseInternProfile(request.body);
         if (!profile) return false;
@@ -80,12 +66,7 @@ export async function profileRoutes(app, options) {
          where id = $1`,
         [identity.id, profile.fullName, profile.phone, profile.avatarPath],
       );
-      if (mentorResult.rows[0]) {
-        await client.query(
-          "update utero_academy.mentor_profiles set headline = $2, bio = $3, updated_at = now() where id = $1",
-          [mentorResult.rows[0].id, profile.headline, profile.bio],
-        );
-      }
+
       return true;
     });
     if (!updated) return reply.code(400).send({ error: "invalid_profile" });

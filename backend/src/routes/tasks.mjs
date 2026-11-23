@@ -1,10 +1,10 @@
-import { requireIdentity, requirePermission } from "../auth/identity.mjs";
+import { requireIdentity } from "../auth/identity.mjs";
 import { canManageTasks, cardAccess, internProfile, sendAccessError, validId } from "../tasks/access.mjs";
 
 const text = (value, max = 2000) => typeof value === "string" && value.trim() && value.trim().length <= max ? value.trim() : null;
 
 function staff(request, reply) {
-  const identity = requirePermission(request, reply, ["tasks.manage"]);
+  const identity = requireIdentity(request, reply);
   if (!identity) return null;
   if (!canManageTasks(identity)) { reply.code(403).send({ error: "forbidden" }); return null; }
   return identity;
@@ -27,7 +27,7 @@ export async function tasksRoutes(app, { db }) {
     return db.transaction(identity, async (client) => {
       const board = await client.query("select owner_id from utero_academy.task_boards where id=$1 for update", [request.params.id]);
       if (!board.rowCount) return reply.code(404).send({ error: "board_not_found" });
-      if (!identity.roles.includes("super_admin") && board.rows[0].owner_id !== identity.id) return reply.code(403).send({ error: "forbidden" });
+      if (!canManageTasks(identity) && board.rows[0].owner_id !== identity.id) return reply.code(403).send({ error: "forbidden" });
       const cards = await client.query(`select c.id from utero_academy.task_cards c join utero_academy.task_lists l on l.id=c.list_id where l.board_id=$1 for update of c`, [request.params.id]);
       for (const card of cards.rows) { const access=await cardAccess(client,identity,card.id); if(access.error)return sendAccessError(reply,access.error); }
       await client.query("delete from utero_academy.task_boards where id=$1", [request.params.id]);
@@ -66,8 +66,7 @@ export async function tasksRoutes(app, { db }) {
     if (!validId(listId) || !title || (internId && !validId(internId))) return reply.code(400).send({ error: "invalid_card" });
     const result = await db.transaction(identity, async (client) => {
       if (internId) {
-        const mentor = identity.roles.includes("super_admin") ? { rowCount: 1 } : await client.query(`select 1 from utero_academy.mentor_profiles m join utero_academy.mentor_assignments a on a.mentor_id=m.id where m.user_id=$1 and a.intern_id=$2`, [identity.id, internId]);
-        if (!mentor.rowCount) return { scopeError: true };
+        if (!canManageTasks(identity)) return { scopeError: true };
       }
       const list = await client.query("select 1 from utero_academy.task_lists where id=$1", [listId]);
       if (!list.rowCount) return { missing: true };
@@ -91,10 +90,7 @@ export async function tasksRoutes(app, { db }) {
       const access = await cardAccess(client, identity, request.params.id); if (access.error) return sendAccessError(reply, access.error);
       const internId = request.body?.internId;
       if (internId && !validId(internId)) return reply.code(400).send({ error: "invalid_intern_id" });
-      if (internId && !identity.roles.includes("super_admin")) {
-        const allowed = await client.query(`select 1 from utero_academy.mentor_profiles m join utero_academy.mentor_assignments a on a.mentor_id=m.id where m.user_id=$1 and a.intern_id=$2`, [identity.id, internId]);
-        if (!allowed.rowCount) return reply.code(403).send({ error: "intern_out_of_scope" });
-      }
+      if (internId && !canManageTasks(identity)) return reply.code(403).send({ error: "intern_out_of_scope" });
       let orderIndex=request.body?.orderIndex??null;
       if (request.body?.listId) {
         const list=await client.query("select 1 from utero_academy.task_lists where id=$1 and board_id=$2",[request.body.listId,access.card.board_id]);
@@ -114,7 +110,7 @@ export async function tasksRoutes(app, { db }) {
 
   app.post("/v1/tasks/cards/:id/attachments", async (request, reply) => {
     const identity=requireIdentity(request,reply); if(!identity)return;
-    if(!identity.permissions.includes("tasks.manage")&&!identity.permissions.includes("tasks.submit"))return reply.code(403).send({error:"forbidden"});
+    if(!canManageTasks(identity)&&!identity.permissions.includes("tasks.submit"))return reply.code(403).send({error:"forbidden"});
     if(!validId(request.params.id))return reply.code(400).send({error:"invalid_card_id"});
     const path=text(request.body?.path,1000), name=text(request.body?.name,300);
     if(!path||!name||!path.startsWith(`${request.params.id}/`))return reply.code(400).send({error:"invalid_attachment"});
@@ -129,14 +125,14 @@ export async function tasksRoutes(app, { db }) {
 
   for (const [kind, table] of [["checklists","task_checklists"],["subtasks","task_subtasks"]]) {
     app.post(`/v1/tasks/cards/:id/${kind}`, async (request, reply) => {
-      const identity=requireIdentity(request,reply); if(!identity)return; if(!identity.permissions.includes("tasks.manage") && !identity.permissions.includes("tasks.submit"))return reply.code(403).send({error:"forbidden"}); if(!validId(request.params.id))return reply.code(400).send({error:"invalid_card_id"}); const title=text(request.body?.title,300); if(!title)return reply.code(400).send({error:"invalid_title"});
+      const identity=requireIdentity(request,reply); if(!identity)return; if(!canManageTasks(identity) && !identity.permissions.includes("tasks.submit"))return reply.code(403).send({error:"forbidden"}); if(!validId(request.params.id))return reply.code(400).send({error:"invalid_card_id"}); const title=text(request.body?.title,300); if(!title)return reply.code(400).send({error:"invalid_title"});
       return db.transaction(identity,async(client)=>{const access=await cardAccess(client,identity,request.params.id);if(access.error)return sendAccessError(reply,access.error);const result=await client.query(`insert into utero_academy.${table}(card_id,title,order_index) select $1,$2,coalesce(max(order_index),-1)+1 from utero_academy.${table} where card_id=$1 returning *`,[request.params.id,title]);return reply.code(201).send({item:result.rows[0]});});
     });
     app.patch(`/v1/tasks/${kind}/:id`, async (request,reply)=>{const identity=requireIdentity(request,reply);if(!identity)return;if(!validId(request.params.id))return reply.code(400).send({error:"invalid_id"});return db.transaction(identity,async(client)=>{const row=await client.query(`select card_id from utero_academy.${table} where id=$1`,[request.params.id]);if(!row.rowCount)return reply.code(404).send({error:"not_found"});const access=await cardAccess(client,identity,row.rows[0].card_id);if(access.error)return sendAccessError(reply,access.error);await client.query(`update utero_academy.${table} set is_done=$2,updated_at=now() where id=$1`,[request.params.id,Boolean(request.body?.isDone)]);return reply.code(204).send();});});
     app.delete(`/v1/tasks/${kind}/:id`,async(request,reply)=>{const identity=requireIdentity(request,reply);if(!identity)return;if(!validId(request.params.id))return reply.code(400).send({error:"invalid_id"});return db.transaction(identity,async(client)=>{const row=await client.query(`select card_id from utero_academy.${table} where id=$1`,[request.params.id]);if(!row.rowCount)return reply.code(404).send({error:"not_found"});const access=await cardAccess(client,identity,row.rows[0].card_id);if(access.error)return sendAccessError(reply,access.error);await client.query(`delete from utero_academy.${table} where id=$1`,[request.params.id]);return reply.code(204).send();});});
   }
   app.get("/v1/tasks/boards", async (request, reply) => {
-    const identity = requirePermission(request, reply, ["tasks.manage"]);
+    const identity = requireIdentity(request, reply);
     if (!identity || !canManageTasks(identity)) return identity && reply.code(403).send({ error: "forbidden" });
     const result = await db.transaction(identity, (client) => client.query(
       `select b.id, b.name, b.description, b.owner_id, b.created_at, b.updated_at,
@@ -149,21 +145,11 @@ export async function tasksRoutes(app, { db }) {
   });
 
   app.get("/v1/tasks/monitor", async (request, reply) => {
-    const identity = requirePermission(request, reply, ["tasks.manage"]);
+    const identity = requireIdentity(request, reply);
     if (!identity || !canManageTasks(identity)) return identity && reply.code(403).send({ error: "forbidden" });
     const cards = await db.transaction(identity, async (client) => {
       const values = [];
-      let scope = "";
-      if (!identity.roles.includes("super_admin")) {
-        values.push(identity.id);
-        scope = `and (c.intern_id is null or exists(
-          select 1 from utero_academy.mentor_profiles mp
-          join utero_academy.mentor_assignments ma on ma.mentor_id = mp.id
-          where mp.user_id = $1 and ma.intern_id = c.intern_id
-            and ma.started_at <= (now() at time zone 'Asia/Jakarta')::date
-            and (ma.ended_at is null or ma.ended_at >= (now() at time zone 'Asia/Jakarta')::date)
-        ))`;
-      }
+      const scope = "";
       const result = await client.query(
         `select c.id,c.title,c.description,c.priority,c.due_at,c.created_by,c.intern_id,c.list_id,
           l.board_id,l.name as list_name,b.name as board_name,
@@ -182,27 +168,21 @@ export async function tasksRoutes(app, { db }) {
   });
 
   app.get("/v1/tasks/boards/:id", async (request, reply) => {
-    const identity = requirePermission(request, reply, ["tasks.manage"]);
+    const identity = requireIdentity(request, reply);
     if (!identity || !canManageTasks(identity)) return identity && reply.code(403).send({ error: "forbidden" });
     if (!validId(request.params.id)) return reply.code(400).send({ error: "invalid_board_id" });
     const board = await db.transaction(identity, async (client) => {
       const boards = await client.query("select * from utero_academy.task_boards where id = $1", [request.params.id]);
       if (!boards.rows[0]) return null;
       const lists = await client.query("select * from utero_academy.task_lists where board_id = $1 order by order_index", [request.params.id]);
-      const scoped = identity.roles.includes("super_admin") ? "" : `and (c.intern_id is null or exists(
-        select 1 from utero_academy.mentor_profiles mp
-        join utero_academy.mentor_assignments ma on ma.mentor_id=mp.id
-        where mp.user_id=$2 and ma.intern_id=c.intern_id
-          and ma.started_at <= (now() at time zone 'Asia/Jakarta')::date
-          and (ma.ended_at is null or ma.ended_at >= (now() at time zone 'Asia/Jakarta')::date)
-      ))`;
+      const scoped = "";
       const cards = await client.query(
         `select c.*,coalesce(ip.full_name,'Belum ditugaskan') intern_name,coalesce(up.full_name,'Sistem') creator_name
          from utero_academy.task_cards c join utero_academy.task_lists l on l.id = c.list_id
          left join utero_academy.intern_profiles ip on ip.id=c.intern_id
          left join utero_academy.user_profiles up on up.id=c.created_by
          where l.board_id = $1 ${scoped} order by c.order_index`,
-        identity.roles.includes("super_admin") ? [request.params.id] : [request.params.id, identity.id],
+        [request.params.id],
       );
       const cardIds = cards.rows.map((card) => card.id);
       const [checklists, subtasks, attachments] = cardIds.length ? await Promise.all([
@@ -230,15 +210,15 @@ export async function tasksRoutes(app, { db }) {
   app.get("/v1/tasks/cards", async (request, reply) => {
     const identity = requireIdentity(request, reply);
     if (!identity) return;
-    if (!identity.roles.includes("intern") && !identity.roles.includes("super_admin")) return reply.code(403).send({ error: "forbidden" });
+    if (!identity.roles.includes("intern") && !canManageTasks(identity)) return reply.code(403).send({ error: "forbidden" });
     const requested = request.query?.internId;
     if (requested && !validId(requested)) return reply.code(400).send({ error: "invalid_intern_id" });
     const result = await db.transaction(identity, async (client) => {
-      const profileId = identity.roles.includes("super_admin") && requested
+      const profileId = canManageTasks(identity) && requested
         ? requested
         : await internProfile(client, identity);
       if (!profileId) return { cards: [], profileId: null };
-      if (identity.roles.includes("super_admin") && requested) {
+      if (canManageTasks(identity) && requested) {
         const exists = await client.query("select 1 from utero_academy.intern_profiles where id = $1", [profileId]);
         if (!exists.rowCount) return null;
       }

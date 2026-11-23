@@ -179,45 +179,12 @@ export async function adminRoutes(app, { db }) {
     return db.transaction(identity, async (client) => ({ id: (await client.query("select utero_academy.approve_application_onboarding($1) id", [request.params.id])).rows[0].id }));
   });
 
-  app.get("/v1/admin/placements", async (request, reply) => {
+  app.get("/v1/admin/interns", async (request, reply) => {
     const identity = admin(request, reply, "interns.read");
     if (!identity) return;
     return db.transaction(identity, async (client) => {
-      const [interns, mentors, assignments] = await Promise.all([
-        client.query("select id,full_name,email,major,status from utero_academy.intern_profiles where status='active' order by full_name"),
-        client.query(`select mp.id,coalesce(up.full_name,'Mentor') full_name from utero_academy.mentor_profiles mp
-          join utero_academy.user_roles ur on ur.user_id=mp.user_id join utero_academy.roles r on r.id=ur.role_id and r.code='admin'
-          left join utero_academy.user_profiles up on up.id=mp.user_id order by full_name`),
-        client.query(`select ma.id,ma.mentor_id,ma.intern_id,ma.started_at,ma.ended_at,
-          json_build_object('id',mp.id,'user_profiles',json_build_object('full_name',coalesce(up.full_name,'Mentor'))) mentor_profiles,
-          json_build_object('id',ip.id,'full_name',ip.full_name,'major',ip.major,'email',ip.email,'phone',ip.phone,'school_name',coalesce(s.name,ip.school_name)) intern_profiles
-          from utero_academy.mentor_assignments ma join utero_academy.mentor_profiles mp on mp.id=ma.mentor_id
-          left join utero_academy.user_profiles up on up.id=mp.user_id join utero_academy.intern_profiles ip on ip.id=ma.intern_id
-          left join utero_academy.schools s on s.id=ip.school_id order by ma.created_at desc`),
-      ]);
-      return { interns: interns.rows, mentors: mentors.rows, assignments: assignments.rows };
-    });
-  });
-
-  app.post("/v1/admin/placements", async (request, reply) => {
-    const identity = admin(request, reply, "mentors.assign");
-    if (!identity) return;
-    const { internId, mentorId } = request.body || {};
-    if (!UUID.test(internId || "") || !UUID.test(mentorId || "")) return reply.code(400).send({ error: "invalid_id" });
-    return db.transaction(identity, async (client) => {
-      const result = await client.query(`insert into utero_academy.mentor_assignments(intern_id,mentor_id,assigned_by,started_at)
-        values($1,$2,$3,(now() at time zone 'Asia/Jakarta')::date) returning id`, [internId, mentorId, identity.id]);
-      return reply.code(201).send({ id: result.rows[0].id });
-    });
-  });
-
-  app.delete("/v1/admin/placements/:id", async (request, reply) => {
-    const identity = admin(request, reply, "mentors.assign");
-    if (!identity) return;
-    if (!UUID.test(request.params.id || "")) return reply.code(400).send({ error: "invalid_id" });
-    return db.transaction(identity, async (client) => {
-      const result = await client.query("delete from utero_academy.mentor_assignments where id=$1 returning id", [request.params.id]);
-      return result.rowCount ? { id: request.params.id } : reply.code(404).send({ error: "placement_not_found" });
+      const interns = await client.query("select id,full_name,email,major,status from utero_academy.intern_profiles where status='active' order by full_name");
+      return { interns: interns.rows };
     });
   });
 }

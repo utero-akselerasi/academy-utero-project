@@ -8,7 +8,7 @@ import { Check, X, Calendar, FileText } from "lucide-react";
  * Komponen klien, jadi ia TIDAK bisa menandatangani sendiri — `resolveStorageUrl`
  * memakai kunci service role dan hanya boleh jalan di server.
  *
- * Pemanggil (`app/dashboard/mentor/attendance/page.tsx`) menandatangani lampiran
+ * Pemanggil (`app/dashboard/admin/attendance/page.tsx`) menandatangani lampiran
  * lebih dulu dan mengirimkannya lewat `attachments`, di-key per id permit.
  * `isPdf` juga ikut dikirim: keputusan itu harus diambil dari object path, karena
  * signed URL berakhir `?token=...` sehingga `.endsWith('.pdf')` pada URL final

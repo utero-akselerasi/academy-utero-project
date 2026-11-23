@@ -95,6 +95,6 @@ export async function localReview(formData: FormData): Promise<{ ok: boolean; me
     };
     return { ok: false, message: messages[payload?.error || ""] || "Review belum berhasil disimpan." };
   }
-  revalidatePath("/dashboard/mentor/daily-reports");
+  revalidatePath("/dashboard/admin/daily-reports");
   return { ok: true, message: "Review berhasil disimpan." };
 }

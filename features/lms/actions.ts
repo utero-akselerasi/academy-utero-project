@@ -54,7 +54,7 @@ export async function createLessonAction(formData: FormData) {
   const videoUrl = formData.get("videoUrl") as string;
 
   if (!courseId || !title) throw new Error("Course ID dan Judul wajib diisi.");
-  if (usesLocalBackend()) { await localLms(`/v1/lms/courses/${courseId}/lessons`,"POST",{title,content:content||"",videoUrl:videoUrl||null}); revalidatePath("/dashboard/mentor/lms/"+courseId); return; }
+  if (usesLocalBackend()) { await localLms(`/v1/lms/courses/${courseId}/lessons`,"POST",{title,content:content||"",videoUrl:videoUrl||null}); revalidatePath("/dashboard/admin/lms/"+courseId); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -81,7 +81,7 @@ export async function createLessonAction(formData: FormData) {
     throw new Error("Gagal membuat materi baru.");
   }
 
-  revalidatePath("/dashboard/mentor/lms/" + courseId);
+  revalidatePath("/dashboard/admin/lms/" + courseId);
 }
 
 export async function updateLessonAction(formData: FormData) {
@@ -93,7 +93,7 @@ export async function updateLessonAction(formData: FormData) {
   const videoUrl = formData.get("videoUrl") as string;
 
   if (!lessonId || !title) throw new Error("Lesson ID dan Judul wajib diisi.");
-  if (usesLocalBackend()) { await localLms(`/v1/lms/lessons/${lessonId}`,"PATCH",{title,content:content||"",videoUrl:videoUrl||null}); revalidatePath("/dashboard/mentor/lms/"+courseId); return; }
+  if (usesLocalBackend()) { await localLms(`/v1/lms/lessons/${lessonId}`,"PATCH",{title,content:content||"",videoUrl:videoUrl||null}); revalidatePath("/dashboard/admin/lms/"+courseId); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -112,7 +112,7 @@ export async function updateLessonAction(formData: FormData) {
     throw new Error("Gagal memperbarui materi.");
   }
 
-  revalidatePath("/dashboard/mentor/lms/" + courseId);
+  revalidatePath("/dashboard/admin/lms/" + courseId);
 }
 
 export async function deleteLessonAction(formData: FormData) {
@@ -121,7 +121,7 @@ export async function deleteLessonAction(formData: FormData) {
   const courseId = formData.get("courseId") as string;
 
   if (!lessonId) throw new Error("Lesson ID tidak valid.");
-  if (usesLocalBackend()) { await localLms(`/v1/lms/lessons/${lessonId}`,"DELETE"); revalidatePath("/dashboard/mentor/lms/"+courseId); return; }
+  if (usesLocalBackend()) { await localLms(`/v1/lms/lessons/${lessonId}`,"DELETE"); revalidatePath("/dashboard/admin/lms/"+courseId); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -135,7 +135,7 @@ export async function deleteLessonAction(formData: FormData) {
     throw new Error("Gagal menghapus materi.");
   }
 
-  revalidatePath("/dashboard/mentor/lms/" + courseId);
+  revalidatePath("/dashboard/admin/lms/" + courseId);
 }
 
 export async function toggleLessonPublishAction(formData: FormData) {
@@ -145,7 +145,7 @@ export async function toggleLessonPublishAction(formData: FormData) {
   const isPublished = formData.get("isPublished") === "true";
 
   if (!lessonId) throw new Error("Lesson ID tidak valid.");
-  if (usesLocalBackend()) { await localLms(`/v1/lms/lessons/${lessonId}`,"PATCH",{isPublished}); revalidatePath("/dashboard/mentor/lms/"+courseId); return; }
+  if (usesLocalBackend()) { await localLms(`/v1/lms/lessons/${lessonId}`,"PATCH",{isPublished}); revalidatePath("/dashboard/admin/lms/"+courseId); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -159,7 +159,7 @@ export async function toggleLessonPublishAction(formData: FormData) {
     throw new Error("Gagal mengubah status publish lesson.");
   }
 
-  revalidatePath("/dashboard/mentor/lms/" + courseId);
+  revalidatePath("/dashboard/admin/lms/" + courseId);
 }
 
 export async function uploadLessonAttachmentAction(formData: FormData) {
@@ -203,7 +203,7 @@ export async function uploadLessonAttachmentAction(formData: FormData) {
       await backendRequest(`/v1/storage/learning/${filePath.split("/").map(encodeURIComponent).join("/")}`, { method: "DELETE" });
       throw error;
     }
-    revalidatePath("/dashboard/mentor/lms/" + courseId);
+    revalidatePath("/dashboard/admin/lms/" + courseId);
     revalidatePath("/dashboard/intern/lms/" + courseId + "/lessons/" + lessonId);
     return;
   }
@@ -277,7 +277,7 @@ export async function uploadLessonAttachmentAction(formData: FormData) {
     throw new Error("Gagal menyimpan attachment.");
   }
 
-  revalidatePath("/dashboard/mentor/lms/" + courseId);
+  revalidatePath("/dashboard/admin/lms/" + courseId);
   revalidatePath("/dashboard/intern/lms/" + courseId + "/lessons/" + lessonId);
 }
 
@@ -296,7 +296,7 @@ export async function deleteLessonAttachmentAction(formData: FormData) {
       const removed = await backendRequest(`/v1/storage/learning/${result.path.split("/").map(encodeURIComponent).join("/")}`, { method: "DELETE" });
       if (!removed.ok && removed.status !== 404) throw new Error("Metadata terhapus, tetapi file attachment gagal dibersihkan.");
     }
-    revalidatePath("/dashboard/mentor/lms/" + courseId);
+    revalidatePath("/dashboard/admin/lms/" + courseId);
     revalidatePath("/dashboard/intern/lms/" + courseId + "/lessons/" + lessonId);
     return;
   }
@@ -326,7 +326,7 @@ export async function deleteLessonAttachmentAction(formData: FormData) {
     throw new Error("Gagal menghapus attachment.");
   }
 
-  revalidatePath("/dashboard/mentor/lms/" + courseId);
+  revalidatePath("/dashboard/admin/lms/" + courseId);
   revalidatePath("/dashboard/intern/lms/" + courseId + "/lessons/" + lessonId);
 }
 
@@ -573,7 +573,7 @@ export async function toggleQuizPublishAction(formData: FormData) {
 
   if (usesLocalBackend()) {
     await localLms(`/v1/lms/quizzes/${quizId}/publish`, "PATCH", { isPublished });
-    revalidatePath("/dashboard/mentor/lms/" + courseId);
+    revalidatePath("/dashboard/admin/lms/" + courseId);
     return;
   }
 
@@ -589,7 +589,7 @@ export async function toggleQuizPublishAction(formData: FormData) {
     throw new Error("Gagal mengubah status publish quiz.");
   }
 
-  revalidatePath("/dashboard/mentor/lms/" + courseId);
+  revalidatePath("/dashboard/admin/lms/" + courseId);
 }
 
 // ===== ASSIGNMENT ACTIONS =====
@@ -741,13 +741,13 @@ export async function gradeAssignmentAction(formData: FormData) {
   }
   if (usesLocalBackend()) {
     await localLms(`/v1/lms/submissions/${submissionId}/grade`, "PATCH", { score, feedback });
-    revalidatePath("/dashboard/mentor/lms");
+    revalidatePath("/dashboard/admin/lms");
     return;
   }
 
   const db = await createUteroAcademyServiceRoleClient();
 
-  // Admin hanya boleh menilai peserta yang dibimbingnya; super_admin bebas.
+  // Admin dapat menilai seluruh peserta magang.
   const { data: submission, error: submissionError } = await db
     .from("assignment_submissions")
     .select("id, intern_id")
@@ -762,10 +762,10 @@ export async function gradeAssignmentAction(formData: FormData) {
 
   const scope = await resolveStaffInternScope(user.id);
   if (scope.kind === "setup_required") {
-    throw new Error("Profil pembimbing belum disiapkan. Hubungi super admin.");
+    throw new Error("Akun admin tidak memiliki akses ke halaman ini.");
   }
   if (scope.kind === "scoped" && !scope.internIds.includes(submission.intern_id as string)) {
-    throw new Error("Kamu tidak membimbing peserta ini, jadi tidak bisa menilainya.");
+    throw new Error("Peserta magang tidak ditemukan dalam sistem.");
   }
 
   const { error } = await db
@@ -782,7 +782,7 @@ export async function gradeAssignmentAction(formData: FormData) {
     throw new Error("Gagal menyimpan penilaian.");
   }
 
-  revalidatePath("/dashboard/mentor/lms");
+  revalidatePath("/dashboard/admin/lms");
 }
 
 export async function toggleAssignmentPublishAction(formData: FormData) {
@@ -794,7 +794,7 @@ export async function toggleAssignmentPublishAction(formData: FormData) {
   if (!assignmentId) throw new Error("Assignment ID tidak valid.");
   if (usesLocalBackend()) {
     await localLms(`/v1/lms/assignments/${assignmentId}/publish`, "PATCH", { isPublished });
-    revalidatePath("/dashboard/mentor/lms/" + courseId);
+    revalidatePath("/dashboard/admin/lms/" + courseId);
     return;
   }
 
@@ -810,7 +810,7 @@ export async function toggleAssignmentPublishAction(formData: FormData) {
     throw new Error("Gagal mengubah status publish assignment.");
   }
 
-  revalidatePath("/dashboard/mentor/lms/" + courseId);
+  revalidatePath("/dashboard/admin/lms/" + courseId);
 }
 
 // ===== COURSE ACTIONS =====
@@ -821,7 +821,7 @@ export async function createCourseAction(formData: FormData) {
   const description = formData.get("description") as string;
 
   if (!title) throw new Error("Judul course wajib diisi.");
-  if (usesLocalBackend()) { await localLms("/v1/lms/courses","POST",{title,description}); revalidatePath("/dashboard/mentor/lms"); return; }
+  if (usesLocalBackend()) { await localLms("/v1/lms/courses","POST",{title,description}); revalidatePath("/dashboard/admin/lms"); return; }
 
   const slug = title
     .toLowerCase()
@@ -842,7 +842,7 @@ export async function createCourseAction(formData: FormData) {
     throw new Error("Gagal membuat course baru.");
   }
 
-  revalidatePath("/dashboard/mentor/lms");
+  revalidatePath("/dashboard/admin/lms");
 }
 
 export async function updateCourseStatusAction(formData: FormData) {
@@ -859,7 +859,7 @@ export async function updateCourseStatusAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "Status course tidak valid.");
   }
-  if (usesLocalBackend()) { await localLms(`/v1/lms/courses/${parsed.data.courseId}/status`,"PATCH",{status:parsed.data.status}); revalidatePath("/dashboard/mentor/lms"); return; }
+  if (usesLocalBackend()) { await localLms(`/v1/lms/courses/${parsed.data.courseId}/status`,"PATCH",{status:parsed.data.status}); revalidatePath("/dashboard/admin/lms"); return; }
 
   const db = await createUteroAcademyServiceRoleClient();
 
@@ -881,7 +881,7 @@ export async function updateCourseStatusAction(formData: FormData) {
     throw new Error("Status course tidak tersimpan: course tidak ditemukan.");
   }
 
-  revalidatePath("/dashboard/mentor/lms");
+  revalidatePath("/dashboard/admin/lms");
 }
 
 export async function enrollCourseAction(formData: FormData) {
@@ -937,7 +937,7 @@ export async function createAssignmentAction(formData: FormData) {
   if (!courseId || !title) throw new Error("Course ID dan Judul wajib diisi.");
   if (usesLocalBackend()) {
     await localLms(`/v1/lms/courses/${courseId}/assignments`, "POST", { title, description, dueAt });
-    revalidatePath("/dashboard/mentor/lms/" + courseId);
+    revalidatePath("/dashboard/admin/lms/" + courseId);
     return;
   }
 
@@ -955,7 +955,7 @@ export async function createAssignmentAction(formData: FormData) {
     throw new Error("Gagal membuat tugas baru.");
   }
 
-  revalidatePath("/dashboard/mentor/lms/" + courseId);
+  revalidatePath("/dashboard/admin/lms/" + courseId);
 }
 
 export async function createQuizAction(formData: FormData) {
@@ -992,7 +992,7 @@ export async function createQuizAction(formData: FormData) {
       passingScore: nilaiKelulusan,
       timeLimitMinutes: timeLimitMinutes ? parseInt(timeLimitMinutes) : null,
     });
-    revalidatePath("/dashboard/mentor/lms/" + courseId);
+    revalidatePath("/dashboard/admin/lms/" + courseId);
     return;
   }
 
@@ -1011,7 +1011,7 @@ export async function createQuizAction(formData: FormData) {
     throw new Error("Gagal membuat kuis baru.");
   }
 
-  revalidatePath("/dashboard/mentor/lms/" + courseId);
+  revalidatePath("/dashboard/admin/lms/" + courseId);
 }
 
 // ===== COMMENTS ACTIONS =====
@@ -1027,7 +1027,7 @@ export async function createCommentAction(formData: FormData) {
   if (usesLocalBackend()) {
     await localLms(`/v1/lms/lessons/${lessonId}/comments`, "POST", { content });
     revalidatePath(`/dashboard/intern/lms/${courseId}/lessons/${lessonId}`);
-    revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+    revalidatePath(`/dashboard/admin/lms/${courseId}`);
     return;
   }
 
@@ -1045,7 +1045,7 @@ export async function createCommentAction(formData: FormData) {
   }
 
   revalidatePath(`/dashboard/intern/lms/${courseId}/lessons/${lessonId}`);
-  revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+  revalidatePath(`/dashboard/admin/lms/${courseId}`);
 }
 
 export async function replyCommentAction(formData: FormData) {
@@ -1062,7 +1062,7 @@ export async function replyCommentAction(formData: FormData) {
   if (usesLocalBackend()) {
     await localLms(`/v1/lms/lessons/${lessonId}/comments`, "POST", { content, parentCommentId });
     revalidatePath(`/dashboard/intern/lms/${courseId}/lessons/${lessonId}`);
-    revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+    revalidatePath(`/dashboard/admin/lms/${courseId}`);
     return;
   }
 
@@ -1081,7 +1081,7 @@ export async function replyCommentAction(formData: FormData) {
   }
 
   revalidatePath(`/dashboard/intern/lms/${courseId}/lessons/${lessonId}`);
-  revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+  revalidatePath(`/dashboard/admin/lms/${courseId}`);
 }
 
 export async function pinCommentAction(formData: FormData) {
@@ -1095,7 +1095,7 @@ export async function pinCommentAction(formData: FormData) {
 
   if (usesLocalBackend()) {
     await localLms(`/v1/lms/comments/${commentId}/pin`, "PATCH", { isPinned });
-    revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+    revalidatePath(`/dashboard/admin/lms/${courseId}`);
     revalidatePath(`/dashboard/intern/lms/${courseId}`);
     return;
   }
@@ -1112,7 +1112,7 @@ export async function pinCommentAction(formData: FormData) {
     throw new Error("Gagal pin komentar.");
   }
 
-  revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+  revalidatePath(`/dashboard/admin/lms/${courseId}`);
   revalidatePath(`/dashboard/intern/lms/${courseId}`);
 }
 
@@ -1126,7 +1126,7 @@ export async function deleteCommentAction(formData: FormData) {
   if (usesLocalBackend()) {
     await localLms(`/v1/lms/comments/${commentId}`, "DELETE");
     revalidatePath(`/dashboard/intern/lms/${courseId}`);
-    revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+    revalidatePath(`/dashboard/admin/lms/${courseId}`);
     return;
   }
 
@@ -1158,7 +1158,7 @@ export async function deleteCommentAction(formData: FormData) {
   }
 
   revalidatePath(`/dashboard/intern/lms/${courseId}/lessons/${comment.lesson_id}`);
-  revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+  revalidatePath(`/dashboard/admin/lms/${courseId}`);
 }
 
 // ============================================
@@ -1339,7 +1339,7 @@ export async function createCourseAnnouncement(
   if (usesLocalBackend()) {
     const response = await localLms(`/v1/lms/courses/${courseId}/announcements`, "POST", { title, content, priority, isPinned });
     revalidatePath(`/dashboard/intern/lms/${courseId}`);
-    revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+    revalidatePath(`/dashboard/admin/lms/${courseId}`);
     return ((await response.json()) as { announcement: unknown }).announcement;
   }
   const db = await createUteroAcademyServiceRoleClient();
@@ -1361,7 +1361,7 @@ export async function createCourseAnnouncement(
 
   if (error) throw error;
   revalidatePath(`/dashboard/intern/lms/${courseId}`);
-  revalidatePath(`/dashboard/mentor/lms/${courseId}`);
+  revalidatePath(`/dashboard/admin/lms/${courseId}`);
   return data;
 }
 

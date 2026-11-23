@@ -3,7 +3,7 @@
 #### 1. Mentor/Admin Memberikan Penilaian
 1. **Akses Halaman Penilaian:**
    - Login menggunakan akun dengan role `admin` atau `mentor`.
-   - Masuk ke menu **Penilaian & Sertifikat** (`/dashboard/mentor/assessments`).
+   - Masuk ke menu **Penilaian & Sertifikat** (`/dashboard/admin/assessments`).
    
 2. **Verifikasi Halaman Utama:**
    - Pastikan tabel menampilkan daftar peserta magang aktif dengan kolom: Nama, Jurusan, Email, Nilai Akhir, Status Penilaian, dan Aksi.

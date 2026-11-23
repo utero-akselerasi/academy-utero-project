@@ -50,7 +50,7 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date(value));
 }
 
-export function MentorReportsManager({ reports }: Props) {
+export function DailyReportsManager({ reports }: Props) {
   const [selectedInternId, setSelectedInternId] = useState<string | null>(null);
   const [timeFilter, setTimeFilter] = useState<"all" | "weekly" | "monthly">("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -134,7 +134,7 @@ export function MentorReportsManager({ reports }: Props) {
       {/* Grid Profil Intern */}
       {uniqueInterns.length === 0 ? (
         <div className="surface p-8 text-center text-slate-500 font-medium">
-          Belum ada anak magang bimbingan yang mengirimkan laporan harian.
+          Belum ada peserta magang yang mengirimkan laporan harian.
         </div>
       ) : (
         <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
@@ -219,7 +219,7 @@ export function MentorReportsManager({ reports }: Props) {
         <Modal
           open
           onClose={() => setSelectedInternId(null)}
-          title={`Laporan bimbingan ${selectedIntern.name}`}
+          title={`Laporan harian ${selectedIntern.name}`}
           hideTitle
           closeLabel="Tutup riwayat laporan"
           panelClassName="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh]"
@@ -262,7 +262,7 @@ export function MentorReportsManager({ reports }: Props) {
               <div className="flex items-center gap-2 shrink-0">
                 {/* Print PDF Button */}
                 <Link
-                  href={`/dashboard/mentor/daily-reports/print/${selectedIntern.id}?filter=${timeFilter}`}
+                  href={`/dashboard/admin/daily-reports/print/${selectedIntern.id}?filter=${timeFilter}`}
                   target="_blank"
                   className="button-secondary text-xs h-8 py-0 px-3 flex items-center gap-1.5 font-bold bg-white text-slate-800 border border-slate-200 hover:bg-slate-50 shrink-0 whitespace-nowrap"
                 >
@@ -294,7 +294,7 @@ export function MentorReportsManager({ reports }: Props) {
             {/* List Laporan */}
             <div className="p-6 overflow-y-auto space-y-4 flex-1">
               {filteredReports.length === 0 ? (
-                <p className="text-sm text-slate-500 italic py-8 text-center">Tidak ada laporan bimbingan yang cocok dengan filter.</p>
+                <p className="text-sm text-slate-500 italic py-8 text-center">Tidak ada laporan yang cocok dengan filter.</p>
               ) : (
                 <div className="grid gap-4">
                   {/*

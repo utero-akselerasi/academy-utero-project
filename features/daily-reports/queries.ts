@@ -150,7 +150,7 @@ export async function getStaffDailyReportDetail(reportId: string, allowedInternI
  * bimbingannya padahal aksi review-nya sendiri sudah dibatasi
  * resolveStaffInternScope. Bacaan dan tulisan sekarang memakai scope yang sama.
  */
-export async function getMentorDailyReports(allowedInternIds: string[] | null, page = 1, limit = 50) {
+export async function getAdminDailyReports(allowedInternIds: string[] | null, page = 1, limit = 50) {
   if (usesLocalBackend()) {
     if (allowedInternIds !== null && allowedInternIds.length === 0) return { data: [], error: null };
     return { data: await localReports(null, { page, limit, internIds: allowedInternIds ?? undefined }), error: null };

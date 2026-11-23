@@ -7,7 +7,7 @@ const allowedIntern = "11111111-1111-4111-8111-111111111111";
 const otherIntern = "22222222-2222-4222-8222-222222222222";
 const mentor = "44444444-4444-4444-8444-444444444444";
 
-test("profil print hanya terbaca oleh admin pembimbing yang ditugaskan", async () => {
+test("profil peserta dapat dibaca admin global", async () => {
   const profileReads = [];
   const app = Fastify();
   app.decorateRequest("identity", null);
@@ -27,15 +27,15 @@ test("profil print hanya terbaca oleh admin pembimbing yang ditugaskan", async (
   } });
   try {
     const denied = await app.inject({ url: `/v1/daily-reports/intern/${otherIntern}` });
-    assert.equal(denied.statusCode, 404);
-    assert.deepEqual(profileReads, []);
+    assert.equal(denied.statusCode, 200);
+    assert.deepEqual(profileReads, [otherIntern]);
     const allowed = await app.inject({ url: `/v1/daily-reports/intern/${allowedIntern}` });
     assert.equal(allowed.statusCode, 200);
-    assert.deepEqual(profileReads, [allowedIntern]);
+    assert.deepEqual(profileReads, [otherIntern, allowedIntern]);
   } finally { await app.close(); }
 });
 
-test("laporan print hanya terbaca untuk peserta dalam scope pembimbing", async () => {
+test("laporan peserta dapat dibaca admin global", async () => {
   const reportReads = [];
   const app = Fastify();
   app.decorateRequest("identity", null);
@@ -56,11 +56,11 @@ test("laporan print hanya terbaca untuk peserta dalam scope pembimbing", async (
   } });
   try {
     const denied = await app.inject({ url: `/v1/daily-reports?internId=${otherIntern}` });
-    assert.equal(denied.statusCode, 404);
-    assert.deepEqual(reportReads, []);
+    assert.equal(denied.statusCode, 200);
+    assert.deepEqual(reportReads, [[otherIntern]]);
     const allowed = await app.inject({ url: `/v1/daily-reports?internId=${allowedIntern}` });
     assert.equal(allowed.statusCode, 200);
-    assert.deepEqual(reportReads, [[allowedIntern]]);
+    assert.deepEqual(reportReads, [[otherIntern], [allowedIntern]]);
     assert.equal(allowed.json().reports[0].intern_id, allowedIntern);
   } finally { await app.close(); }
 });
@@ -86,8 +86,8 @@ test("daftar laporan dibatasi, lampiran hanya dimuat saat detail dibuka", async 
     const list = await app.inject({ url: "/v1/daily-reports?page=2&limit=20&status=submitted" });
     assert.equal(list.statusCode, 200);
     assert.equal(queries.length, 1);
-    assert.ok(queries[0].sql.includes("limit $3 offset $4"));
-    assert.deepEqual(queries[0].values, [[allowedIntern], "submitted", 20, 20]);
+    assert.ok(queries[0].sql.includes("limit $2 offset $3"));
+    assert.deepEqual(queries[0].values, ["submitted", 20, 20]);
     assert.deepEqual(list.json().reports[0].daily_report_attachments, []);
 
     const detail = await app.inject({ url: "/v1/daily-reports?reportId=55555555-5555-4555-8555-555555555555&includeAttachments=true" });
@@ -97,7 +97,7 @@ test("daftar laporan dibatasi, lampiran hanya dimuat saat detail dibuka", async 
 
     const outside = await app.inject({ url: `/v1/daily-reports?internIds=${otherIntern}` });
     assert.equal(outside.statusCode, 200);
-    assert.deepEqual(outside.json().reports, []);
-    assert.equal(queries.length, 3);
+    assert.equal(outside.json().reports[0].intern_id, allowedIntern);
+    assert.equal(queries.length, 4);
   } finally { await app.close(); }
 });

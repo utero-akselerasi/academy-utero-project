@@ -12,20 +12,20 @@ type PageProps = {
   searchParams: Promise<{ detailInternId?: string; q?: string }>;
 };
 
-export default async function MentorAssessmentsPage({ searchParams }: PageProps) {
+export default async function AdminAssessmentsPage({ searchParams }: PageProps) {
   const { detailInternId, q: searchQuery = "" } = await searchParams;
 
   const user = await requireAdmin();
 
   // Penilaian menerbitkan sertifikat, jadi daftarnya harus sebatas peserta
-  // bimbingan. Sebelumnya halaman ini memuat seluruh peserta aktif.
+  // peserta magang. Sebelumnya halaman ini memuat seluruh peserta aktif.
   const scope = await resolveStaffInternScope(user.id);
 
   if (scope.kind === "setup_required") {
     return (
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="surface p-6 text-sm font-semibold text-red-700">
-          Profil pembimbing belum ditemukan. Hubungi super admin untuk setup profil.
+          Akun admin tidak memiliki akses ke halaman ini.
         </div>
       </main>
     );
@@ -48,7 +48,7 @@ export default async function MentorAssessmentsPage({ searchParams }: PageProps)
       {/* Header */}
       <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-bold uppercase text-teal-700">Admin / Pembimbing</p>
+          <p className="text-sm font-bold uppercase text-teal-700">ADMINISTRATOR</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-950">Penilaian Akhir & Sertifikat</h1>
           <p className="mt-2 max-w-2xl leading-7 text-slate-600">
             Berikan evaluasi nilai kinerja dan feedback akhir bagi peserta magang. Finalisasi penilaian untuk menerbitkan sertifikat otomatis.
@@ -148,7 +148,7 @@ export default async function MentorAssessmentsPage({ searchParams }: PageProps)
                       </td>
                       <td className="p-4 text-right">
                         <Link
-                          href={"/dashboard/mentor/assessments?q=" + searchQuery + "&detailInternId=" + intern.id}
+                          href={"/dashboard/admin/assessments?q=" + searchQuery + "&detailInternId=" + intern.id}
                           className="button-secondary text-xs font-bold py-1 px-3 min-h-0"
                         >
                           {ass?.status === "finalized" ? "Detail" : "Beri Nilai"}

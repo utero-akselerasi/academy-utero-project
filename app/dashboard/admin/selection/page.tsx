@@ -22,7 +22,7 @@ function StepHeading({ number, title, description }: { number: string; title: st
   </div>;
 }
 
-export default async function MentorSelectionPage() {
+export default async function AdminSelectionPage() {
   await requireAdmin();
   const workspace = await getSelectionWorkspace();
   const publishedTests = workspace.tests.filter((test) => test.is_published && test.is_active);
@@ -128,7 +128,7 @@ export default async function MentorSelectionPage() {
               <td className="px-4 py-3"><span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${status.tone}`}>{status.label}</span>{assignment.attempt?.final_score !== null && assignment.attempt?.final_score !== undefined ? <span className="ml-2 text-xs text-slate-500">Nilai {assignment.attempt.final_score}</span> : null}</td>
               <td className="px-4 py-3 text-xs leading-5 text-slate-600"><span className="block">Mulai: {reviewTime(assignment.attempt?.started_at)}</span><span className="block">Kirim: {reviewTime(assignment.attempt?.submitted_at)}</span></td>
               <td className="px-4 py-3 text-slate-700">{reviewDuration(assignment, workspace.currentTime)}</td>
-              <td className="px-4 py-3 text-right"><Link className="button-secondary inline-flex min-h-9 items-center gap-1.5 px-3 text-xs" href={`/dashboard/mentor/selection/review/${assignment.id}`}><Eye size={14} aria-hidden="true" /> Lihat & review</Link></td>
+              <td className="px-4 py-3 text-right"><Link className="button-secondary inline-flex min-h-9 items-center gap-1.5 px-3 text-xs" href={`/dashboard/admin/selection/review/${assignment.id}`}><Eye size={14} aria-hidden="true" /> Lihat & review</Link></td>
             </tr>;
           })}</tbody>
         </table></div>

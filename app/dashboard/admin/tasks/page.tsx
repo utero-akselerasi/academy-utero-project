@@ -2,7 +2,7 @@ import { deleteBoardAction } from "@/features/tasks/actions";
 import { staffCanDeleteBoard } from "@/features/tasks/board-permissions";
 import { Trash2, ShieldAlert, BarChart2, Eye, Calendar } from "lucide-react";
 import { CreateBoardForm } from "@/features/tasks/CreateBoardForm";
-import { getMentorBoards, getTaskMonitoring } from "@/features/tasks/queries";
+import { getAdminTaskBoards, getTaskMonitoring } from "@/features/tasks/queries";
 import { requireAdmin } from "@/features/auth/guards";
 import { getUserRoleCodes } from "@/features/auth/roles";
 import { resolveStaffInternScope } from "@/features/auth/scope";
@@ -25,7 +25,7 @@ const priorityConfig = {
   low: { label: "Low", badge: "bg-slate-100 border-slate-200 text-slate-700" }
 };
 
-export default async function MentorTasksPage({ searchParams }: Props) {
+export default async function AdminTasksPage({ searchParams }: Props) {
   const { tab = "boards" } = await searchParams;
   const user = await requireAdmin();
 
@@ -35,19 +35,19 @@ export default async function MentorTasksPage({ searchParams }: Props) {
     return (
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="surface p-6 text-sm font-semibold text-red-700">
-          Profil pembimbing belum ditemukan. Hubungi super admin untuk setup profil.
+          Akun admin tidak memiliki akses ke halaman ini.
         </div>
       </main>
     );
   }
 
-  const { data: boards, error } = await getMentorBoards(user.id);
+  const { data: boards, error } = await getAdminTaskBoards(user.id);
 
   // Dibaca sekali di sini, bukan per board: `staffCanDeleteBoard` sengaja sinkron
   // supaya keputusan render tombol tidak menambah satu kueri per baris.
   const roleCodes = await getUserRoleCodes(user.id);
 
-  // Monitoring dibatasi scope bimbingan: aksi pada card sudah lewat
+  // Monitoring dibatasi scope global admin: aksi pada card sudah lewat
   // requireCardAccess, jadi daftarnya tidak boleh lebih luas dari itu.
   // Sebelumnya halaman ini menarik SELURUH task_cards tanpa filter.
   let mappedCards: any[];
@@ -123,7 +123,7 @@ export default async function MentorTasksPage({ searchParams }: Props) {
       {/* Tab Switcher */}
       <div className="flex border-b border-slate-200 mb-6 text-sm font-bold">
         <Link
-          href="/dashboard/mentor/tasks?tab=boards"
+          href="/dashboard/admin/tasks?tab=boards"
           className={"px-4 py-2.5 border-b-2 -mb-px transition-all " + (
             tab === "boards" ? "border-teal-600 text-teal-700" : "border-transparent text-slate-500 hover:text-slate-900"
           )}
@@ -131,7 +131,7 @@ export default async function MentorTasksPage({ searchParams }: Props) {
           Daftar Board Tugas
         </Link>
         <Link
-          href="/dashboard/mentor/tasks?tab=monitor"
+          href="/dashboard/admin/tasks?tab=monitor"
           className={"px-4 py-2.5 border-b-2 -mb-px transition-all " + (
             tab === "monitor" ? "border-teal-600 text-teal-700" : "border-transparent text-slate-500 hover:text-slate-900"
           )}
@@ -166,7 +166,7 @@ export default async function MentorTasksPage({ searchParams }: Props) {
                   key={board.id}
                   className="surface flex items-center justify-between gap-4 p-5 hover:border-teal-500"
                 >
-                  <Link className="flex-1 min-w-0" href={`/dashboard/mentor/tasks/${board.id}`}>
+                  <Link className="flex-1 min-w-0" href={`/dashboard/admin/tasks/${board.id}`}>
                     <h3 className="font-bold text-slate-950 truncate">{board.name}</h3>
                     {board.description ? (
                       <p className="mt-1 text-sm text-slate-600 truncate">{board.description}</p>
@@ -280,7 +280,7 @@ export default async function MentorTasksPage({ searchParams }: Props) {
                           <td className="px-6 py-4 text-center whitespace-nowrap">
                             {card.board_id ? (
                               <Link
-                                href={`/dashboard/mentor/tasks/${card.board_id}?detailCardId=${card.id}`}
+                                href={`/dashboard/admin/tasks/${card.board_id}?detailCardId=${card.id}`}
                                 className="button-secondary text-[11px] font-bold px-2.5 py-1 min-h-0 inline-flex items-center gap-1"
                               >
                                 <Eye size={12} />

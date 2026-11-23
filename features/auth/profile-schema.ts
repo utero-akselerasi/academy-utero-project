@@ -41,8 +41,6 @@ export const generalProfileSchema = z.object({
   phone: optionalText(25)
     .refine((value) => !value || isValidIndonesianPhone(value), "Nomor telepon harus nomor seluler Indonesia, diawali 08 atau 628.")
     .transform((value) => value ? normalizeIndonesianPhone(value) : null),
-  headline: optionalText(150),
-  bio: optionalText(2000),
 });
 
 export type InternProfileData = {

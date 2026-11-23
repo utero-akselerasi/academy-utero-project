@@ -440,9 +440,7 @@ export async function lmsRoutes(app, { db }) {
     const result = await db.transaction(identity, (client) => client.query(`select s.*,a.title assignment_title,ip.full_name intern_name
       from utero_academy.assignment_submissions s join utero_academy.assignments a on a.id=s.assignment_id
       join utero_academy.intern_profiles ip on ip.id=s.intern_id
-      where $1::boolean or exists(select 1 from utero_academy.mentor_profiles mp join utero_academy.mentor_assignments ma on ma.mentor_id=mp.id
-        where mp.user_id=$2 and ma.intern_id=s.intern_id and ma.started_at<=current_date and (ma.ended_at is null or ma.ended_at>=current_date))
-      order by s.submitted_at desc`, [identity.roles.includes("super_admin"), identity.id]));
+      order by s.submitted_at desc`));
     return { submissions: result.rows };
   });
   app.patch("/v1/lms/submissions/:id/grade", async (request, reply) => {
@@ -451,10 +449,8 @@ export async function lmsRoutes(app, { db }) {
     if (!validId(request.params.id) || !Number.isFinite(score) || score < 0 || score > 100) return reply.code(400).send({ error: "invalid_grade" });
     const result = await db.transaction(identity, async (client) => {
       const updated = await client.query(`update utero_academy.assignment_submissions s set score=$2,feedback=$3,reviewed_at=now()
-        where s.id=$1 and ($4::boolean or exists(select 1 from utero_academy.mentor_profiles mp
-          join utero_academy.mentor_assignments ma on ma.mentor_id=mp.id where mp.user_id=$5 and ma.intern_id=s.intern_id
-          and ma.started_at<=current_date and (ma.ended_at is null or ma.ended_at>=current_date))) returning s.intern_id`,
-        [request.params.id, score, request.body?.feedback || null, identity.roles.includes("super_admin"), identity.id]);
+        where s.id=$1 returning s.intern_id`,
+        [request.params.id, score, request.body?.feedback || null]);
       if (!updated.rowCount) return null;
       const owner = await client.query("select user_id from utero_academy.intern_profiles where id=$1", [updated.rows[0].intern_id]);
       if (owner.rows[0]) await client.query("select utero_academy.check_and_award_badges($1,'assignment')", [owner.rows[0].user_id]);

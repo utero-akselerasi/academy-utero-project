@@ -94,3 +94,21 @@ test("lesson content memakai kolom text, bukan jsonb", async () => {
   assert.equal(update.values[3], "<p>Baru</p>");
   await app.close();
 });
+
+test("admin sees task monitoring without mentor assignment or task permission", async () => {
+  const { app, queries } = await fixture({ id: otherId, roles: ["admin"], permissions: [] });
+  const response = await app.inject({ url: "/v1/tasks/monitor" });
+  assert.equal(response.statusCode, 200);
+  assert.equal(queries.length, 1);
+  assert.doesNotMatch(queries[0].sql, /mentor_assignments/);
+  assert.deepEqual(queries[0].values, []);
+  await app.close();
+});
+
+test("school cannot read admin task monitoring with inherited permission", async () => {
+  const { app, queries } = await fixture({ id: otherId, roles: ["school"], permissions: ["tasks.manage"] });
+  assert.equal((await app.inject({ url: "/v1/tasks/monitor" })).statusCode, 403);
+  assert.equal((await app.inject({ url: "/v1/tasks/boards" })).statusCode, 403);
+  assert.equal(queries.length, 0);
+  await app.close();
+});

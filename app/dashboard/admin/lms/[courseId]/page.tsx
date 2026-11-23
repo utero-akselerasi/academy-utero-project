@@ -1,4 +1,4 @@
-import { getMentorCourseDetails } from "@/features/lms/queries";
+import { getAdminCourseDetails } from "@/features/lms/queries";
 import { createLessonAction, createAssignmentAction, toggleLessonPublishAction, toggleQuizPublishAction, toggleAssignmentPublishAction } from "@/features/lms/actions";
 import { QuizFormBuilder } from "@/features/lms/QuizFormBuilder";
 import { requireAdmin } from "@/features/auth/guards";
@@ -14,17 +14,17 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date(value));
 }
 
-export default async function MentorCourseDetailPage({ params }: Props) {
+export default async function AdminCourseDetailPage({ params }: Props) {
   const { courseId } = await params;
 
-  // Halaman ini memuat kunci jawaban quiz (getMentorCourseDetails menarik
+  // Halaman ini memuat kunci jawaban quiz (getAdminCourseDetails menarik
   // kolom `questions`) dan menyediakan form tulis materi/tugas. Guard lama
   // hanya "ada sesi", jadi peserta bisa membukanya dan membaca jawaban.
   // Katalog course sendiri milik organisasi, bukan per pembimbing, jadi tidak
   // ada penyaringan scope di sini - cukup batas peran staf.
   await requireAdmin();
 
-  const { data, error } = await getMentorCourseDetails(courseId);
+  const { data, error } = await getAdminCourseDetails(courseId);
 
   if (error || !data) {
     notFound();
@@ -37,7 +37,7 @@ export default async function MentorCourseDetailPage({ params }: Props) {
       {/* Tombol Kembali */}
       <div className="mb-4">
         <Link
-          href="/dashboard/mentor/lms"
+          href="/dashboard/admin/lms"
           className="text-slate-500 hover:text-slate-900 inline-flex items-center gap-1 text-sm font-semibold transition-all"
         >
           <ArrowLeft size={16} />

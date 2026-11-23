@@ -1,9 +1,9 @@
 import { createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { usesLocalBackend } from "@/lib/backend/server";
-import { getLocalPlacements } from "./local";
+import { getLocalActiveInterns } from "./local";
 
-async function localPlacements() {
-  return getLocalPlacements() as Promise<{ interns: any[]; mentors: any[]; assignments: any[] }>;
+async function localInterns() {
+  return (await getLocalActiveInterns()).interns;
 }
 
 /**
@@ -20,7 +20,7 @@ async function localPlacements() {
  * user.
  */
 export async function getActiveInterns() {
-  if (usesLocalBackend()) return (await localPlacements()).interns;
+  if (usesLocalBackend()) return localInterns();
   const db = await createUteroAcademyServiceRoleClient();
 
   // Fetch user_roles who have role code = intern
@@ -53,147 +53,4 @@ export async function getActiveInterns() {
   }
 
   return (profiles ?? []).sort((a, b) => a.full_name.localeCompare(b.full_name));
-}
-
-/**
- * Daftar pembimbing yang bisa dipilih, HANYA BACA.
- *
- * Sama seperti getActiveInterns(): versi lama menyisipkan baris
- * `mentor_profiles` saat halaman dibuka. Pembuatan profil pembimbing adalah
- * urusan super admin (features/super-admin/actions.ts), bukan efek samping
- * sebuah GET. Admin tanpa mentor_profiles tidak muncul di sini dan memang
- * belum bisa menerima penempatan - itu keadaan yang benar, bukan alasan untuk
- * menulis diam-diam.
- */
-export async function getMentors() {
-  if (usesLocalBackend()) return (await localPlacements()).mentors;
-  const db = await createUteroAcademyServiceRoleClient();
-
-  // Fetch user_roles who have role code = admin
-  const { data: userRoles } = await db
-    .from("user_roles")
-    .select("user_id, roles(code)")
-    .returns<any[]>();
-
-  const adminUserIds = (userRoles || [])
-    .filter(ur => {
-      const r = ur.roles;
-      const code = Array.isArray(r) ? r[0]?.code : r?.code;
-      return code === "admin";
-    })
-    .map(ur => ur.user_id as string);
-
-  if (adminUserIds.length === 0) {
-    return [];
-  }
-
-  // Fetch all user_profiles for metadata
-  const { data: userProfiles } = await db
-    .from("user_profiles")
-    .select("id, full_name");
-
-  const profilesMap = new Map();
-  if (userProfiles) {
-    userProfiles.forEach(p => profilesMap.set(p.id, p));
-  }
-
-  const { data: profiles, error } = await db
-    .from("mentor_profiles")
-    .select("id, user_id")
-    .in("user_id", adminUserIds);
-
-  if (error) {
-    console.error("Gagal membaca daftar pembimbing:", error);
-    return [];
-  }
-
-  const mentors = (profiles ?? []).map((profile) => {
-    const p = profilesMap.get(profile.user_id);
-    return {
-      id: profile.id as string,
-      full_name: (p?.full_name as string | undefined) || "Admin " + (profile.id as string).slice(0, 4),
-    };
-  });
-
-  // sort by name
-  return mentors.sort((a, b) => a.full_name.localeCompare(b.full_name));
-}
-
-export type MentorAssignmentDetail = {
-  id: string;
-  mentor_id: string;
-  intern_id: string;
-  started_at: string;
-  ended_at: string | null;
-  mentor_profiles: {
-    id: string;
-    user_profiles: {
-      full_name: string;
-    } | null;
-  } | null;
-  intern_profiles: {
-    id: string;
-    full_name: string;
-    major: string | null;
-  } | null;
-};
-
-export async function getMentorAssignments() {
-  if (usesLocalBackend()) return (await localPlacements()).assignments;
-  const db = await createUteroAcademyServiceRoleClient();
-  
-  // We query mentor assignments
-  const { data } = await db
-    .from("mentor_assignments")
-    .select("id, mentor_id, intern_id, started_at, ended_at, mentor_profiles(id, user_id), intern_profiles(id, full_name, major, email, phone, schools(name))")
-    .order("created_at", { ascending: false })
-    .returns<any[]>();
-    
-  if (!data || data.length === 0) {
-    return [];
-  }
-
-  // Fetch all user_profiles for metadata
-  const { data: userProfiles } = await db
-    .from("user_profiles")
-    .select("id, full_name");
-
-  const profilesMap = new Map();
-  if (userProfiles) {
-    userProfiles.forEach(p => profilesMap.set(p.id, p));
-  }
-
-  return data.map(item => {
-    const mp = item.mentor_profiles;
-    const ip = item.intern_profiles;
-    
-    const mentorProfilesArray = Array.isArray(mp) ? mp[0] : mp;
-    const internProfilesArray = Array.isArray(ip) ? ip[0] : ip;
-
-    const mentorUserId = mentorProfilesArray?.user_id;
-    const mentorUser = mentorUserId ? profilesMap.get(mentorUserId) : null;
-    const mentorName = mentorUser?.full_name;
-
-    return {
-      id: item.id,
-      mentor_id: item.mentor_id,
-      intern_id: item.intern_id,
-      started_at: item.started_at,
-      ended_at: item.ended_at,
-      mentor_profiles: {
-        id: mentorProfilesArray?.id,
-        user_profiles: {
-          full_name: mentorName || "Mentor"
-        }
-      },
-      intern_profiles: {
-        id: internProfilesArray?.id,
-        full_name: internProfilesArray?.full_name || "Peserta",
-        major: internProfilesArray?.major || null,
-        email: internProfilesArray?.email || null,
-        phone: internProfilesArray?.phone || null,
-        school_name: Array.isArray(internProfilesArray?.schools) ? internProfilesArray.schools[0]?.name : internProfilesArray?.schools?.name || null
-      }
-    };
-  });
 }

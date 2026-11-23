@@ -30,7 +30,7 @@ Dokumen ini berisi analisis lengkap fitur Learning Management System (LMS) yang 
 **File Terkait:**
 - `features/lms/actions.ts` - createCourseAction
 - `features/lms/queries.ts` - getAllCourses, getInternEnrollments
-- `app/dashboard/mentor/lms/page.tsx` - UI manajemen course mentor
+- `app/dashboard/admin/lms/page.tsx` - UI manajemen course mentor
 - `app/dashboard/intern/lms/page.tsx` - UI enrollment peserta
 
 ---
@@ -135,7 +135,7 @@ Dokumen ini berisi analisis lengkap fitur Learning Management System (LMS) yang 
 - `features/lms/actions.ts` - submitAssignmentAction, gradeAssignmentAction, createAssignmentAction
 - `features/lms/queries.ts` - getAssignment, getMentorSubmissions
 - `app/dashboard/intern/lms/[courseId]/assignments/[assignmentId]/page.tsx` - UI submit tugas peserta
-- `app/dashboard/mentor/lms/page.tsx` - UI review tugas mentor
+- `app/dashboard/admin/lms/page.tsx` - UI review tugas mentor
 
 **Cara Kerja:**
 1. Mentor membuat assignment dengan deadline
@@ -186,8 +186,8 @@ Dokumen ini berisi analisis lengkap fitur Learning Management System (LMS) yang 
 - Search course by nama/deskripsi
 
 **File Terkait:**
-- `app/dashboard/mentor/lms/page.tsx` - Halaman utama LMS mentor
-- `app/dashboard/mentor/lms/[courseId]/page.tsx` - Detail course management
+- `app/dashboard/admin/lms/page.tsx` - Halaman utama LMS mentor
+- `app/dashboard/admin/lms/[courseId]/page.tsx` - Detail course management
 
 **UI/UX:**
 - Split layout: kiri untuk manajemen course, kanan untuk review submission
@@ -360,7 +360,7 @@ Dokumen ini berisi analisis lengkap fitur Learning Management System (LMS) yang 
 **Files to Create/Modify:**
 - `features/lms/components/RichTextEditor.tsx` - Component editor
 - `features/lms/components/RichTextViewer.tsx` - Component viewer
-- `app/dashboard/mentor/lms/[courseId]/page.tsx` - Integrasi ke form lesson
+- `app/dashboard/admin/lms/[courseId]/page.tsx` - Integrasi ke form lesson
 
 **Estimasi:** 2-3 hari
 

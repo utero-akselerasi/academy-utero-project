@@ -9,10 +9,9 @@ import type { InternProfileData } from "@/features/auth/profile-schema";
 const initialState = { ok: false, message: "" };
 
 type UserProfile = { full_name: string; phone: string | null } | null;
-type MentorProfile = { headline: string | null; bio: string | null } | null;
 
-export function ProfileFormWrapper({ userProfile, internProfile, mentorProfile, email }: {
-  userProfile: UserProfile; internProfile: InternProfileData | null; mentorProfile: MentorProfile; email: string;
+export function ProfileFormWrapper({ userProfile, internProfile, email }: {
+  userProfile: UserProfile; internProfile: InternProfileData | null; email: string;
 }) {
   const [state, formAction, isPending] = useActionState(updateProfileAction, initialState);
 
@@ -81,22 +80,6 @@ export function ProfileFormWrapper({ userProfile, internProfile, mentorProfile, 
               <div className="form-field">
                 <label className="form-label" htmlFor="emergencyContactPhone">Nomor Kontak Darurat (opsional)</label>
                 <input className="form-input" id="emergencyContactPhone" name="emergencyContactPhone" type="tel" defaultValue={internProfile.emergency_contact_phone || ""} maxLength={25} />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {mentorProfile && (
-          <div>
-            <h3 className="border-b border-slate-200 pb-2 text-sm font-bold text-slate-950">02 · Profil mentor</h3>
-            <div className="grid gap-4">
-              <div className="form-field">
-                <label className="form-label" htmlFor="headline">Headline Profesional</label>
-                <input className="form-input" id="headline" name="headline" defaultValue={mentorProfile?.headline || ""} placeholder="Contoh: Senior UI/UX Designer di Utero" />
-              </div>
-              <div className="form-field">
-                <label className="form-label" htmlFor="bio">Bio Singkat</label>
-                <textarea className="form-input" id="bio" name="bio" defaultValue={mentorProfile?.bio || ""} rows={3} placeholder="Ceritakan keahlian dan peran bimbingan Anda..." />
               </div>
             </div>
           </div>

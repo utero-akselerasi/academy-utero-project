@@ -37,7 +37,7 @@ export const APP_TIME_ZONE = "Asia/Jakarta";
  * dibandingkan langsung dengan kolom `date` Postgres tanpa penyusunan ulang
  * string. Ini menggantikan empat salinan `Intl.DateTimeFormat` yang sebelumnya
  * tersebar di `features/attendance/actions.ts`, `features/attendance/queries.ts`,
- * `features/auth/scope.ts`, dan `app/dashboard/mentor/attendance/page.tsx`.
+ * `features/auth/scope.ts`, dan `app/dashboard/admin/attendance/page.tsx`.
  */
 export function jakartaDateString(instant: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {

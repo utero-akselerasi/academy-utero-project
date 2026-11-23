@@ -44,7 +44,7 @@ test("assignment submission derives intern and course access inside identity tra
   await app.close();
 });
 
-test("grading query keeps mentor scope in SQL and ignores client intern IDs", async () => {
+test("grading query permits global admin and ignores client intern IDs", async () => {
   const identity = { id: userId, roles: ["admin"], permissions: ["lms.manage"] };
   const queries = [];
   const { app } = await fixture(identity, async (sql, params) => {
@@ -55,8 +55,8 @@ test("grading query keeps mentor scope in SQL and ignores client intern IDs", as
   });
   const response = await app.inject({ method: "PATCH", url: `/v1/lms/submissions/${resourceId}/grade`, payload: { score: 88, internId: userId } });
   assert.equal(response.statusCode, 200);
-  assert.match(queries[0][0], /mentor_assignments/);
-  assert.equal(queries[0][1].includes(userId), true);
+  assert.doesNotMatch(queries[0][0], /mentor_assignments/);
+  assert.equal(queries[0][1].includes(userId), false);
   await app.close();
 });
 

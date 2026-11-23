@@ -9,7 +9,7 @@ import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
  * `string | null` untuk memaksa `tsc` menemukan titik render yang lupa
  * menanganinya. Karena itu penandatanganannya ditaruh di lapisan query untuk
  * ketiga kueri yang membaca kolom ini (`getCourseDetails`, `getLesson`,
- * `getMentorCourseDetails`) — bukan di komponen.
+ * `getAdminCourseDetails`) — bukan di komponen.
  *
  * Nilai yang gagal ditandatangani jadi `null`; `LessonAttachments` merender
  * `href` apa adanya, jadi tautannya mati alih-alih membocorkan object path.
@@ -314,16 +314,16 @@ export async function getAssignment(assignmentId: string, internProfileId: strin
 /**
  * Pengumpulan tugas yang boleh dinilai staf.
  *
- * `allowedInternIds === null` berarti scope global (super_admin). Selain itu
+ * `allowedInternIds === null` berarti scope global (admin/super_admin). Selain itu
  * daftar harus sama dengan scope yang dipakai gradeAssignmentAction, supaya
  * halaman tidak menampilkan submission yang aksinya pasti ditolak - dan
- * sebaliknya tidak membocorkan isi pengerjaan peserta yang bukan bimbingan.
+ * sebaliknya tidak membocorkan isi pengerjaan peserta lain yang berada di luar scope.
  *
  * Versi lama menerima mentorProfileId dan memfilter lewat mentor_assignments
  * tanpa batas tanggal, jadi penempatan yang sudah berakhir masih terbaca.
- * resolveStaffInternScope sudah membatasi ke penempatan aktif (Asia/Jakarta).
+ * Saat ini hanya admin dengan scope global yang boleh meninjau submission.
  */
-export async function getMentorSubmissions(allowedInternIds: string[] | null) {
+export async function getAdminSubmissions(allowedInternIds: string[] | null) {
   if (usesLocalBackend()) {
     const response = await backendRequest("/v1/lms/submissions");
     if (!response.ok) return { data: [], error: new Error(`HTTP ${response.status}`) };
@@ -432,7 +432,7 @@ export async function getPublishedCourses() {
   return { data: data ?? [], error };
 }
 
-export async function getMentorCourseDetails(courseId: string) {
+export async function getAdminCourseDetails(courseId: string) {
   if (usesLocalBackend()) {
     const response = await backendRequest(`/v1/lms/courses/${courseId}/detail`);
     if (!response.ok) return { data: null, error: new Error(`HTTP ${response.status}`) };

@@ -16,10 +16,10 @@ import { z } from "zod";
 import { usesLocalBackend } from "@/lib/backend/server";
 import { selectionRequest } from "./local-api";
 
-const mentorPath = "/dashboard/mentor/selection";
+const selectionPath = "/dashboard/admin/selection";
 function revalidateSelectionWorkspace() {
-  revalidatePath(mentorPath);
-  revalidatePath("/dashboard/mentor/selection/tests/[testId]", "page");
+  revalidatePath(selectionPath);
+  revalidatePath("/dashboard/admin/selection/tests/[testId]", "page");
 }
 const superAdminPath = "/dashboard/super-admin/selection";
 
@@ -31,18 +31,18 @@ function parsed<T>(result: { success: boolean; data?: T; error?: { issues: Array
 export async function createSelectionTrackAction(formData: FormData) {
   const user = await requireAdmin();
   const input = parsed(createTrackSchema.safeParse(formDataObject(formData)));
-  if (usesLocalBackend()) { await selectionRequest("/tracks", "POST", input); revalidatePath(mentorPath); return; }
+  if (usesLocalBackend()) { await selectionRequest("/tracks", "POST", input); revalidatePath(selectionPath); return; }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db.from("selection_tracks").insert({ ...input, description: input.description || null, is_active: true, created_by: user.id }).select("id").single();
   if (error) throw new Error(`Gagal membuat jalur: ${error.message}`);
   await writeAuditLog(user.id, "create_selection_track", "selection_tracks", data.id, null, input);
-  revalidatePath(mentorPath);
+  revalidatePath(selectionPath);
 }
 
 export async function createSelectionMaterialAction(formData: FormData) {
   const user = await requireAdmin();
   const input = parsed(createMaterialSchema.safeParse(formDataObject(formData)));
-  if (usesLocalBackend()) { await selectionRequest("/materials", "POST", input); revalidatePath(mentorPath); return; }
+  if (usesLocalBackend()) { await selectionRequest("/materials", "POST", input); revalidatePath(selectionPath); return; }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db.from("selection_materials").insert({
     track_id: input.trackId, title: input.title, content: { body: input.content },
@@ -50,18 +50,18 @@ export async function createSelectionMaterialAction(formData: FormData) {
   }).select("id").single();
   if (error) throw new Error(`Gagal membuat materi: ${error.message}`);
   await writeAuditLog(user.id, "create_selection_material", "selection_materials", data.id, null, input);
-  revalidatePath(mentorPath);
+  revalidatePath(selectionPath);
 }
 
 export async function publishSelectionMaterialAction(formData: FormData) {
   const user = await requireAdmin();
   const materialId = z.string().uuid().parse(formData.get("materialId"));
-  if (usesLocalBackend()) { await selectionRequest(`/materials/${materialId}/publish`, "POST"); revalidatePath(mentorPath); return; }
+  if (usesLocalBackend()) { await selectionRequest(`/materials/${materialId}/publish`, "POST"); revalidatePath(selectionPath); return; }
   const db = await createUteroAcademyServiceRoleClient();
   const { data, error } = await db.from("selection_materials").update({ is_published: true }).eq("id", materialId).eq("is_published", false).select("id").maybeSingle();
   if (error || !data) throw new Error(error?.message ?? "Materi tidak ditemukan atau sudah terbit.");
   await writeAuditLog(user.id, "publish_selection_material", "selection_materials", materialId);
-  revalidatePath(mentorPath);
+  revalidatePath(selectionPath);
 }
 
 export async function createSelectionTestAction(formData: FormData) {
@@ -183,7 +183,7 @@ export async function deleteSelectionTestDraftAction(formData: FormData) {
   if (!usesLocalBackend()) throw new Error("Penghapusan draf paket tes harus diproses backend Academy.");
   await selectionRequest(`/tests/${testId}/delete`, "POST");
   revalidateSelectionWorkspace();
-  redirect("/dashboard/mentor/selection#tes");
+  redirect("/dashboard/admin/selection#tes");
 }
 export async function versionSelectionTestAction(formData: FormData) {
   const user = await requireAdmin();
@@ -214,7 +214,7 @@ export async function assignSelectionTestAction(formData: FormData) {
   const user = await requireAdmin();
   const input = parsed(assignApplicantSchema.safeParse(formDataObject(formData)));
   if (usesLocalBackend()) {
-    try { await selectionRequest("/assignments", "POST", input); revalidatePath(mentorPath); return { ok: true }; }
+    try { await selectionRequest("/assignments", "POST", input); revalidatePath(selectionPath); return { ok: true }; }
     catch (error) { return { ok: false, message: error instanceof Error ? error.message : "Penugasan gagal." }; }
   }
   const db = await createUteroAcademyServiceRoleClient();
@@ -230,7 +230,7 @@ export async function assignSelectionTestAction(formData: FormData) {
   const { error: statusError } = await db.from("internship_applications").update({ selection_status: "assigned", selection_track_id: test.track_id }).eq("id", input.applicationId);
   if (statusError) throw new Error(statusError.message);
   await writeAuditLog(user.id, "assign_selection_test", "selection_assignments", data.id, null, input);
-  revalidatePath(mentorPath);
+  revalidatePath(selectionPath);
 }
 
 export async function correctSelectionAssignmentAction(formData: FormData) {
@@ -239,7 +239,7 @@ export async function correctSelectionAssignmentAction(formData: FormData) {
   const testId = z.string().uuid().parse(formData.get("testId"));
   const reason = z.string().trim().min(15).max(1000).parse(formData.get("reason"));
   if (usesLocalBackend()) {
-    try { await selectionRequest(`/assignments/${assignmentId}/package`, "PUT", { testId, reason }); revalidatePath(mentorPath); return { ok: true }; }
+    try { await selectionRequest(`/assignments/${assignmentId}/package`, "PUT", { testId, reason }); revalidatePath(selectionPath); return { ok: true }; }
     catch (error) { return { ok: false, message: error instanceof Error ? error.message : "Koreksi gagal." }; }
   }
   const db = await createUteroAcademyServiceRoleClient();
@@ -253,12 +253,12 @@ export async function correctSelectionAssignmentAction(formData: FormData) {
   const { error: updateError } = await db.from("selection_assignments").update({ package_id: testId, max_attempts: test.max_attempts }).eq("id", assignmentId);
   if (updateError) throw new Error(`Gagal mengoreksi penugasan: ${updateError.message}`);
   await writeAuditLog(user.id, "correct_selection_assignment", "selection_assignments", assignmentId, { packageId: assignment.package_id }, { packageId: testId, reason });
-  revalidatePath(mentorPath);
+  revalidatePath(selectionPath);
 }
 export async function gradeSelectionAnswerAction(formData: FormData) {
   const user = await requireAdmin();
   const input = parsed(gradeAnswerSchema.safeParse(formDataObject(formData)));
-  if (usesLocalBackend()) { await selectionRequest(`/answers/${input.answerId}/grade`, "POST", input); revalidatePath(mentorPath); revalidatePath(`${mentorPath}/review/${input.assignmentId}`); return; }
+  if (usesLocalBackend()) { await selectionRequest(`/answers/${input.answerId}/grade`, "POST", input); revalidatePath(selectionPath); revalidatePath(`${selectionPath}/review/${input.assignmentId}`); return; }
   const db = await createUteroAcademyServiceRoleClient();
   const { data: answer } = await db.from("selection_answers").select("id,attempt_id,question_id").eq("id", input.answerId).single();
   if (!answer) throw new Error("Jawaban tidak ditemukan.");
@@ -288,14 +288,14 @@ export async function gradeSelectionAnswerAction(formData: FormData) {
     if (assignmentError) throw new Error(assignmentError.message);
   }
   await writeAuditLog(user.id, "grade_selection_answer", "selection_answers", input.answerId, null, { awardedPoints: input.awardedPoints, feedback: input.feedback });
-  revalidatePath(mentorPath);
-  revalidatePath(`${mentorPath}/review/${input.assignmentId}`);
+  revalidatePath(selectionPath);
+  revalidatePath(`${selectionPath}/review/${input.assignmentId}`);
 }
 
 export async function decideSelectionAction(formData: FormData) {
   await requireAdmin();
   const input = parsed(decisionSchema.safeParse(formDataObject(formData)));
-  if (usesLocalBackend()) { await selectionRequest("/decisions", "POST", input); revalidatePath(mentorPath); revalidatePath(`${mentorPath}/review/${input.assignmentId}`); return; }
+  if (usesLocalBackend()) { await selectionRequest("/decisions", "POST", input); revalidatePath(selectionPath); revalidatePath(`${selectionPath}/review/${input.assignmentId}`); return; }
   const db = await createUteroAcademyClient();
   const { error } = await db.rpc("decide_selection_atomically", {
     p_assignment_id: input.assignmentId,
@@ -304,18 +304,18 @@ export async function decideSelectionAction(formData: FormData) {
     p_public_note: input.notes || null,
   });
   if (error) throw new Error(`Gagal menyimpan keputusan: ${error.message}`);
-  revalidatePath(mentorPath);
-  revalidatePath(`${mentorPath}/review/${input.assignmentId}`);
+  revalidatePath(selectionPath);
+  revalidatePath(`${selectionPath}/review/${input.assignmentId}`);
 }
 
 export async function bypassSelectionAction(formData: FormData) {
   const user = await requireSuperAdmin();
   const input = parsed(bypassSchema.safeParse(formDataObject(formData)));
-  if (usesLocalBackend()) { await selectionRequest("/bypass", "POST", input); revalidatePath(superAdminPath); revalidatePath(mentorPath); return; }
+  if (usesLocalBackend()) { await selectionRequest("/bypass", "POST", input); revalidatePath(superAdminPath); revalidatePath(selectionPath); return; }
   const db = await createUteroAcademyClient();
   const { data, error } = await db.rpc("bypass_selection", { p_application_id: input.applicationId, p_reason: input.reason, p_assignment_id: input.assignmentId || null, p_supporting_document_path: null });
   if (error) throw new Error(`Gagal menyimpan bypass: ${error.message}`);
   await writeAuditLog(user.id, "bypass_selection", "selection_bypasses", data, null, { applicationId: input.applicationId, assignmentId: input.assignmentId || null, reason: input.reason });
   revalidatePath(superAdminPath);
-  revalidatePath(mentorPath);
+  revalidatePath(selectionPath);
 }

@@ -247,13 +247,6 @@ const EXPECTED_PAGE_ACCESS: { prefix: string; maxRoles: string[]; why: string }[
     why: "admin + super_admin.",
   },
   {
-    // `/dashboard/mentor/*` adalah area kerja `admin` — `mentor` bukan lagi
-    // peran login (migrasi 0028). Bukan salah tulis.
-    prefix: "app/dashboard/mentor",
-    maxRoles: ["admin", "super_admin"],
-    why: "Area kerja pembimbing, dijaga sebagai admin. Peran `mentor` sudah tidak ada.",
-  },
-  {
     prefix: "app/dashboard/intern",
     maxRoles: ["intern", "super_admin"],
     why: "Peserta, super_admin untuk dukungan.",

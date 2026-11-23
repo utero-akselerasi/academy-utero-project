@@ -20,7 +20,7 @@ export async function attendanceRoutes(app, { db, config }) {
     ["attendance.review"],
   );
 
-  app.get("/v1/attendance/mentor-dashboard", async (request, reply) => {
+  app.get("/v1/attendance/admin-dashboard", async (request, reply) => {
     const identity = reviewer(request, reply);
     if (!identity) return;
     return db.transaction(identity, async (client) => {

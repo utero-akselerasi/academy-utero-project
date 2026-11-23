@@ -24,9 +24,7 @@ export async function saveAssessmentAction(formData: FormData) {
 
   if (!internId) throw new Error("Intern ID tidak valid.");
 
-  // Admin hanya boleh menilai intern yang memang dibimbingnya (mentor_assignments
-  // aktif). super_admin bebas. Tanpa ini, admin mana pun bisa menilai dan
-  // menerbitkan sertifikat untuk intern siapa pun lewat action ID.
+  // Penilaian hanya untuk admin dan super admin; peserta lain tidak boleh mengubahnya.
   const scope = await resolveStaffInternScope(user.id);
   if (scope.kind === "setup_required") {
     throw new Error("Profil pembimbing belum disiapkan. Hubungi super admin.");
@@ -57,22 +55,13 @@ export async function saveAssessmentAction(formData: FormData) {
 
   if (usesLocalBackend()) {
     await localSaveAssessment(internId, { score: scoreJson, finalScore, feedback, submitType });
-    revalidatePath("/dashboard/mentor/assessments");
+    revalidatePath("/dashboard/admin/assessments");
     revalidatePath("/dashboard/intern/certificate");
     revalidatePath("/dashboard/school");
     return;
   }
 
   const db = await createUteroAcademyServiceRoleClient();
-
-  // Dapatkan profil pembimbing/mentor dari user login admin
-  const { data: mentorProfile } = await db
-    .from("mentor_profiles")
-    .select("id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  const mentorId = mentorProfile?.id || null;
 
   // Cek apakah assessment sudah ada
   const { data: existing } = await db
@@ -114,9 +103,7 @@ export async function saveAssessmentAction(formData: FormData) {
   } else {
     // Insert baru
     const insertData: any = {
-      intern_id: internId,
-      mentor_id: mentorId,
-      score: scoreJson,
+      intern_id: internId,      score: scoreJson,
       final_score: finalScore,
       feedback: feedback || null,
       status: submitType === "finalize" ? "finalized" : "draft"
@@ -163,7 +150,7 @@ export async function saveAssessmentAction(formData: FormData) {
     }
   }
 
-  revalidatePath("/dashboard/mentor/assessments");
+  revalidatePath("/dashboard/admin/assessments");
   revalidatePath("/dashboard/intern/certificate");
   revalidatePath("/dashboard/school");
 }
@@ -191,7 +178,7 @@ export async function uploadCertificateTemplateAction(formData: FormData) {
 
   if (usesLocalBackend()) {
     await uploadLocalCertificateTemplate(filePath, file);
-    revalidatePath("/dashboard/mentor/assessments");
+    revalidatePath("/dashboard/admin/assessments");
     revalidatePath("/dashboard/intern/certificate");
     return;
   }
@@ -224,6 +211,6 @@ export async function uploadCertificateTemplateAction(formData: FormData) {
     throw new Error("Gagal menyimpan data template sertifikat.");
   }
 
-  revalidatePath("/dashboard/mentor/assessments");
+  revalidatePath("/dashboard/admin/assessments");
   revalidatePath("/dashboard/intern/certificate");
 }

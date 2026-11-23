@@ -49,7 +49,7 @@ export function ApplicationStatusForm({ id, status, selectionStatus, onboardingS
               <input className="form-input mt-1 w-full text-sm" name="endDate" type="date" lang="id-ID" value={endDate} onChange={(event) => setEndDate(event.target.value)} required />
             </label>
             <button disabled={pending} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 text-sm font-bold text-white transition hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 disabled:opacity-60" type="submit"><Check size={16} aria-hidden="true" />{pending ? "Menyimpan..." : "Terima & buat peserta"}</button>
-          </form> : <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-950">Penerimaan belum tersedia. Tugaskan tes, nilai jawaban, lalu tetapkan hasil <strong>Lulus</strong> di <Link href="/dashboard/mentor/selection" className="font-semibold underline underline-offset-2">Seleksi Calon Peserta</Link>. Super Admin juga dapat mencatat bypass dengan alasan.</p>}
+          </form> : <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-950">Penerimaan belum tersedia. Tugaskan tes, nilai jawaban, lalu tetapkan hasil <strong>Lulus</strong> di <Link href="/dashboard/admin/selection" className="font-semibold underline underline-offset-2">Seleksi Calon Peserta</Link>. Super Admin juga dapat mencatat bypass dengan alasan.</p>}
 
           <form action={formAction}>
             <input name="id" type="hidden" value={id} />

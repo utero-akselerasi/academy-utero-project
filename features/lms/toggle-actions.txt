@@ -22,7 +22,7 @@ export async function toggleLessonPublishAction(formData: FormData) {
     throw new Error("Gagal mengubah status publish lesson.");
   }
 
-  revalidatePath("/dashboard/mentor/lms/" + courseId);
+  revalidatePath("/dashboard/admin/lms/" + courseId);
 }
 
 export async function toggleQuizPublishAction(formData: FormData) {
@@ -45,7 +45,7 @@ export async function toggleQuizPublishAction(formData: FormData) {
     throw new Error("Gagal mengubah status publish quiz.");
   }
 
-  revalidatePath("/dashboard/mentor/lms/" + courseId);
+  revalidatePath("/dashboard/admin/lms/" + courseId);
 }
 
 export async function toggleAssignmentPublishAction(formData: FormData) {
@@ -68,5 +68,5 @@ export async function toggleAssignmentPublishAction(formData: FormData) {
     throw new Error("Gagal mengubah status publish assignment.");
   }
 
-  revalidatePath("/dashboard/mentor/lms/" + courseId);
+  revalidatePath("/dashboard/admin/lms/" + courseId);
 }

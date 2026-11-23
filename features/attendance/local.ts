@@ -6,7 +6,7 @@ import { attendanceSettingsSchema, checkInSchema, checkOutSchema, reviewAttendan
 import { type FormState } from "./actions";
 import { type Attendance, type AttendanceWithIntern, type Permit } from "./types";
 
-export type MentorAttendanceDashboard = {
+export type AdminAttendanceDashboard = {
   setupRequired: boolean;
   settings: Record<string, any> | null;
   interns: Record<string, any>[];
@@ -104,7 +104,7 @@ export async function localReview(formData: FormData) {
   if (!parsed.success) throw new Error("Data review absensi tidak valid.");
   const { response } = await send(`/v1/attendance/${parsed.data.attendanceId}/review`, "PATCH", parsed.data);
   if (!response.ok) throw new Error("Gagal review absensi.");
-  revalidatePath("/dashboard/mentor/attendance");
+  revalidatePath("/dashboard/admin/attendance");
 }
 
 export async function localReviewPermit(formData: FormData) {
@@ -113,7 +113,7 @@ export async function localReviewPermit(formData: FormData) {
   if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id) || !["approved", "rejected"].includes(String(status))) throw new Error("Data review izin tidak valid.");
   const { response } = await send(`/v1/attendance/permits/${id}/review`, "PATCH", { status, endDate: formData.get("endDate") || undefined });
   if (!response.ok) throw new Error("Gagal review izin.");
-  revalidatePath("/dashboard/mentor/attendance");
+  revalidatePath("/dashboard/admin/attendance");
 }
 
 export async function localSettings(formData: FormData) {
@@ -128,7 +128,7 @@ export async function localSettings(formData: FormData) {
   if (!parsed.success) throw new Error("Pengaturan absensi tidak valid. " + parsed.error.issues.map((item) => item.message).join(" "));
   const { response } = await send("/v1/attendance/settings", "PATCH", parsed.data);
   if (!response.ok) throw new Error("Gagal menyimpan pengaturan absensi.");
-  revalidatePath("/dashboard/mentor/attendance");
+  revalidatePath("/dashboard/admin/attendance");
 }
 
 export async function localAttendanceList(internId?: string): Promise<AttendanceWithIntern[]> {
@@ -149,10 +149,10 @@ export async function localMyPermits(): Promise<Permit[]> {
   return ((await response.json()) as { permits: Permit[] }).permits;
 }
 
-export async function localMentorAttendanceDashboard(): Promise<MentorAttendanceDashboard> {
-  const response = await backendRequest("/v1/attendance/mentor-dashboard");
+export async function localAdminAttendanceDashboard(): Promise<AdminAttendanceDashboard> {
+  const response = await backendRequest("/v1/attendance/admin-dashboard");
   if (!response.ok) throw new Error("Gagal membaca dashboard absensi lokal.");
-  return response.json() as Promise<MentorAttendanceDashboard>;
+  return response.json() as Promise<AdminAttendanceDashboard>;
 }
 
 export async function localAttendanceExportData(startDate: string, endDate: string, mode: string): Promise<AttendanceExportData> {

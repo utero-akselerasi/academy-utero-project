@@ -176,120 +176,6 @@ export async function submitDailyReportAction(_: DailyReportFormState, formData:
     });
   }
 
-  // === OTOMATISASI TASK BOARD DARI DAILY TASK ===
-  try {
-    const { data: assignment } = await db
-      .from("mentor_assignments")
-      .select("mentor_id, mentor_profiles(user_id)")
-      .eq("intern_id", internProfileId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (assignment) {
-      const mentorProfilesArray = Array.isArray(assignment.mentor_profiles) ? assignment.mentor_profiles[0] : assignment.mentor_profiles;
-      const mentorUserId = mentorProfilesArray?.user_id;
-      
-      if (mentorUserId) {
-        // Ambil nama intern
-        const { data: internProfile } = await db
-          .from("intern_profiles")
-          .select("full_name")
-          .eq("id", internProfileId)
-          .maybeSingle();
-        const internName = internProfile?.full_name || "Peserta Magang";
-        const cardTitle = "Laporan Harian - " + parsed.data.reportDate + " - " + internName;
-
-        let cardDesc = "Pekerjaan Hari Ini: " + parsed.data.todayWork;
-        if (parsed.data.progress) cardDesc += "\nProgress: " + parsed.data.progress;
-        if (parsed.data.blockers) cardDesc += "\nKendala: " + parsed.data.blockers;
-        if (googleDriveLink) cardDesc += "\nGoogle Drive Link: " + googleDriveLink;
-
-        if (reportId) {
-          // Edit: Update deskripsi card otomatis yang sudah ada
-          await db
-            .from("task_cards")
-            .update({
-              description: cardDesc,
-              updated_at: new Date().toISOString()
-            })
-            .eq("intern_id", internProfileId)
-            .eq("title", cardTitle);
-        } else {
-          // Baru: Tambahkan card baru ke list pertama di board mentor
-          const { data: existingBoards } = await db
-            .from("task_boards")
-            .select("id")
-            .eq("owner_id", mentorUserId)
-            .order("created_at", { ascending: true })
-            .limit(1);
-
-          let boardId = existingBoards && existingBoards.length > 0 ? existingBoards[0].id : null;
-
-          if (!boardId) {
-            const { data: newBoard } = await db
-              .from("task_boards")
-              .insert({
-                name: "Board Bimbingan Magang",
-                description: "Board otomatis untuk melacak tugas bimbingan magang.",
-                owner_id: mentorUserId
-              })
-              .select("id")
-              .maybeSingle();
-            boardId = newBoard?.id;
-          }
-
-          if (boardId) {
-            const { data: lists } = await db
-              .from("task_lists")
-              .select("id")
-              .eq("board_id", boardId)
-              .order("order_index", { ascending: true });
-
-            let listId = lists && lists.length > 0 ? lists[0].id : null;
-
-            if (!listId) {
-              const { data: newList } = await db
-                .from("task_lists")
-                .insert({
-                  board_id: boardId,
-                  name: "Laporan Harian",
-                  order_index: 0
-                })
-                .select("id")
-                .maybeSingle();
-              listId = newList?.id;
-            }
-
-            if (listId) {
-              const { data: maxOrder } = await db
-                .from("task_cards")
-                .select("order_index")
-                .eq("list_id", listId)
-                .order("order_index", { ascending: false })
-                .limit(1)
-                .maybeSingle();
-
-              const nextOrder = (maxOrder?.order_index ?? -1) + 1;
-
-              await db.from("task_cards").insert({
-                list_id: listId,
-                title: cardTitle,
-                description: cardDesc,
-                intern_id: internProfileId,
-                mentor_id: assignment.mentor_id,
-                order_index: nextOrder,
-                created_by: user.id
-              });
-            }
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.error("Gagal otomatisasi task board:", err);
-  }
-
   revalidatePath("/dashboard/intern/daily-reports");
   return { ok: true, message: reportId ? "Laporan harian berhasil diperbarui." : "Laporan harian berhasil dikirim." };
 }
@@ -381,6 +267,6 @@ export async function reviewDailyReportAction(_: ReviewReportState, formData: Fo
     }
   }
 
-  revalidatePath("/dashboard/mentor/daily-reports");
+  revalidatePath("/dashboard/admin/daily-reports");
   return { ok: true, message: "Review berhasil disimpan." };
 }

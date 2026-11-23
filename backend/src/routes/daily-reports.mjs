@@ -182,7 +182,7 @@ export async function dailyReportRoutes(app, { db, config }) {
       const denied = await requireScopedIntern(client, identity, report.rows[0].intern_id);
       if (denied) return denied;
       let mentor = await client.query("select id from utero_academy.mentor_profiles where user_id=$1", [identity.id]);
-      if (!mentor.rows[0] && identity.roles.includes("super_admin")) {
+      if (!mentor.rows[0]) {
         mentor = await client.query(
           `with inserted as (
              insert into utero_academy.mentor_profiles(user_id) values($1)

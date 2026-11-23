@@ -44,7 +44,7 @@ Sebelum mulai menguji di browser:
    - Ambil foto selfie wajib lewat kamera, lalu tekan **Check In Sekarang**.
 7. **Verifikasi di Akun Mentor:**
    - Login menggunakan akun \mentor\ atau \dmin\.
-   - Masuk ke menu **Kelola & Review Absensi** (\/dashboard/mentor/attendance\).
+   - Masuk ke menu **Kelola & Review Absensi** (\/dashboard/admin/attendance\).
    - Cari nama intern bersangkutan. Kartu absen akan menampilkan status peninjauan.
    - Klik tombol **Detail Absen**.
    - **Verifikasi UI Baru:** Perhatikan kartu Check-In masuk telah dirancang ulang menggunakan layout minimalis (border bersih, text wrap, status check-in, info GPS terstruktur). Terdapat box peringatan kuning bertuliskan *"⚠️ Absen di Luar Jangkauan Kantor"* lengkap dengan Alasan dan Tautan Dokumen Bukti Kegiatan.
@@ -60,7 +60,7 @@ Sebelum mulai menguji di browser:
    - Unggah surat keterangan (wajib jika memilih opsi Sakit), lalu submit.
 4. **Persetujuan & Modifikasi oleh Mentor:**
    - Login menggunakan akun \mentor\ atau \dmin\.
-   - Masuk ke menu **Kelola & Review Absensi** (\/dashboard/mentor/attendance\).
+   - Masuk ke menu **Kelola & Review Absensi** (\/dashboard/admin/attendance\).
    - Di bagian atas list siswa, cari panel baru **"Antrean Izin / Sakit Menunggu Approval"**.
    - Periksa data pengajuan siswa.
    - **Verifikasi Pengeditan Selesai:** Mentor dapat memperpendek/memperpanjang tanggal selesai izin pada input tanggal sebelum menyetujui.
@@ -75,8 +75,8 @@ Sebelum mulai menguji di browser:
 ### Skenario E: Tampilan Responsif HP (Mobile Layout)
 1. Aktifkan simulasi tampilan HP (*Chrome DevTools Device Mode* atau buka via HP langsung).
 2. Masuk ke halaman-halaman berikut:
-   - **Mentor Attendance** (\/dashboard/mentor/attendance\)
-   - **Mentor Daily Reports** (\/dashboard/mentor/daily-reports\)
+   - **Mentor Attendance** (\/dashboard/admin/attendance\)
+   - **Mentor Daily Reports** (\/dashboard/admin/daily-reports\)
 3. **Verifikasi:**
    - Daftar kartu profil peserta magang tampil rapi dalam susunan **2 kolom** yang pas, tidak lagi menumpuk 1 kolom memanjang.
    - Nama panjang (misal: *Muhammad Toyfur Dita Ramadan*) melipat rapi ke baris berikutnya (*word wrapping*) dan tidak meluber keluar dari batas kartu.
@@ -134,7 +134,7 @@ Sebelum mulai menguji di browser:
 #### 1. Mentor/Admin Memberikan Penilaian
 1. **Akses Halaman Penilaian:**
    - Login menggunakan akun dengan role `admin` atau `mentor`.
-   - Masuk ke menu **Penilaian & Sertifikat** (`/dashboard/mentor/assessments`).
+   - Masuk ke menu **Penilaian & Sertifikat** (`/dashboard/admin/assessments`).
    
 2. **Verifikasi Halaman Utama:**
    - Pastikan tabel menampilkan daftar peserta magang aktif dengan kolom: Nama, Jurusan, Email, Nilai Akhir, Status Penilaian, dan Aksi.

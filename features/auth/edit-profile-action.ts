@@ -28,7 +28,6 @@ async function updateLocalProfile(userId: string, formData: FormData): Promise<P
       })
     : generalProfileSchema.safeParse({
         fullName: value(formData, "fullName"), phone: value(formData, "phone"),
-        headline: value(formData, "headline"), bio: value(formData, "bio"),
       });
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Biodata tidak valid." };
 
@@ -70,12 +69,11 @@ export async function updateProfileAction(_: ProfileFormState, formData: FormDat
   if (usesLocalBackend()) return updateLocalProfile(user.id, formData);
   const database = await createUteroAcademyServiceRoleClient();
   const sessionDatabase = await createUteroAcademyClient();
-  const [{ data: userProfile, error: profileReadError }, { data: internProfile, error: internReadError }, { data: mentorProfile, error: mentorReadError }] = await Promise.all([
+  const [{ data: userProfile, error: profileReadError }, { data: internProfile, error: internReadError }] = await Promise.all([
     database.from("user_profiles").select("avatar_path").eq("id", user.id).maybeSingle(),
     database.from("intern_profiles").select("id,start_date,end_date,status").eq("user_id", user.id).maybeSingle(),
-    database.from("mentor_profiles").select("id").eq("user_id", user.id).maybeSingle(),
   ]);
-  if (profileReadError || internReadError || mentorReadError || !userProfile) {
+  if (profileReadError || internReadError || !userProfile) {
     return { ok: false, message: "Profil tidak tersedia. Hubungi admin." };
   }
   if (!internProfile && await userHasAnyRole(user.id, ["intern"])) {
@@ -94,7 +92,6 @@ export async function updateProfileAction(_: ProfileFormState, formData: FormDat
       })
     : generalProfileSchema.safeParse({
         fullName: value(formData, "fullName"), phone: value(formData, "phone"),
-        headline: value(formData, "headline"), bio: value(formData, "bio"),
       });
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Biodata tidak valid." };
 
@@ -116,30 +113,26 @@ export async function updateProfileAction(_: ProfileFormState, formData: FormDat
 
   let updateError: { message?: string } | null = null;
   try {
-    if (internProfile && "major" in parsed.data) {
+    if (internProfile) {
+      const internData = internBiodataSchema.parse(parsed.data);
       const { error } = await sessionDatabase.rpc("update_own_intern_biodata", {
-        p_full_name: parsed.data.fullName, p_phone: parsed.data.phone,
-        p_major: parsed.data.major, p_grade_or_semester: parsed.data.gradeOrSemester,
-        p_school_name: parsed.data.schoolName, p_address: parsed.data.address,
-        p_school_supervisor_name: parsed.data.schoolSupervisorName,
-        p_school_supervisor_phone: parsed.data.schoolSupervisorPhone,
-        p_emergency_contact_name: parsed.data.emergencyContactName,
-        p_emergency_contact_phone: parsed.data.emergencyContactPhone,
+        p_full_name: internData.fullName, p_phone: internData.phone,
+        p_major: internData.major, p_grade_or_semester: internData.gradeOrSemester,
+        p_school_name: internData.schoolName, p_address: internData.address,
+        p_school_supervisor_name: internData.schoolSupervisorName,
+        p_school_supervisor_phone: internData.schoolSupervisorPhone,
+        p_emergency_contact_name: internData.emergencyContactName,
+        p_emergency_contact_phone: internData.emergencyContactPhone,
         p_avatar_path: newAvatarPath,
       });
       updateError = error;
-    } else if (!("major" in parsed.data)) {
+    } else {
       const { error } = await sessionDatabase.from("user_profiles").update({
         full_name: parsed.data.fullName, phone: parsed.data.phone,
         ...(newAvatarPath ? { avatar_path: newAvatarPath } : {}), updated_at: new Date().toISOString(),
       }).eq("id", user.id);
       updateError = error;
-      if (!error && mentorProfile) {
-        const { error: mentorError } = await sessionDatabase.from("mentor_profiles").update({
-          headline: parsed.data.headline, bio: parsed.data.bio, updated_at: new Date().toISOString(),
-        }).eq("id", mentorProfile.id);
-        updateError = mentorError;
-      }
+
     }
   } catch (error) {
     updateError = error instanceof Error ? error : { message: String(error) };

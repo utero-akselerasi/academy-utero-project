@@ -49,17 +49,13 @@ describe("super_admin boleh menghapus board siapa pun", () => {
   });
 });
 
-describe("admin hanya boleh menghapus board miliknya", () => {
-  it("board milik sendiri: keduanya sepakat", () => {
-    expect(barisTerkenaBentukLama("admin-1", "admin-1")).toBe(1);
-    expect(staffCanDeleteBoard(["admin"], "admin-1", "admin-1")).toBe(true);
+describe("admin mengelola board secara global", () => {
+  it("boleh menghapus board staf lain", () => {
+    expect(staffCanDeleteBoard(["admin"], "admin-1", "admin-2")).toBe(true);
   });
 
-  it("board milik staf lain: bentuk lama senyap, bentuk sekarang menolak", () => {
-    expect(barisTerkenaBentukLama("admin-1", "admin-2")).toBe(0);
-
-    // Penolakan eksplisit — inilah yang berubah dari "tidak terjadi apa-apa".
-    expect(staffCanDeleteBoard(["admin"], "admin-1", "admin-2")).toBe(false);
+  it("super_admin juga mengelola board secara global", () => {
+    expect(staffCanDeleteBoard(["super_admin"], "sa-1", "admin-2")).toBe(true);
   });
 });
 

@@ -34,11 +34,11 @@ async function makeApp(calls) {
   return app;
 }
 
-test("admin dashboard menampilkan seluruh peserta aktif tanpa bergantung pada assignment mentor", async () => {
+test("admin dashboard menampilkan seluruh peserta aktif tanpa bergantung pada assignment legacy", async () => {
   const calls = [];
   const app = await makeApp(calls);
   try {
-    const response = await app.inject({ url: "/v1/attendance/mentor-dashboard" });
+    const response = await app.inject({ url: "/v1/attendance/admin-dashboard" });
     assert.equal(response.statusCode, 200);
     assert.deepEqual(response.json().interns.map((row) => row.id), [assignedIntern, otherIntern]);
     assert.equal(calls.some((entry) => entry.sql.includes("from utero_academy.mentor_assignments")), false);

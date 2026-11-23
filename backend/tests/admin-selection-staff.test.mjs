@@ -25,8 +25,9 @@ test("anonymous and applicant cannot access staff data or mutate workflow", asyn
       ["GET", `/v1/admin/applications/${uuid}/selection`],
       ["GET", "/v1/selection/staff/workspace"],
       ["POST", "/v1/selection/staff/bypass", { applicationId: uuid, reason: "Contoh alasan bypass seleksi" }],
-      ["POST", "/v1/admin/placements", { internId: uuid, mentorId: uuid }],
+      ["GET", "/v1/admin/interns"],
     ]) assert.equal((await app.inject({ method, url, payload })).statusCode, identity ? 403 : 401);
+    assert.equal((await app.inject("/v1/admin/placements")).statusCode, 404);
     assert.equal(transactions.length, 0);
     await app.close();
   }

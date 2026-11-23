@@ -23,7 +23,7 @@ async function signCardAttachments(attachments: TaskAttachment[] | null | undefi
   return attachments.map((att, index) => ({ ...att, file_path: urls[index] }));
 }
 
-export async function getMentorBoards(userId: string) {
+export async function getAdminTaskBoards(userId: string) {
   if (usesLocalBackend()) {
     const response = await backendRequest("/v1/tasks/boards");
     if (!response.ok) return { data: [], error: new Error(`HTTP ${response.status}`) };

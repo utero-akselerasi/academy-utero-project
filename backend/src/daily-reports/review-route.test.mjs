@@ -38,12 +38,11 @@ test("super admin tanpa mentor profile diprovisikan saat mereview", async () => 
   } finally { await app.close(); }
 });
 
-test("admin biasa tanpa mentor profile tetap mendapat setup_required", async () => {
+test("admin tanpa profil historis membuat profil untuk atribusi review", async () => {
   const { app, queries } = await buildApp(["admin"]);
   try {
     const response = await app.inject({ method: "PATCH", url: `/v1/daily-reports/${reportId}/review`, payload: { status: "approved" } });
-    assert.equal(response.statusCode, 409);
-    assert.deepEqual(response.json(), { error: "setup_required" });
-    assert.equal(queries.some((sql) => sql.includes("with inserted as")), false);
+    assert.equal(response.statusCode, 200);
+    assert.equal(queries.some((sql) => sql.includes("with inserted as")), true);
   } finally { await app.close(); }
 });

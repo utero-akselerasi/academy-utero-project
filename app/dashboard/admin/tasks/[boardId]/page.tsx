@@ -65,7 +65,7 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
     return (
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="surface p-6 text-sm font-semibold text-red-700">
-          Profil pembimbing belum ditemukan. Hubungi super admin untuk setup profil.
+          Akun admin tidak memiliki akses ke halaman ini.
         </div>
       </main>
     );
@@ -110,7 +110,7 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
       {/* Header Board Minimalis Ala Plane */}
       <div className="mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200/80 pb-4 shrink-0">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard/mentor/tasks" className="button-secondary text-xs h-8 py-0 px-2.5 min-h-0 flex items-center gap-1">
+          <Link href="/dashboard/admin/tasks" className="button-secondary text-xs h-8 py-0 px-2.5 min-h-0 flex items-center gap-1">
             <ArrowLeft size={14} />
             <span>Semua Board</span>
           </Link>
@@ -128,7 +128,7 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
           {/* Toggle View Tabs */}
           <div className="flex bg-slate-200/80 p-1 rounded-lg text-xs font-bold">
             <Link
-              href={"/dashboard/mentor/tasks/" + boardId + "?view=kanban"}
+              href={"/dashboard/admin/tasks/" + boardId + "?view=kanban"}
               className={"flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all " + (
                 activeView === "kanban" ? "bg-white text-teal-700 shadow-sm" : "text-slate-600 hover:text-slate-950"
               )}
@@ -137,7 +137,7 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
               <span>Kanban</span>
             </Link>
             <Link
-              href={"/dashboard/mentor/tasks/" + boardId + "?view=list"}
+              href={"/dashboard/admin/tasks/" + boardId + "?view=list"}
               className={"flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all " + (
                 activeView === "list" ? "bg-white text-teal-700 shadow-sm" : "text-slate-600 hover:text-slate-950"
               )}
@@ -193,7 +193,7 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
                       return (
                         <Link 
                           key={card.id} 
-                          href={"/dashboard/mentor/tasks/" + boardId + "?view=" + activeView + "&detailCardId=" + card.id}
+                          href={"/dashboard/admin/tasks/" + boardId + "?view=" + activeView + "&detailCardId=" + card.id}
                           className="p-3 flex items-center justify-between gap-4 hover:bg-slate-50/50 transition-all text-xs font-semibold cursor-pointer block"
                         >
                           <div className="min-w-0 flex items-center gap-3 flex-1">
@@ -252,7 +252,7 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
           di bilah judul diberi `pr-9` supaya tombol hapus tidak tertindih. */}
       {detailCard && (
         <RouteModal
-          closeHref={"/dashboard/mentor/tasks/" + boardId + "?view=" + activeView}
+          closeHref={"/dashboard/admin/tasks/" + boardId + "?view=" + activeView}
           title={`Detail tugas ${detailCard.title}`}
           hideTitle
           closeLabel="Tutup detail tugas"
@@ -455,7 +455,7 @@ export default async function BoardDetailPage({ params, searchParams }: Props) {
             {/* Footer */}
             <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex justify-end">
               <Link
-                href={"/dashboard/mentor/tasks/" + boardId + "?view=" + activeView}
+                href={"/dashboard/admin/tasks/" + boardId + "?view=" + activeView}
                 className="button-secondary text-sm font-semibold"
               >
                 Tutup

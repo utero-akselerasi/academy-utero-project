@@ -59,7 +59,7 @@ export function AssessmentModal({ intern, searchQuery }: Props) {
   };
 
   const handleClose = () => {
-    router.push("/dashboard/mentor/assessments?q=" + searchQuery);
+    router.push("/dashboard/admin/assessments?q=" + searchQuery);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

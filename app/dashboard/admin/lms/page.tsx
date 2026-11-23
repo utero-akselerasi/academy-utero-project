@@ -1,4 +1,4 @@
-import { getMentorSubmissions, getAllCourses } from "@/features/lms/queries";
+import { getAdminSubmissions, getAllCourses } from "@/features/lms/queries";
 import { gradeAssignmentAction, createCourseAction } from "@/features/lms/actions";
 import { ImagePreview } from "@/features/daily-reports/ImagePreview";
 import { requireAdmin } from "@/features/auth/guards";
@@ -16,14 +16,14 @@ function formatDate(value: string) {
 
 // `isImageAttachment()` lokal dihapus: ia menilai dari `attachment_path`, dan
 // nilai itu kini signed URL ber-`?token=` sehingga cek ekstensinya selalu gagal.
-// Keputusannya sekarang diambil di `getMentorSubmissions()` dari object path
+// Keputusannya sekarang diambil di `getAdminSubmissions()` dari object path
 // sebelum ditandatangani, lewat flag `attachment_is_image`.
 
 type PageProps = {
   searchParams: Promise<{ detailSubId?: string; status?: string; q?: string; cQ?: string; showCreateCourse?: string }>;
 };
 
-export default async function MentorLmsPage({ searchParams }: PageProps) {
+export default async function AdminLmsPage({ searchParams }: PageProps) {
   const { detailSubId, status: statusFilter = "all", q: searchQuery = "", cQ: courseQuery = "", showCreateCourse } = await searchParams;
 
   // Guard terpusat: sebelumnya halaman ini hanya memeriksa "ada sesi" lalu
@@ -36,15 +36,15 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
     return (
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="surface p-6 text-sm font-semibold text-red-700">
-          Profil pembimbing belum ditemukan. Hubungi super admin untuk setup profil.
+          Akun admin tidak memiliki akses ke halaman ini.
         </div>
       </main>
     );
   }
 
-  // Daftar submission dibatasi scope bimbingan, sama seperti
+  // Daftar submission dibatasi scope global admin, sama seperti
   // gradeAssignmentAction. Isi pengerjaan peserta lain tidak boleh terbaca.
-  const { data: submissions, error } = await getMentorSubmissions(
+  const { data: submissions, error } = await getAdminSubmissions(
     scope.kind === "global" ? null : scope.internIds,
   );
   const { data: courses } = await getAllCourses();
@@ -76,7 +76,7 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
       {/* Header */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between border-b border-slate-200/80 pb-5">
         <div>
-          <p className="text-sm font-bold uppercase text-teal-700">Admin / Pembimbing</p>
+          <p className="text-sm font-bold uppercase text-teal-700">ADMINISTRATOR</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-950">LMS & Penilaian Tugas</h1>
           <p className="mt-2 max-w-2xl leading-7 text-slate-600">
             Kelola kelas pembelajaran, tambah materi/tugas baru, serta tinjau pengerjaan tugas peserta magang.
@@ -85,7 +85,7 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
         
         {/* Tombol Tambah Kelas Baru */}
         <Link
-          href={"/dashboard/mentor/lms?showCreateCourse=true&status=" + statusFilter + "&q=" + searchQuery}
+          href={"/dashboard/admin/lms?showCreateCourse=true&status=" + statusFilter + "&q=" + searchQuery}
           className="button-primary text-xs py-2 px-4 min-h-0 flex items-center gap-1.5 font-bold rounded-lg shrink-0 self-start md:self-center"
         >
           <PlusCircle size={15} />
@@ -110,7 +110,7 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
           </div>
 
           {/* Form Pencarian Kelas / Module */}
-          <form method="GET" action="/dashboard/mentor/lms" className="relative w-full">
+          <form method="GET" action="/dashboard/admin/lms" className="relative w-full">
             <input type="hidden" name="status" value={statusFilter} />
             <input type="hidden" name="q" value={searchQuery} />
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -148,7 +148,7 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
                   </div>
                   <div className="pt-3 border-t border-slate-100 flex justify-end">
                     <Link
-                      href={"/dashboard/mentor/lms/" + c.id}
+                      href={"/dashboard/admin/lms/" + c.id}
                       className="button-secondary text-[10px] font-bold py-1.5 px-3 min-h-0 flex items-center gap-1 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300"
                     >
                       <span>Kelola Materi</span>
@@ -175,7 +175,7 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
               ].map(tab => (
                 <Link
                   key={tab.value}
-                  href={"/dashboard/mentor/lms?status=" + tab.value + "&q=" + searchQuery + "&cQ=" + courseQuery}
+                  href={"/dashboard/admin/lms?status=" + tab.value + "&q=" + searchQuery + "&cQ=" + courseQuery}
                   className={"px-3 py-1.5 rounded-md font-bold transition-all text-center " + (
                     statusFilter === tab.value
                       ? "bg-white text-teal-700 shadow-sm"
@@ -230,7 +230,7 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
                       </span>
                     )}
                     <Link
-                      href={"/dashboard/mentor/lms?detailSubId=" + sub.id + "&status=" + statusFilter + "&q=" + searchQuery + "&cQ=" + courseQuery}
+                      href={"/dashboard/admin/lms?detailSubId=" + sub.id + "&status=" + statusFilter + "&q=" + searchQuery + "&cQ=" + courseQuery}
                       className="button-secondary p-1.5 min-h-0 text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center"
                     >
                       <Eye size={13} />
@@ -250,7 +250,7 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
           (temuan #3). Keduanya dikendalikan URL, jadi `RouteModal`. */}
       {isCreateCourseOpen && (
         <RouteModal
-          closeHref={"/dashboard/mentor/lms?status=" + statusFilter + "&q=" + searchQuery + "&cQ=" + courseQuery}
+          closeHref={"/dashboard/admin/lms?status=" + statusFilter + "&q=" + searchQuery + "&cQ=" + courseQuery}
           title="Tambah kelas / course baru"
           hideTitle
           closeLabel="Tutup form tambah kelas"
@@ -293,7 +293,7 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
 
               <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
                 <Link
-                  href={"/dashboard/mentor/lms?status=" + statusFilter + "&q=" + searchQuery + "&cQ=" + courseQuery}
+                  href={"/dashboard/admin/lms?status=" + statusFilter + "&q=" + searchQuery + "&cQ=" + courseQuery}
                   className="button-secondary text-sm font-semibold"
                 >
                   Batal
@@ -311,7 +311,7 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
       {/* POPUP DETAIL PENILAIAN TUGAS */}
       {detailSub && (
         <RouteModal
-          closeHref={"/dashboard/mentor/lms?status=" + statusFilter + "&q=" + searchQuery + "&cQ=" + courseQuery}
+          closeHref={"/dashboard/admin/lms?status=" + statusFilter + "&q=" + searchQuery + "&cQ=" + courseQuery}
           title={`Review tugas ${detailSub.intern_name}: ${detailSub.assignment_title}`}
           hideTitle
           closeLabel="Tutup review tugas"
@@ -352,7 +352,7 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
 
               {/* Form Input Nilai */}
               <div className="border-t border-slate-150 pt-4">
-                <span className="text-[10px] text-slate-400 font-bold block uppercase mb-2">Penilaian Mentor</span>
+                <span className="text-[10px] text-slate-400 font-bold block uppercase mb-2">Penilaian Admin</span>
                 <form action={gradeAssignmentAction} className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
                   <input type="hidden" name="submissionId" value={detailSub.id} />
                   <div className="form-field">
@@ -369,7 +369,7 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
                     />
                   </div>
                   <div className="form-field">
-                    <label className="form-label text-xs font-bold text-slate-700" htmlFor="feedbackInput">Feedback Mentor</label>
+                    <label className="form-label text-xs font-bold text-slate-700" htmlFor="feedbackInput">Feedback Admin</label>
                     <textarea
                       id="feedbackInput"
                       name="feedback"
@@ -390,7 +390,7 @@ export default async function MentorLmsPage({ searchParams }: PageProps) {
             {/* Footer Modal */}
             <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex justify-end">
               <Link
-                href={"/dashboard/mentor/lms?status=" + statusFilter + "&q=" + searchQuery + "&cQ=" + courseQuery}
+                href={"/dashboard/admin/lms?status=" + statusFilter + "&q=" + searchQuery + "&cQ=" + courseQuery}
                 className="button-secondary text-sm font-semibold"
               >
                 Tutup

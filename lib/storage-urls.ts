@@ -205,7 +205,7 @@ export async function resolveStorageUrl(
 /**
  * Versi banyak nilai sekaligus, ditandatangani paralel.
  *
- * Dipakai di halaman daftar. `app/dashboard/mentor/attendance/page.tsx` merender
+ * Dipakai di halaman daftar. `app/dashboard/admin/attendance/page.tsx` merender
  * sampai empat lampiran per baris absensi; menandatanganinya berurutan membuat
  * latensi halaman itu naik sebanding jumlah baris.
  *

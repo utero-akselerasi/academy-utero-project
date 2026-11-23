@@ -85,7 +85,6 @@ export async function assessmentsRoutes(app, { db }) {
       if (scopeError) return { error: scopeError };
       const existing = await client.query("select id,status from utero_academy.assessments where intern_id=$1", [request.params.internId]);
       if (existing.rows[0]?.status === "finalized") return { error: "assessment_finalized" };
-      const mentor = await client.query("select id from utero_academy.mentor_profiles where user_id=$1", [identity.id]);
       let assessment;
       if (existing.rows[0]) {
         assessment = await client.query(
@@ -99,9 +98,9 @@ export async function assessmentsRoutes(app, { db }) {
       } else {
         assessment = await client.query(
           `insert into utero_academy.assessments
-            (intern_id,mentor_id,score,final_score,feedback,status,finalized_by,finalized_at)
-           values ($1,$2,$3,$4,$5,$6,$7,case when $6='finalized' then now() end) returning *`,
-          [request.params.internId, mentor.rows[0]?.id ?? null, input.score, input.finalScore, input.feedback,
+            (intern_id,score,final_score,feedback,status,finalized_by,finalized_at)
+           values ($1,$2,$3,$4,$5,$6,case when $5='finalized' then now() end) returning *`,
+          [request.params.internId, input.score, input.finalScore, input.feedback,
             input.submitType === "finalize" ? "finalized" : "draft", input.submitType === "finalize" ? identity.id : null],
         );
       }

@@ -3,8 +3,8 @@ import test from "node:test";
 import { parseGeneralProfile, parseInternProfile } from "../src/profiles/input.mjs";
 
 test("general profile membersihkan nilai opsional", () => {
-  assert.deepEqual(parseGeneralProfile({ fullName: " Budi ", phone: "", headline: " Dev ", bio: "" }), {
-    fullName: "Budi", phone: null, headline: "Dev", bio: null, avatarPath: null,
+  assert.deepEqual(parseGeneralProfile({ fullName: " Budi ", phone: "" }), {
+    fullName: "Budi", phone: null, avatarPath: null,
   });
 });
 
