@@ -953,6 +953,7 @@ export async function updateInternPeriodAction(formData: FormData) {
     });
     if (!response.ok) throw new Error("Gagal memperbarui periode magang pada backend lokal.");
     revalidatePath("/dashboard/super-admin/schools");
+    revalidatePath("/dashboard/super-admin/schools/[schoolId]", "page");
     revalidatePath("/dashboard/intern");
     revalidatePath("/dashboard/school/students");
     return;
@@ -995,6 +996,7 @@ export async function updateInternPeriodAction(formData: FormData) {
   );
 
   revalidatePath("/dashboard/super-admin/schools");
+  revalidatePath("/dashboard/super-admin/schools/[schoolId]", "page");
   revalidatePath("/dashboard/intern");
   revalidatePath("/dashboard/school/students");
 }

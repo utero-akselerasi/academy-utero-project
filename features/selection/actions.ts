@@ -4,6 +4,7 @@ import { requireAdmin, requireSuperAdmin } from "@/features/auth/guards";
 import { writeAuditLog } from "@/features/super-admin/audit";
 import { createUteroAcademyClient, createUteroAcademyServiceRoleClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import {
   assignApplicantSchema, bypassSchema, createMaterialSchema, createQuestionSchema,
   createTestSchema, createTrackSchema, decisionSchema, formDataObject, gradeAnswerSchema,
@@ -182,6 +183,7 @@ export async function deleteSelectionTestDraftAction(formData: FormData) {
   if (!usesLocalBackend()) throw new Error("Penghapusan draf paket tes harus diproses backend Academy.");
   await selectionRequest(`/tests/${testId}/delete`, "POST");
   revalidateSelectionWorkspace();
+  redirect("/dashboard/mentor/selection#tes");
 }
 export async function versionSelectionTestAction(formData: FormData) {
   const user = await requireAdmin();
