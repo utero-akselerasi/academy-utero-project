@@ -46,6 +46,7 @@ export async function localCheckIn(formData: FormData): Promise<FormState> {
     });
     if (!response.ok) return { ok: false, message: data.error === "out_of_range_proof_required" ? "Kamu di luar jangkauan kantor. Isi alasan dan unggah bukti.": "Gagal check-in, periksa lokasi dan lampiran.", isOutOfRange: data.error === "out_of_range_proof_required" };
     revalidatePath("/dashboard/intern/attendance");
+    revalidatePath("/dashboard/intern");
     return { ok: true, message: "Check-in berhasil disimpan." };
   } catch (error) {
     return { ok: false, message: error instanceof UploadValidationError ? error.message : "Gagal memproses check-in." };
@@ -75,6 +76,7 @@ export async function localCheckOut(formData: FormData): Promise<FormState> {
       };
     }
     revalidatePath("/dashboard/intern/attendance");
+    revalidatePath("/dashboard/intern");
     return { ok: true, message: "Check-out berhasil disimpan." };
   } catch (error) { return { ok: false, message: error instanceof UploadValidationError ? error.message : "Gagal memproses check-out." }; }
 }

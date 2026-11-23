@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, RefreshCw, CheckCircle2 } from "lucide-react";
 
-export function LiveCameraInput() {
+export function LiveCameraInput({ autoStart = false }: { autoStart?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -29,6 +29,7 @@ export function LiveCameraInput() {
    * saat tidak ada yang memintanya.
    */
   const mountedRef = useRef(true);
+  const autoStartedRef = useRef(false);
 
   const [photo, setPhoto] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
@@ -57,7 +58,7 @@ export function LiveCameraInput() {
     };
   }, [stopStream]);
 
-  const startCamera = async () => {
+  const startCamera = useCallback(async () => {
     // Penjaga klik ganda. Tanpa ini, dua ketukan cepat menjalankan dua
     // `getUserMedia`; yang kedua menimpa `streamRef` dan yang pertama tidak
     // pernah dihentikan oleh siapa pun.
@@ -94,7 +95,14 @@ export function LiveCameraInput() {
     streamRef.current = mediaStream;
     setCameraActive(true);
     setStarting(false);
-  };
+  }, [starting]);
+
+  useEffect(() => {
+    if (!autoStart) { autoStartedRef.current = false; return; }
+    if (autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    void startCamera();
+  }, [autoStart, startCamera]);
 
   // `srcObject` dipasang di effect, bukan di dalam `startCamera`. Di sana
   // `videoRef.current` masih bisa null: elemen `<video>` hanya dirender ketika

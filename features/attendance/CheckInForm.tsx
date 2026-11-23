@@ -7,11 +7,13 @@ import { LiveCameraInput } from "./LiveCameraInput";
 
 const initialState: FormState = { ok: false, message: "" };
 
-export function CheckInForm() {
+export function CheckInForm({ autoStartCamera = false, onComplete }: { autoStartCamera?: boolean; onComplete?: () => void }) {
   const [state, formAction, isPending] = useActionState(checkInAction, initialState);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [error, setError] = useState("");
   const [confirmOut, setConfirmOut] = useState(false);
+
+  useEffect(() => { if (state.ok) onComplete?.(); }, [state.ok, onComplete]);
 
   useEffect(() => {
     if ("geolocation" in navigator) {
@@ -74,7 +76,7 @@ export function CheckInForm() {
         </div>
       )}
 
-      <LiveCameraInput />
+      <LiveCameraInput autoStart={autoStartCamera} />
 
       {location ? (
         <>

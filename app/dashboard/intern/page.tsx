@@ -10,10 +10,11 @@ import { getInternCards } from "@/features/tasks/queries";
 import { AttendanceStatusBadge } from "@/features/attendance/AttendanceStatusBadge";
 import { ReportStatusBadge } from "@/features/daily-reports/ReportStatusBadge";
 import { StatsVisualization } from "@/features/dashboard/StatsVisualization";
+import { DashboardAttendanceButton } from "@/features/attendance/DashboardAttendanceButton";
 import Link from "next/link";
 import { 
   ClipboardList, Clock, FileText, BookOpen, 
-  CheckSquare, Calendar, ChevronRight, BarChart2,
+  CheckSquare, ChevronRight, BarChart2,
   Award, AlertCircle
 } from "lucide-react";
 
@@ -204,26 +205,13 @@ export default async function InternDashboardPage() {
           </p>
         </div>
 
-        {/* Absen Hari Ini Widget */}
-        <Link 
-          href="/dashboard/intern/attendance" 
-          className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-250 hover:border-teal-500 hover:bg-slate-100/50 p-3.5 rounded-xl self-stretch md:self-auto transition-all cursor-pointer group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-teal-100 p-2.5 text-teal-800 shrink-0 group-hover:bg-teal-200 transition-colors">
-              <Calendar size={20} />
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-bold uppercase block">Absensi Hari Ini</span>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className={`px-2 py-0.5 rounded text-xs font-extrabold uppercase border ${todayStatusColor}`}>
-                  {todayStatusLabel}
-                </span>
-              </div>
-            </div>
-          </div>
-          <ChevronRight size={16} className="text-slate-400 group-hover:text-teal-700 transition-colors" />
-        </Link>
+        <DashboardAttendanceButton
+          statusLabel={todayStatusLabel}
+          statusColor={todayStatusColor}
+          hasCheckedIn={!!todayAttendance?.check_in_at}
+          hasCheckedOut={!!todayAttendance?.check_out_at}
+          isPermitOrSick={todayAttendance?.attendance_type === "permit" || todayAttendance?.attendance_type === "sick"}
+        />
       </section>
 
       {/* Internship Period */}
