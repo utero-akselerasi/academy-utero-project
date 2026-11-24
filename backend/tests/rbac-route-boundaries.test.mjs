@@ -8,8 +8,7 @@ import { dailyReportRoutes } from "../src/routes/daily-reports.mjs";
 const userId = "11111111-1111-4111-8111-111111111111";
 const settings = {
   checkInTime: "08:00",
-  checkOutTime: "17:00",
-  lateToleranceMinutes: 15,
+  checkInEndTime: "09:00",
   monthlyTargetHours: 120,
   allowGeofencing: false,
   officeLatitude: null,
@@ -79,6 +78,31 @@ test("role school tidak dapat masuk endpoint mentor atau review walau permission
   assert.equal(reportFixture.transactions.length, 0);
   await attendanceFixture.app.close();
   await reportFixture.app.close();
+});
+
+test("attendance settings menyimpan akhir rentang dan waktu pulang delapan jam kemudian", async () => {
+  const admin = { id: userId, roles: ["admin"], permissions: ["attendance.review"] };
+  const writes = [];
+  const { app } = await fixture(admin, attendanceRoutes, async (sql, values) => {
+    if (sql.includes("insert into utero_academy.attendance_settings")) writes.push({ sql, values });
+    return { rows: [], rowCount: 1 };
+  });
+  const response = await app.inject({ method: "PATCH", url: "/v1/attendance/settings", payload: settings });
+  assert.equal(response.statusCode, 200);
+  assert.match(writes[0].sql, /check_in_end_time/);
+  assert.equal(writes[0].values[1], "08:00");
+  assert.equal(writes[0].values[2], "09:00");
+  assert.equal(writes[0].values[3], "17:00");
+  await app.close();
+});
+
+test("attendance settings menolak batas masuk buruk sebelum transaksi", async () => {
+  const admin = { id: userId, roles: ["admin"], permissions: ["attendance.review"] };
+  const { app, transactions } = await fixture(admin, attendanceRoutes, () => { throw new Error("database must not be touched"); });
+  const response = await app.inject({ method: "PATCH", url: "/v1/attendance/settings", payload: { ...settings, checkInEndTime: "07:30" } });
+  assert.equal(response.statusCode, 400);
+  assert.equal(transactions.length, 0);
+  await app.close();
 });
 
 test("role admin dengan permission seed tetap dapat memakai endpoint positif", async () => {

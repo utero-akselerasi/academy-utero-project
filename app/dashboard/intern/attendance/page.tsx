@@ -1,4 +1,5 @@
 import { CheckInForm } from "@/features/attendance/CheckInForm";
+import { getExpectedCheckOut } from "@/lib/attendance-schedule";
 import { CheckOutForm } from "@/features/attendance/CheckOutForm";
 import { PermitForm } from "@/features/attendance/PermitForm";
 import { getInternAttendances, getMyPermits, getTodayAttendance } from "@/features/attendance/queries";
@@ -61,6 +62,7 @@ export default async function InternAttendancePage({ searchParams }: Props) {
     })),
   );
 
+  const expectedCheckOut = todayData?.check_in_at ? getExpectedCheckOut(todayData.check_in_at) : null;
   const hasCheckedIn = !!todayData?.check_in_at;
   const hasCheckedOut = !!todayData?.check_out_at;
   const isPermitOrSick = todayData?.attendance_type === "permit" || todayData?.attendance_type === "sick";
@@ -135,7 +137,10 @@ export default async function InternAttendancePage({ searchParams }: Props) {
               )}
             </div>
           ) : !hasCheckedOut ? (
-            <CheckOutForm />
+            <div className="space-y-3">
+              {expectedCheckOut && <p className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950">Target pulang hari ini: <strong>{new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: "Asia/Jakarta" }).format(expectedCheckOut)} WIB</strong> (8 jam setelah check-in). Check-out lebih awal tetap tercatat sesuai jam kerja nyata.</p>}
+              <CheckOutForm />
+            </div>
           ) : (
             <div className="surface p-8 text-center">
               <span className="mb-4 inline-flex rounded-full bg-teal-100 p-4 text-teal-700">✓</span>

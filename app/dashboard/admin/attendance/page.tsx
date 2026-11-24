@@ -10,7 +10,8 @@ import { AttendanceSettingsForm } from "@/features/attendance/AttendanceSettings
 import { requireAdmin } from "@/features/auth/guards";
 import { getElapsedMonthlyAttendanceTarget, getMonthlyAttendanceTarget } from "@/lib/attendance-calendar";
 import { isPdfPath, resolveStorageUrl, resolveStorageUrls } from "@/lib/storage-urls";
-import { jakartaDateString, jakartaMinutesOfDay, parseWallClockMinutes } from "@/lib/time";
+import { jakartaDateString } from "@/lib/time";
+import { getLateMinutes } from "@/lib/attendance-schedule";
 import Link from "next/link";
 import { RouteModal } from "@/components/ui/route-modal";
 import { Clock, Settings, User, CheckCircle, AlertTriangle, Play, HelpCircle, MapPin, Eye, Download } from "lucide-react";
@@ -52,18 +53,10 @@ export default async function AdminAttendancePage({ searchParams }: Props) {
     );
   }
 
-  const checkInTime = settings?.check_in_time || "08:00";
-  const lateTolerance = settings?.late_tolerance_minutes ?? 15;
+  const checkInEndTime = settings?.check_in_end_time || "09:00";
   const today = jakartaDateString();
   const currentMonth = today.slice(0, 7);
 
-  // 4. Calculate stats for each intern
-  //
-  // Default 08:00 dipilih eksplisit kalau kolomnya tidak berbentuk "HH:MM".
-  // Sebelumnya `split(":").map(Number)`: isi kolom yang rusak jadi `NaN`, dan
-  // perbandingan apa pun terhadap `NaN` bernilai false — artinya jumlah telat
-  // yang ditampilkan ke admin akan **selalu nol** tanpa error apa pun.
-  const scheduledCheckInMinutes = parseWallClockMinutes(checkInTime) ?? 8 * 60;
 
   const mappedInterns = interns.map(intern => {
     const internLogs = (attendances || []).filter(a => a.intern_id === intern.id);
@@ -74,15 +67,7 @@ export default async function AdminAttendancePage({ searchParams }: Props) {
     internLogs.forEach(log => {
       // Late check
       if (log.attendance_type === "present" && log.check_in_at) {
-        // `jakartaMinutesOfDay`, bukan `getHours()`: yang kedua memakai zona
-        // waktu proses Node, jadi angka telat di dashboard admin ikut bergeser
-        // kalau `TZ` container hilang. Lihat `lib/time.ts`.
-        const actualMinutes = jakartaMinutesOfDay(new Date(log.check_in_at));
-        const minutesPastLimit = actualMinutes - scheduledCheckInMinutes;
-        // `Number.isFinite` menjaga timestamp rusak: `NaN > lateTolerance`
-        // bernilai false, jadi sebenarnya sudah aman — pemeriksaan ini ada
-        // supaya sifat itu eksplisit, bukan kebetulan.
-        if (Number.isFinite(minutesPastLimit) && minutesPastLimit > lateTolerance) {
+        if (getLateMinutes(log.check_in_at, log.check_in_deadline_minutes ?? checkInEndTime) > 0) {
           lateCount++;
         }
       }
@@ -284,9 +269,9 @@ export default async function AdminAttendancePage({ searchParams }: Props) {
       </details>
 
       {showSettings === "true" && (
-        <div className="mb-6">
+        <RouteModal closeHref="/dashboard/admin/attendance" title="Pengaturan Jam Kerja" panelClassName="surface max-h-[90vh] w-full max-w-3xl overflow-y-auto p-4 sm:p-6">
           <AttendanceSettingsForm settings={settings} month={currentMonth} />
-        </div>
+        </RouteModal>
       )}
 
       {/* Pending Permits List */}

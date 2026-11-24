@@ -25,6 +25,16 @@ async function exportRow(query: string, profiles: Array<typeof intern & { start_
 }
 
 describe("attendance CSV targets", () => {
+  it("keeps the recorded check-in deadline after admin changes settings", async () => {
+    vi.mocked(localAttendanceExportData).mockResolvedValue({ settings: { check_in_end_time: "10:00" }, interns: [intern], attendances: [
+      { intern_id: "1", attendance_date: "2026-02-02", check_in_at: "2026-02-02T02:01:00Z", check_in_deadline_minutes: 540, check_out_at: null, attendance_type: "present", status: "valid" },
+    ] } as Awaited<ReturnType<typeof localAttendanceExportData>>);
+    const response = await GET(new Request("http://localhost/dashboard/admin/attendance/export?month=2026-02"));
+    const [header, row] = (await response.text()).replace(/^\uFEFF/, "").split("\r\n").map((line) => line.split(",").map((cell) => cell.slice(1, -1)));
+    expect(row[header.indexOf("Total Telat")]).toBe("1");
+    expect(row[header.indexOf("Total Menit Telat")]).toBe("1");
+  });
+
   it("counts Monday–Saturday × 8h per intern across monthly internship intersection", async () => {
     const rows = await exportRow("month=2026-02", [intern, { ...intern, id: "2", start_date: "2026-02-09", end_date: "2026-02-15" }, { ...intern, id: "3", start_date: "2026-03-01" }]);
     expect(rows.map((row) => row["Target Jam Bulanan"])).toEqual(["192", "48", "0"]);

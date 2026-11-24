@@ -5,6 +5,7 @@ export type Attendance = {
   intern_id: string;
   attendance_date: string;
   check_in_at: string | null;
+  check_in_deadline_minutes?: number | null;
   check_in_latitude: number | null;
   check_in_longitude: number | null;
   check_in_selfie_path: string | null;

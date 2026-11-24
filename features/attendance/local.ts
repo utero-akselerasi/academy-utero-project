@@ -15,9 +15,9 @@ export type AdminAttendanceDashboard = {
 };
 
 export type AttendanceExportData = {
-  settings: { check_in_time?: string | null; late_tolerance_minutes?: number | null; monthly_target_hours?: number | null } | null;
+  settings: { check_in_time?: string | null; check_in_end_time?: string | null; late_tolerance_minutes?: number | null; monthly_target_hours?: number | null } | null;
   interns: Array<{ id: string; full_name: string; email: string | null; major: string | null; phone: string | null }>;
-  attendances: Array<Pick<Attendance, "intern_id" | "attendance_date" | "check_in_at" | "check_out_at" | "status" | "attendance_type">>;
+  attendances: Array<Pick<Attendance, "intern_id" | "attendance_date" | "check_in_at" | "check_in_deadline_minutes" | "check_out_at" | "status" | "attendance_type">>;
 };
 
 async function send(path: string, method: string, body: unknown) {
@@ -119,8 +119,7 @@ export async function localReviewPermit(formData: FormData) {
 export async function localSettings(formData: FormData) {
   const toOptional = (value: FormDataEntryValue | null) => typeof value !== "string" || !value.trim() ? null : Number(value);
   const parsed = attendanceSettingsSchema.safeParse({
-    checkInTime: String(formData.get("checkInTime") ?? ""), checkOutTime: String(formData.get("checkOutTime") ?? ""),
-    lateToleranceMinutes: toOptional(formData.get("lateTolerance")) ?? 15,
+    checkInTime: String(formData.get("checkInTime") ?? ""), checkInEndTime: String(formData.get("checkInEndTime") ?? ""),
     monthlyTargetHours: toOptional(formData.get("monthlyTarget")) ?? 0,
     allowGeofencing: formData.get("allowGeofencing") === "true", officeLatitude: toOptional(formData.get("officeLatitude")),
     officeLongitude: toOptional(formData.get("officeLongitude")), radiusMeters: toOptional(formData.get("radiusMeters")) ?? 100,

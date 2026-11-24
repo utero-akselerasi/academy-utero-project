@@ -7,6 +7,8 @@ import { cleanupObjects, storeDomainObject } from "../attendance/storage.mjs";
 
 const SETTINGS_ID = "00000000-0000-0000-0000-000000000001";
 const jakartaDate = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+const validClock = (value) => typeof value === "string" && /^\d{1,2}:\d{2}$/.test(value) && Number(value.split(":")[0]) < 24 && Number(value.split(":")[1]) < 60;
+const clockMinutes = (value) => { const [hours, minutes] = value.split(":").map(Number); return hours * 60 + minutes; };
 
 function apiError(reply, status, error) {
   return reply.code(status).send({ error });
@@ -64,11 +66,11 @@ export async function attendanceRoutes(app, { db, config }) {
       );
       const internIds = interns.rows.map((row) => row.id);
       const settings = await client.query(
-        "select check_in_time, late_tolerance_minutes, monthly_target_hours from utero_academy.attendance_settings where id = $1",
+        "select check_in_time, check_in_end_time, late_tolerance_minutes, monthly_target_hours from utero_academy.attendance_settings where id = $1",
         [SETTINGS_ID],
       );
       const attendances = internIds.length ? await client.query(
-        `select intern_id, attendance_date::text as attendance_date, check_in_at, check_out_at, status, attendance_type
+        `select intern_id, attendance_date::text as attendance_date, check_in_at, check_in_deadline_minutes, check_out_at, status, attendance_type
          from utero_academy.attendances where intern_id = any($1::uuid[]) and attendance_date between $2 and $3`,
         [internIds, startDate, endDate],
       ) : { rows: [] };
@@ -152,8 +154,11 @@ export async function attendanceRoutes(app, { db, config }) {
         const internId = await activeInternProfile(client, identity);
         if (!internId) return null;
         const settingsResult = await client.query("select * from utero_academy.attendance_settings where id = $1", [SETTINGS_ID]);
-        const geofence = resolveGeofence(settingsResult.rows[0]);
+        const attendanceSettings = settingsResult.rows[0];
+        const geofence = resolveGeofence(attendanceSettings);
         if (geofence.kind === "misconfigured") return { error: "geofence_misconfigured" };
+        const storedDeadline = attendanceSettings?.check_in_end_time;
+        const checkInDeadlineMinutes = validClock(storedDeadline) ? clockMinutes(storedDeadline) : 9 * 60;
         let outOfRange = false;
         let proofPath = null;
         let reason = null;
@@ -171,10 +176,10 @@ export async function attendanceRoutes(app, { db, config }) {
         const inserted = await client.query(
           `insert into utero_academy.attendances
            (intern_id, attendance_date, check_in_at, check_in_latitude, check_in_longitude, check_in_wifi_ssid,
-            check_in_selfie_path, status, is_out_of_range, out_of_range_reason, out_of_range_proof_path)
-           values ($1,$2,now(),$3,$4,$5,$6,$7,$8,$9,$10) returning *`,
+            check_in_selfie_path, status, is_out_of_range, out_of_range_reason, out_of_range_proof_path, check_in_deadline_minutes)
+           values ($1,$2,now(),$3,$4,$5,$6,$7,$8,$9,$10,$11) returning *`,
           [internId, jakartaDate(), coordinates.latitude, coordinates.longitude, coordinates.wifiSsid, selfiePath,
-            outOfRange ? "manual_review" : "pending", outOfRange, reason, proofPath],
+            outOfRange ? "manual_review" : "pending", outOfRange, reason, proofPath, checkInDeadlineMinutes],
         );
         return { attendance: inserted.rows[0] };
       });
@@ -334,10 +339,8 @@ export async function attendanceRoutes(app, { db, config }) {
     const latitude = body.officeLatitude == null ? null : Number(body.officeLatitude);
     const longitude = body.officeLongitude == null ? null : Number(body.officeLongitude);
     const radius = Number(body.radiusMeters);
-    const validClock = (value) => typeof value === "string" && /^\d{1,2}:\d{2}$/.test(value) && Number(value.split(":")[0]) < 24 && Number(value.split(":")[1]) < 60;
-    const clockMinutes = (value) => { const [hours, minutes] = value.split(":").map(Number); return hours * 60 + minutes; };
-    if (!validClock(body.checkInTime) || !validClock(body.checkOutTime) || (validClock(body.checkInTime) && validClock(body.checkOutTime) && clockMinutes(body.checkOutTime) <= clockMinutes(body.checkInTime)) ||
-        !Number.isInteger(body.lateToleranceMinutes) || body.lateToleranceMinutes < 0 || body.lateToleranceMinutes > 180 ||
+    if (!validClock(body.checkInTime) || !validClock(body.checkInEndTime) ||
+        (validClock(body.checkInTime) && validClock(body.checkInEndTime) && (clockMinutes(body.checkInEndTime) <= clockMinutes(body.checkInTime) || clockMinutes(body.checkInEndTime) + 480 >= 1440)) ||
         !Number.isInteger(body.monthlyTargetHours) || body.monthlyTargetHours < 0 || body.monthlyTargetHours > 744 ||
         !Number.isInteger(radius) || radius < 0 || radius > 100000 ||
         (latitude !== null && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) ||
@@ -345,12 +348,12 @@ export async function attendanceRoutes(app, { db, config }) {
         (body.allowGeofencing && (latitude === null || longitude === null))) return apiError(reply, 400, "invalid_settings");
     await db.transaction(identity, (client) => client.query(
       `insert into utero_academy.attendance_settings
-       (id,check_in_time,check_out_time,late_tolerance_minutes,monthly_target_hours,allow_geofencing,office_latitude,office_longitude,radius_meters,updated_at)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,now()) on conflict (id) do update set check_in_time=excluded.check_in_time,
-       check_out_time=excluded.check_out_time,late_tolerance_minutes=excluded.late_tolerance_minutes,
+       (id,check_in_time,check_in_end_time,check_out_time,late_tolerance_minutes,monthly_target_hours,allow_geofencing,office_latitude,office_longitude,radius_meters,updated_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now()) on conflict (id) do update set check_in_time=excluded.check_in_time,
+       check_in_end_time=excluded.check_in_end_time,check_out_time=excluded.check_out_time,late_tolerance_minutes=excluded.late_tolerance_minutes,
        monthly_target_hours=excluded.monthly_target_hours,allow_geofencing=excluded.allow_geofencing,
        office_latitude=excluded.office_latitude,office_longitude=excluded.office_longitude,radius_meters=excluded.radius_meters,updated_at=now()`,
-      [SETTINGS_ID, body.checkInTime, body.checkOutTime, body.lateToleranceMinutes, body.monthlyTargetHours,
+      [SETTINGS_ID, body.checkInTime, body.checkInEndTime, `${String(Math.floor((clockMinutes(body.checkInEndTime) + 480) / 60)).padStart(2, "0")}:${String((clockMinutes(body.checkInEndTime) + 480) % 60).padStart(2, "0")}`, 0, body.monthlyTargetHours,
         Boolean(body.allowGeofencing), latitude, longitude, radius],
     ));
     return { ok: true };

@@ -1,6 +1,7 @@
 import { RouteAuthorizationError, requireRouteAdmin } from "@/features/auth/guards";
 import { buildCsv, csvResponseHeaders, type CsvCell } from "@/lib/csv";
-import { jakartaDateString, jakartaMinutesOfDay, parseWallClockMinutes } from "@/lib/time";
+import { jakartaDateString } from "@/lib/time";
+import { getLateMinutes as lateMinutesAfterDeadline } from "@/lib/attendance-schedule";
 import { NextResponse } from "next/server";
 import { localAttendanceExportData } from "@/features/attendance/local";
 import { getElapsedMonthlyAttendanceTarget, getMonthlyAttendanceTarget } from "@/lib/attendance-calendar";
@@ -11,6 +12,7 @@ type AttendanceLog = {
   intern_id: string;
   attendance_date: string;
   check_in_at: string | null;
+  check_in_deadline_minutes?: number | null;
   check_out_at: string | null;
   status: "pending" | "valid" | "invalid" | "manual_review";
   attendance_type?: "present" | "permit" | "sick" | null;
@@ -78,26 +80,10 @@ function parseCalendarDate(value: string | null) {
   return parsed.toISOString().slice(0, 10) === value ? parsed : null;
 }
 
-/**
- * `jakartaMinutesOfDay`, bukan `getHours()`: `getHours()` memetakan instan ke
- * jam dinding memakai zona waktu **proses Node**, jadi telat/tidaknya absensi
- * peserta ikut berubah kalau `TZ` container hilang atau berbeda — lihat
- * `lib/time.ts` untuk alasan lengkapnya.
- *
- * `NaN` dari timestamp yang rusak dikembalikan sebagai 0 menit telat, bukan
- * dibiarkan menjalar: `NaN` akan lolos filter `> 0` sebagai false lalu muncul
- * di CSV sebagai sel kosong, sedangkan 0 berarti "tidak terhitung telat" —
- * yang merupakan sikap yang benar terhadap data yang tidak bisa dibaca.
- */
-function getLateMinutes(log: AttendanceLog, checkInMinutes: number, lateTolerance: number) {
+function getLateMinutes(log: AttendanceLog, checkInEndTime: string | null | undefined) {
   if (log.attendance_type !== "present" || !log.check_in_at) return 0;
 
-  const actualMinutes = jakartaMinutesOfDay(new Date(log.check_in_at));
-  if (!Number.isFinite(actualMinutes)) return 0;
-
-  const minutesPastSchedule = actualMinutes - checkInMinutes;
-
-  return minutesPastSchedule > lateTolerance ? minutesPastSchedule - lateTolerance : 0;
+  return lateMinutesAfterDeadline(log.check_in_at, log.check_in_deadline_minutes ?? checkInEndTime);
 }
 
 function getAttendanceHours(log: AttendanceLog) {
@@ -172,14 +158,7 @@ export async function GET(request: Request) {
   const interns: InternProfile[] = result.interns;
   const attendances: AttendanceLog[] = result.attendances;
 
-  const lateTolerance = settings?.late_tolerance_minutes ?? 15;
-
-  // `parseWallClockMinutes` mengembalikan null untuk bentuk yang tidak valid,
-  // jadi default 08:00 dipilih secara eksplisit. Sebelumnya `split(":").map(Number)`
-  // langsung: isi kolom yang rusak menghasilkan `NaN`, dan setiap perbandingan
-  // telat terhadap NaN bernilai false — artinya **tidak ada peserta yang pernah
-  // terhitung telat**, tanpa satu pun error muncul.
-  const checkInMinutes = parseWallClockMinutes(settings?.check_in_time) ?? 8 * 60;
+  const checkInEndTime = settings?.check_in_end_time;
 
   const rows: CsvCell[][] = [[
     "Nama",
@@ -221,7 +200,7 @@ export async function GET(request: Request) {
     const creditedHours = activeStart ? getCreditedHours(logs,
       [period.startDate, activeStart].sort().at(-1)!,
       [period.endDate, intern.internship_end_date ?? intern.end_date].filter((date): date is string => !!date).sort()[0]) : 0;
-    const lateMinutesList = logs.map((log) => getLateMinutes(log, checkInMinutes, lateTolerance)).filter((minutes) => minutes > 0);
+    const lateMinutesList = logs.map((log) => getLateMinutes(log, checkInEndTime)).filter((minutes) => minutes > 0);
     const progressHours = activeStart ? getCreditedHours(logs,
       [period.startDate, activeStart].sort().at(-1)!,
       [period.endDate, intern.internship_end_date ?? intern.end_date, mode === "monthly" && month === today.slice(0, 7) ? today : null]

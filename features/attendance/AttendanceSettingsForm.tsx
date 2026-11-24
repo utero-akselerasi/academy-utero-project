@@ -7,13 +7,13 @@ import { attendanceSettingsSchema } from "./schemas";
 
 type Props = { settings: Record<string, unknown> | null; month: string };
 type Fields = {
-  checkInTime: string; checkOutTime: string; lateToleranceMinutes: string;
+  checkInTime: string; checkInEndTime: string;
   allowGeofencing: boolean; officeLatitude: string; officeLongitude: string; radiusMeters: string;
 };
 type FieldName = keyof Fields;
 type Errors = Partial<Record<FieldName, string>>;
 const fieldIds: Record<FieldName, string> = {
-  checkInTime: "attendance-check-in", checkOutTime: "attendance-check-out", lateToleranceMinutes: "attendance-tolerance",
+  checkInTime: "attendance-check-in", checkInEndTime: "attendance-check-in-end",
   allowGeofencing: "attendance-geofence", officeLatitude: "attendance-latitude", officeLongitude: "attendance-longitude", radiusMeters: "attendance-radius",
 };
 const labelClass = "mb-1 block text-sm font-semibold text-slate-800";
@@ -22,8 +22,8 @@ const inputClass = "min-h-11 w-full rounded-lg border border-slate-300 bg-white 
 function initialFields(settings: Props["settings"]): Fields {
   const value = (key: string, fallback: string) => settings?.[key] == null ? fallback : String(settings[key]);
   return {
-    checkInTime: value("check_in_time", "08:00").slice(0, 5), checkOutTime: value("check_out_time", "17:00").slice(0, 5),
-    lateToleranceMinutes: value("late_tolerance_minutes", "15"), allowGeofencing: settings?.allow_geofencing === true,
+    checkInTime: value("check_in_time", "08:00").slice(0, 5), checkInEndTime: value("check_in_end_time", "09:00").slice(0, 5),
+    allowGeofencing: settings?.allow_geofencing === true,
     officeLatitude: value("office_latitude", ""), officeLongitude: value("office_longitude", ""), radiusMeters: value("radius_meters", "100"),
   };
 }
@@ -49,8 +49,8 @@ export function AttendanceSettingsForm({ settings, month }: Props) {
     event.preventDefault();
     setMessage("");
     const parsed = attendanceSettingsSchema.safeParse({
-      checkInTime: fields.checkInTime, checkOutTime: fields.checkOutTime,
-      lateToleranceMinutes: fields.lateToleranceMinutes.trim() ? Number(fields.lateToleranceMinutes) : Number.NaN, monthlyTargetHours: getMonthlyAttendanceTarget(month).hours,
+      checkInTime: fields.checkInTime, checkInEndTime: fields.checkInEndTime,
+      monthlyTargetHours: getMonthlyAttendanceTarget(month).hours,
       allowGeofencing: fields.allowGeofencing,
       officeLatitude: fields.officeLatitude.trim() ? Number(fields.officeLatitude) : null,
       officeLongitude: fields.officeLongitude.trim() ? Number(fields.officeLongitude) : null,
@@ -69,8 +69,7 @@ export function AttendanceSettingsForm({ settings, month }: Props) {
 
     const data = new FormData();
     data.set("checkInTime", parsed.data.checkInTime);
-    data.set("checkOutTime", parsed.data.checkOutTime);
-    data.set("lateTolerance", String(parsed.data.lateToleranceMinutes));
+    data.set("checkInEndTime", parsed.data.checkInEndTime);
     data.set("monthlyTarget", String(parsed.data.monthlyTargetHours));
     data.set("allowGeofencing", String(parsed.data.allowGeofencing));
     data.set("officeLatitude", parsed.data.officeLatitude === null ? "" : String(parsed.data.officeLatitude));
@@ -89,12 +88,11 @@ export function AttendanceSettingsForm({ settings, month }: Props) {
   const fieldError = (name: FieldName) => errors[name] ? <p id={`${fieldIds[name]}-error`} className="mt-1 text-sm text-red-700">{errors[name]}</p> : null;
   return <form onSubmit={submit} noValidate className="space-y-5" aria-busy={isPending}>
     <section aria-labelledby="attendance-schedule-title" className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-      <h2 id="attendance-schedule-title" className="text-base font-bold text-slate-950">Jadwal &amp; target</h2>
+      <h2 id="attendance-schedule-title" className="text-base font-bold text-slate-950">Jadwal &amp; target</h2><p className="mt-1 text-sm text-slate-600">Check-in setelah batas akhir tercatat terlambat. Waktu pulang mengikuti jam check-in + 8 jam.</p>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div><label className={labelClass} htmlFor={fieldIds.checkInTime}>Jam masuk</label><input id={fieldIds.checkInTime} type="time" required value={fields.checkInTime} onChange={(e) => update("checkInTime", e.target.value)} aria-invalid={Boolean(errors.checkInTime)} aria-describedby={errors.checkInTime ? `${fieldIds.checkInTime}-error` : undefined} className={inputClass} />{fieldError("checkInTime")}</div>
-        <div><label className={labelClass} htmlFor={fieldIds.checkOutTime}>Jam pulang</label><input id={fieldIds.checkOutTime} type="time" required value={fields.checkOutTime} onChange={(e) => update("checkOutTime", e.target.value)} aria-invalid={Boolean(errors.checkOutTime)} aria-describedby={errors.checkOutTime ? `${fieldIds.checkOutTime}-error` : undefined} className={inputClass} />{fieldError("checkOutTime")}</div>
-        <div><label className={labelClass} htmlFor={fieldIds.lateToleranceMinutes}>Toleransi keterlambatan (menit)</label><input id={fieldIds.lateToleranceMinutes} type="number" min="0" max="180" step="1" required value={fields.lateToleranceMinutes} onChange={(e) => update("lateToleranceMinutes", e.target.value)} aria-invalid={Boolean(errors.lateToleranceMinutes)} aria-describedby={errors.lateToleranceMinutes ? `${fieldIds.lateToleranceMinutes}-error` : "attendance-tolerance-hint"} className={inputClass} /><p id="attendance-tolerance-hint" className="mt-1 text-sm text-slate-600">Maksimal 180 menit.</p>{fieldError("lateToleranceMinutes")}</div>
-        <div className="rounded-lg bg-teal-50 p-3"><label className="block text-sm font-semibold text-teal-950" htmlFor="attendance-target-month">Pratinjau target bulan</label><input id="attendance-target-month" type="month" min="0100-01" value={previewMonth} onChange={(event) => setPreviewMonth(event.target.value)} className="mt-1 min-h-10 w-full rounded-md border border-teal-200 bg-white px-2 text-sm text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700" /><div aria-live="polite"><p className="mt-2 text-2xl font-bold tabular-nums text-teal-900">{target.hours} jam</p><p className="text-sm text-teal-900">{calendarDays} hari kalender − {calendarDays - target.workdays} Minggu = {target.workdays} hari kerja × 8 jam.</p><p className="mt-1 text-xs text-teal-900">Senin–Sabtu; target tiap peserta disesuaikan tanggal aktif. Libur nasional belum dikurangi.</p></div></div>
+        <div><label className={labelClass} htmlFor={fieldIds.checkInEndTime}>Batas akhir check-in</label><input id={fieldIds.checkInEndTime} type="time" required value={fields.checkInEndTime} onChange={(e) => update("checkInEndTime", e.target.value)} aria-invalid={Boolean(errors.checkInEndTime)} aria-describedby={errors.checkInEndTime ? `${fieldIds.checkInEndTime}-error` : undefined} className={inputClass} />{fieldError("checkInEndTime")}</div><div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 sm:col-span-2"><span className="font-semibold">Perkiraan jam pulang:</span> {fields.checkInTime || "08:00"} → {`${String((Number(fields.checkInTime.slice(0, 2)) + 8) % 24).padStart(2, "0")}:${fields.checkInTime.slice(3, 5) || "00"}`} · {fields.checkInEndTime || "09:00"} → {`${String((Number(fields.checkInEndTime.slice(0, 2)) + 8) % 24).padStart(2, "0")}:${fields.checkInEndTime.slice(3, 5) || "00"}`}</div>
+        <div className="rounded-lg bg-teal-50 p-3 sm:col-span-2"><label className="block text-sm font-semibold text-teal-950" htmlFor="attendance-target-month">Pratinjau target bulan</label><input id="attendance-target-month" type="month" min="0100-01" value={previewMonth} onChange={(event) => setPreviewMonth(event.target.value)} className="mt-1 min-h-10 w-full rounded-md border border-teal-200 bg-white px-2 text-sm text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700" /><div aria-live="polite"><p className="mt-2 text-2xl font-bold tabular-nums text-teal-900">{target.hours} jam</p><p className="text-sm text-teal-900">{calendarDays} hari kalender − {calendarDays - target.workdays} Minggu = {target.workdays} hari kerja × 8 jam.</p><p className="mt-1 text-xs text-teal-900">Bulan awal mengikuti bulan berjalan; target peserta menyesuaikan periode magang. Hari Minggu dikecualikan, libur nasional belum.</p></div></div>
       </div>
     </section>
 
