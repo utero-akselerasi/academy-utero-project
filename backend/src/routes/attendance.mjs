@@ -32,8 +32,7 @@ export async function attendanceRoutes(app, { db, config }) {
       const interns = await client.query(
         `select ip.id, ip.full_name, ip.user_id, ip.status, ip.start_date::text as start_date, ip.major, ip.phone, ip.email
          from utero_academy.intern_profiles ip where ip.status = 'active' ${scopeWhere}
-         and exists (select 1 from utero_academy.user_roles ur join utero_academy.roles r on r.id = ur.role_id
-                     where ur.user_id = ip.user_id and r.code = 'intern') order by ip.full_name`, values,
+         order by ip.full_name`, values,
       );
       const internIds = interns.rows.map((row) => row.id);
       if (!internIds.length) return { setupRequired: false, settings: settings.rows[0] ?? null, interns: [], attendances: [], pendingPermits: [] };

@@ -42,6 +42,10 @@ test("admin dashboard menampilkan seluruh peserta aktif tanpa bergantung pada as
     assert.equal(response.statusCode, 200);
     assert.deepEqual(response.json().interns.map((row) => row.id), [assignedIntern, otherIntern]);
     assert.equal(calls.some((entry) => entry.sql.includes("from utero_academy.mentor_assignments")), false);
+    const internRead = calls.find((entry) => entry.sql.includes("from utero_academy.intern_profiles ip where ip.status = 'active'"));
+    assert.ok(internRead);
+    assert.equal(internRead.sql.includes("user_roles"), false);
+    assert.equal(internRead.sql.includes("join utero_academy.roles"), false);
     const attendanceRead = calls.find((entry) => entry.sql.includes("from utero_academy.attendances"));
     assert.deepEqual(attendanceRead.values, [[assignedIntern, otherIntern]]);
     assert.ok(attendanceRead.sql.includes("select a.*, a.attendance_date::text as attendance_date"));
