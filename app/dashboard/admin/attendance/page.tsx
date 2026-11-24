@@ -6,8 +6,9 @@ import { ReviewAttendanceForm } from "@/features/attendance/ReviewAttendanceForm
 import { AttendanceMap } from "@/features/attendance/AttendanceMap";
 import { DatePickerFilter } from "@/features/attendance/DatePickerFilter";
 import { ImagePreview } from "@/features/daily-reports/ImagePreview";
-import { saveAttendanceSettingsAction } from "@/features/attendance/actions";
+import { AttendanceSettingsForm } from "@/features/attendance/AttendanceSettingsForm";
 import { requireAdmin } from "@/features/auth/guards";
+import { getElapsedMonthlyAttendanceTarget, getMonthlyAttendanceTarget } from "@/lib/attendance-calendar";
 import { isPdfPath, resolveStorageUrl, resolveStorageUrls } from "@/lib/storage-urls";
 import { jakartaDateString, jakartaMinutesOfDay, parseWallClockMinutes } from "@/lib/time";
 import Link from "next/link";
@@ -52,9 +53,9 @@ export default async function AdminAttendancePage({ searchParams }: Props) {
   }
 
   const checkInTime = settings?.check_in_time || "08:00";
-  const checkOutTime = settings?.check_out_time || "17:00";
   const lateTolerance = settings?.late_tolerance_minutes ?? 15;
-  const targetHours = settings?.monthly_target_hours ?? 120;
+  const today = jakartaDateString();
+  const currentMonth = today.slice(0, 7);
 
   // 4. Calculate stats for each intern
   //
@@ -67,11 +68,6 @@ export default async function AdminAttendancePage({ searchParams }: Props) {
   const mappedInterns = interns.map(intern => {
     const internLogs = (attendances || []).filter(a => a.intern_id === intern.id);
     
-    // Duration of internship in days
-    const durationDays = intern.start_date 
-      ? Math.max(1, Math.ceil((new Date().getTime() - new Date(intern.start_date).getTime()) / (1000 * 60 * 60 * 24))) 
-      : 0;
-
     let lateCount = 0;
     let totalHours = 0;
     
@@ -99,38 +95,32 @@ export default async function AdminAttendancePage({ searchParams }: Props) {
       }
     });
 
-    const presentCount = internLogs.filter(l => l.attendance_type === "present" && (l.status === "valid" || l.status === "pending")).length;
-    const permitCount = internLogs.filter(l => l.attendance_type === "permit").length;
-    const sickCount = internLogs.filter(l => l.attendance_type === "sick").length;
-    
-    const totalValid = presentCount + permitCount + sickCount;
+    const hasInternshipStart = Boolean(intern.start_date);
+    const monthlyTarget = hasInternshipStart
+      ? getMonthlyAttendanceTarget(currentMonth, intern.start_date, intern.end_date) : { workdays: 0, hours: 0 };
+    const elapsedTarget = hasInternshipStart
+      ? getElapsedMonthlyAttendanceTarget(currentMonth, today, intern.start_date, intern.end_date) : { workdays: 0, hours: 0 };
+    const withinWorkPeriod = (date: string) => hasInternshipStart && date.startsWith(currentMonth) && date <= today &&
+      date >= intern.start_date && (!intern.end_date || date <= intern.end_date) &&
+      new Date(`${date}T00:00:00Z`).getUTCDay() !== 0;
+    const presentDays = new Set(internLogs.filter(log => withinWorkPeriod(log.attendance_date) &&
+      log.attendance_type === "present" && ["valid", "pending"].includes(log.status)).map(log => log.attendance_date)).size;
+    const attendanceRate = elapsedTarget.workdays > 0
+      ? Math.min(100, Math.round((presentDays / elapsedTarget.workdays) * 100)) : 0;
 
-    // Hitung hari kerja efektif mengecualikan hari minggu
-    let workDaysRequired = 0;
-    if (intern.start_date) {
-      const start = new Date(intern.start_date);
-      const end = new Date();
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        if (d.getDay() !== 0) { // 0 adalah hari Minggu
-          workDaysRequired++;
-        }
-      }
-    }
-    workDaysRequired = Math.max(1, workDaysRequired);
-    const attendanceRate = Math.round((totalValid / workDaysRequired) * 100);
-
-    // Hitung total jam di bulan aktif saat ini
-    const currentMonthStr = new Date().toISOString().slice(0, 7);
-    let totalHoursThisMonth = 0;
+    const creditedHoursByDay = new Map<string, number>();
     internLogs.forEach(log => {
-      if (log.attendance_date.startsWith(currentMonthStr)) {
-        if (log.attendance_type === "present" && log.check_in_at && log.check_out_at) {
+      if (withinWorkPeriod(log.attendance_date)) {
+        if (log.attendance_type === "present" && ["valid", "pending"].includes(log.status) && log.check_in_at && log.check_out_at) {
           const diffMs = new Date(log.check_out_at).getTime() - new Date(log.check_in_at).getTime();
           const hours = diffMs / (1000 * 60 * 60);
-          totalHoursThisMonth += Math.max(0, parseFloat(hours.toFixed(2)));
+          creditedHoursByDay.set(log.attendance_date, (creditedHoursByDay.get(log.attendance_date) ?? 0) + Math.max(0, hours));
         }
       }
     });
+    const totalHoursThisMonth = [...creditedHoursByDay.values()].reduce((total, hours) => total + Math.min(8, hours), 0);
+    const monthlyProgressPercent = elapsedTarget.hours > 0
+      ? Math.min(100, Math.round((totalHoursThisMonth / elapsedTarget.hours) * 100)) : 0;
 
 
     // Object path, BUKAN URL — ditandatangani di bawah, setelah map ini selesai.
@@ -139,10 +129,16 @@ export default async function AdminAttendancePage({ searchParams }: Props) {
 
     return {
       ...intern,
-      durationDays,
       lateCount,
       totalHours: parseFloat(totalHours.toFixed(1)),
       totalHoursThisMonth: parseFloat(totalHoursThisMonth.toFixed(1)),
+      monthlyTargetHours: monthlyTarget.hours,
+      monthlyWorkdays: monthlyTarget.workdays,
+      hasInternshipStart,
+      elapsedTargetHours: elapsedTarget.hours,
+      elapsedWorkdays: elapsedTarget.workdays,
+      presentDays,
+      monthlyProgressPercent,
       attendanceRate,
       latestSelfiePath,
       logs: internLogs
@@ -214,9 +210,6 @@ export default async function AdminAttendancePage({ searchParams }: Props) {
       checkOutProofIsPdf.set(log.id as string, isPdfPath(log.check_out_out_of_range_proof_path, "academy-private"));
     }
   }
-  const today = jakartaDateString();
-  const currentMonth = today.slice(0, 7);
-
   return (
     <main className="w-full px-3 py-4 sm:px-4 sm:py-5 relative">
       {/* Header */}
@@ -290,123 +283,10 @@ export default async function AdminAttendancePage({ searchParams }: Props) {
         </div>
       </details>
 
-      {/* Settings Panel */}
       {showSettings === "true" && (
-        <form action={saveAttendanceSettingsAction} className="surface p-5 bg-white border border-slate-200 rounded-xl mb-6 grid gap-4 md:grid-cols-4 items-end animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingCheckInTime">Jam Masuk (Check-In) *</label>
-            <input
-              id="settingCheckInTime"
-              type="text"
-              name="checkInTime"
-              defaultValue={checkInTime}
-              placeholder="08:00"
-              required
-              className="form-input text-xs"
-            />
-          </div>
-          <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingCheckOutTime">Jam Pulang (Check-Out) *</label>
-            <input
-              id="settingCheckOutTime"
-              type="text"
-              name="checkOutTime"
-              defaultValue={checkOutTime}
-              placeholder="17:00"
-              required
-              className="form-input text-xs"
-            />
-          </div>
-          <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingLateTolerance">Toleransi Terlambat (Menit) *</label>
-            <input
-              id="settingLateTolerance"
-              type="number"
-              name="lateTolerance"
-              defaultValue={lateTolerance}
-              required
-              className="form-input text-xs"
-            />
-          </div>
-          <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingMonthlyTarget">Target Magang (Jam/Bulan) *</label>
-            <input
-              id="settingMonthlyTarget"
-              type="number"
-              name="monthlyTarget"
-              defaultValue={targetHours}
-              required
-              className="form-input text-xs"
-            />
-          </div>
-
-          {/* Prefill `-7.9671`/`112.6375` (Malang) dihapus, dan `required`
-              ikut dilepas.
-
-              Angka itu bukan nilai tersimpan: kalau kolomnya `null`, admin
-              membuka form, melihat kedua kotak sudah terisi, menyimpan
-              pengaturan lain, dan geofence terpasang di Malang tanpa pernah
-              dipilih siapa pun. Itu lubang yang sama yang baru dicabut dari
-              `saveAttendanceSettingsAction` — kalau dibiarkan di sini, ia
-              masuk kembali lewat UI.
-
-              `required` dilepas karena kolomnya memang nullable: kosong =
-              belum diatur, dan itu keadaan yang harus bisa dinyatakan. Batas
-              rentang koordinat ditegakkan di `attendanceSettingsSchema`, yang
-              juga menolak "geofencing aktif tapi koordinat kosong" — bukan di
-              atribut HTML yang bisa dilewati. */}
-          <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingOfficeLatitude">Latitude Kantor</label>
-            <input
-              id="settingOfficeLatitude"
-              type="text"
-              name="officeLatitude"
-              defaultValue={settings?.office_latitude ?? ""}
-              placeholder="Belum diatur"
-              className="form-input text-xs"
-            />
-          </div>
-          <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingOfficeLongitude">Longitude Kantor</label>
-            <input
-              id="settingOfficeLongitude"
-              type="text"
-              name="officeLongitude"
-              defaultValue={settings?.office_longitude ?? ""}
-              placeholder="Belum diatur"
-              className="form-input text-xs"
-            />
-          </div>
-          <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingRadiusMeters">Radius Absensi (Meter)</label>
-            <input
-              id="settingRadiusMeters"
-              type="number"
-              name="radiusMeters"
-              defaultValue={settings?.radius_meters ?? 100}
-              required
-              className="form-input text-xs"
-            />
-          </div>
-          <div className="form-field">
-            <label className="form-label text-xs font-bold text-slate-700" htmlFor="settingAllowGeofencing">Aktifkan Geofencing GPS</label>
-            <select
-              id="settingAllowGeofencing"
-              name="allowGeofencing"
-              defaultValue={settings?.allow_geofencing ? "true" : "false"}
-              className="border border-slate-200 rounded-lg text-xs px-2 bg-white h-9 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none text-slate-850 font-bold w-full"
-            >
-              <option value="false">Nonaktifkan</option>
-              <option value="true">Aktifkan</option>
-            </select>
-          </div>
-
-          <div className="md:col-span-4 flex justify-end">
-            <button type="submit" className="button-primary text-xs py-2 px-4 min-h-0 font-bold">
-              Simpan Pengaturan
-            </button>
-          </div>
-        </form>
+        <div className="mb-6">
+          <AttendanceSettingsForm settings={settings} month={currentMonth} />
+        </div>
       )}
 
       {/* Pending Permits List */}
@@ -439,18 +319,22 @@ export default async function AdminAttendancePage({ searchParams }: Props) {
                   ) : <div className="h-4" />}
                 </div>
 
-                <div className="grid grid-cols-3 gap-1 w-full bg-slate-50 p-1 sm:p-2 rounded-lg border border-slate-100 text-[8px] sm:text-[10px] font-bold text-slate-500">
+                <div className="grid grid-cols-2 gap-2 w-full bg-slate-50 p-2 rounded-lg border border-slate-100 text-[10px] sm:text-xs font-semibold text-slate-600">
                   <div>
-                    <span className="block text-slate-400 text-[6px] sm:text-[8px] uppercase">Rate</span>
+                    <span className="block text-slate-500 text-[10px]">Hadir / berjalan</span>
+                    <span className="text-teal-700">{intern.presentDays} / {intern.elapsedWorkdays} hari</span>
+                  </div>
+                  <div>
+                    <span className="block text-slate-500 text-[10px]">Kehadiran bulan ini</span>
                     <span className="text-teal-700">{intern.attendanceRate}%</span>
                   </div>
                   <div>
-                    <span className="block text-slate-400 text-[6px] sm:text-[8px] uppercase">Late</span>
-                    <span className="text-red-600">{intern.lateCount}x</span>
+                    <span className="block text-slate-500 text-[10px]">Jam dihitung / target</span>
+                    <span className="text-slate-800">{intern.hasInternshipStart ? `${intern.totalHoursThisMonth} / ${intern.monthlyTargetHours} jam` : "Periode belum diatur"}</span>
                   </div>
                   <div>
-                    <span className="block text-slate-400 text-[6px] sm:text-[8px] uppercase">Hours</span>
-                    <span className="text-slate-800">{intern.totalHours}h</span>
+                    <span className="block text-slate-500 text-[10px]">Terlambat</span>
+                    <span className="text-red-600">{intern.lateCount} kali</span>
                   </div>
                 </div>
 
@@ -502,11 +386,11 @@ export default async function AdminAttendancePage({ searchParams }: Props) {
               {/* Summary Stats Grid */}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-center">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Lama Magang</span>
-                  <span className="text-lg font-black text-slate-800 block mt-1">{selectedIntern.durationDays} Hari</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Hari Kerja Bulan Ini</span>
+                  <span className="text-lg font-black text-slate-800 block mt-1">{selectedIntern.elapsedWorkdays} / {selectedIntern.monthlyWorkdays}</span>
                 </div>
                 <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-center">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Presensi Rate</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Kehadiran bulan ini</span>
                   <span className="text-lg font-black text-teal-700 block mt-1">{selectedIntern.attendanceRate}%</span>
                   <span className={`text-[9px] font-bold uppercase ${
                     selectedIntern.attendanceRate >= 90 ? "text-teal-700" : selectedIntern.attendanceRate >= 75 ? "text-blue-700" : "text-red-700"
@@ -519,10 +403,10 @@ export default async function AdminAttendancePage({ searchParams }: Props) {
                   <span className="text-lg font-black text-red-600 block mt-1">{selectedIntern.lateCount} Kali</span>
                 </div>
                 <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-center">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Jam Kerja</span>
-                  <span className="text-lg font-black text-slate-800 block mt-1">{selectedIntern.totalHoursThisMonth} / {targetHours}h</span>
-                  <span className="text-[9px] text-slate-400 font-bold block mt-0.5">
-                    {targetHours > 0 ? Math.round((selectedIntern.totalHoursThisMonth / targetHours) * 100) : 100}% Target Bulan Ini ({selectedIntern.durationDays} hari kerja)
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Jam dihitung bulan ini</span>
+                  <span className="text-lg font-black text-slate-800 block mt-1">{selectedIntern.hasInternshipStart ? `${selectedIntern.totalHoursThisMonth} / ${selectedIntern.monthlyTargetHours} jam` : "Periode belum diatur"}</span>
+                  <span className="text-[10px] text-slate-600 font-semibold block mt-0.5">
+                    {selectedIntern.monthlyProgressPercent}% dari {selectedIntern.elapsedTargetHours} jam target berjalan · maksimal 8 jam/hari
                   </span>
                 </div>
               </div>

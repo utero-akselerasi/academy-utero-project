@@ -30,7 +30,7 @@ export async function attendanceRoutes(app, { db, config }) {
       const values = scope === null ? [] : [scope];
       const scopeWhere = scope === null ? "" : "and ip.id = any($1::uuid[])";
       const interns = await client.query(
-        `select ip.id, ip.full_name, ip.user_id, ip.status, ip.start_date::text as start_date, ip.major, ip.phone, ip.email
+        `select ip.id, ip.full_name, ip.user_id, ip.status, ip.start_date::text as start_date, ip.end_date::text as end_date, ip.major, ip.phone, ip.email
          from utero_academy.intern_profiles ip where ip.status = 'active' ${scopeWhere}
          order by ip.full_name`, values,
       );
@@ -59,7 +59,7 @@ export async function attendanceRoutes(app, { db, config }) {
       const values = scope === null ? [] : [scope];
       const scopeWhere = scope === null ? "" : "and id = any($1::uuid[])";
       const interns = await client.query(
-        `select id, full_name, email, major, phone from utero_academy.intern_profiles
+        `select id, full_name, email, major, phone, start_date::text as start_date, end_date::text as end_date from utero_academy.intern_profiles
          where status = 'active' ${scopeWhere} order by full_name`, values,
       );
       const internIds = interns.rows.map((row) => row.id);
@@ -331,12 +331,13 @@ export async function attendanceRoutes(app, { db, config }) {
     const identity = reviewer(request, reply);
     if (!identity) return;
     const body = request.body ?? {};
-    const latitude = body.officeLatitude === null ? null : Number(body.officeLatitude);
-    const longitude = body.officeLongitude === null ? null : Number(body.officeLongitude);
+    const latitude = body.officeLatitude == null ? null : Number(body.officeLatitude);
+    const longitude = body.officeLongitude == null ? null : Number(body.officeLongitude);
     const radius = Number(body.radiusMeters);
     const validClock = (value) => typeof value === "string" && /^\d{1,2}:\d{2}$/.test(value) && Number(value.split(":")[0]) < 24 && Number(value.split(":")[1]) < 60;
-    if (!validClock(body.checkInTime) || !validClock(body.checkOutTime) ||
-        !Number.isInteger(body.lateToleranceMinutes) || body.lateToleranceMinutes < 0 || body.lateToleranceMinutes > 1440 ||
+    const clockMinutes = (value) => { const [hours, minutes] = value.split(":").map(Number); return hours * 60 + minutes; };
+    if (!validClock(body.checkInTime) || !validClock(body.checkOutTime) || (validClock(body.checkInTime) && validClock(body.checkOutTime) && clockMinutes(body.checkOutTime) <= clockMinutes(body.checkInTime)) ||
+        !Number.isInteger(body.lateToleranceMinutes) || body.lateToleranceMinutes < 0 || body.lateToleranceMinutes > 180 ||
         !Number.isInteger(body.monthlyTargetHours) || body.monthlyTargetHours < 0 || body.monthlyTargetHours > 744 ||
         !Number.isInteger(radius) || radius < 0 || radius > 100000 ||
         (latitude !== null && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) ||

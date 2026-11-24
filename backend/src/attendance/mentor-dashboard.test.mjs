@@ -44,6 +44,7 @@ test("admin dashboard menampilkan seluruh peserta aktif tanpa bergantung pada as
     assert.equal(calls.some((entry) => entry.sql.includes("from utero_academy.mentor_assignments")), false);
     const internRead = calls.find((entry) => entry.sql.includes("from utero_academy.intern_profiles ip where ip.status = 'active'"));
     assert.ok(internRead);
+    assert.ok(internRead.sql.includes("ip.end_date::text as end_date"));
     assert.equal(internRead.sql.includes("user_roles"), false);
     assert.equal(internRead.sql.includes("join utero_academy.roles"), false);
     const attendanceRead = calls.find((entry) => entry.sql.includes("from utero_academy.attendances"));
@@ -60,6 +61,10 @@ test("admin export memuat semua peserta aktif dan mencatat audit", async () => {
     const response = await app.inject({ url: "/v1/attendance/export-data?startDate=2026-10-01&endDate=2026-10-14&mode=range" });
     assert.equal(response.statusCode, 200);
     assert.deepEqual(response.json().interns.map((row) => row.id), [assignedIntern, otherIntern]);
+    const internRead = calls.find((entry) => entry.sql.includes("from utero_academy.intern_profiles\n"));
+    assert.ok(internRead.sql.includes("start_date::text as start_date"));
+    assert.ok(internRead.sql.includes("end_date::text as end_date"));
+    assert.ok(calls.find((entry) => entry.sql.includes("from utero_academy.intern_profiles\n"))?.sql.includes("end_date::text as end_date"));
     assert.deepEqual(calls.find((entry) => entry.sql.includes("between $2 and $3")).values, [[assignedIntern, otherIntern], "2026-10-01", "2026-10-14"]);
     assert.equal(calls.filter((entry) => entry.sql.includes("utero_academy.append_audit_log")).length, 1);
     const denied = await app.inject({ url: "/v1/attendance/export-data?startDate=2026-10-01&endDate=2026-10-14", headers: { "x-test-role": "intern" } });

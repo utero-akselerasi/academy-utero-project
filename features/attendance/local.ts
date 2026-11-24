@@ -119,9 +119,9 @@ export async function localReviewPermit(formData: FormData) {
 export async function localSettings(formData: FormData) {
   const toOptional = (value: FormDataEntryValue | null) => typeof value !== "string" || !value.trim() ? null : Number(value);
   const parsed = attendanceSettingsSchema.safeParse({
-    checkInTime: String(formData.get("checkInTime") || "08:00"), checkOutTime: String(formData.get("checkOutTime") || "17:00"),
+    checkInTime: String(formData.get("checkInTime") ?? ""), checkOutTime: String(formData.get("checkOutTime") ?? ""),
     lateToleranceMinutes: toOptional(formData.get("lateTolerance")) ?? 15,
-    monthlyTargetHours: toOptional(formData.get("monthlyTarget")) ?? 120,
+    monthlyTargetHours: toOptional(formData.get("monthlyTarget")) ?? 0,
     allowGeofencing: formData.get("allowGeofencing") === "true", officeLatitude: toOptional(formData.get("officeLatitude")),
     officeLongitude: toOptional(formData.get("officeLongitude")), radiusMeters: toOptional(formData.get("radiusMeters")) ?? 100,
   });

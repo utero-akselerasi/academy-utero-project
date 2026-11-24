@@ -12,43 +12,30 @@ export const checkOutSchema = z.object({
   wifiSsid: z.string().optional(),
 });
 
-/**
- * Pengaturan absensi global — jam kerja + geofence.
- *
- * Sebelumnya `saveAttendanceSettingsAction` tidak memvalidasi apa pun: nilainya
- * dibaca dari FormData lalu masuk `parseFloat`/`parseInt` langsung. Akibatnya,
- * isian yang tidak berbentuk angka jadi `NaN` dan **tersimpan** — dan geofence
- * yang koordinatnya NaN melewatkan setiap pemeriksaan jarak sebagai "di dalam
- * radius", yaitu geofence mati tanpa satu pun pesan error.
- *
- * `z.number()` di zod 4 sudah menolak `NaN` dan `Infinity` (diverifikasi), jadi
- * batas di bawah hanya perlu mengurus rentang yang bermakna secara geografis.
- */
-export const attendanceSettingsSchema = z.object({
-  checkInTime: z.string().regex(/^\d{1,2}:\d{2}$/, "Jam masuk harus berbentuk HH:MM."),
-  checkOutTime: z.string().regex(/^\d{1,2}:\d{2}$/, "Jam pulang harus berbentuk HH:MM."),
-  lateToleranceMinutes: z.number().int().min(0, "Toleransi telat tidak boleh negatif.").max(24 * 60),
-  monthlyTargetHours: z.number().int().min(0).max(24 * 31, "Target jam bulanan melebihi jumlah jam dalam sebulan."),
-  allowGeofencing: z.boolean(),
-  // Nullable: geofence yang dimatikan tidak butuh koordinat, dan memaksa admin
-  // mengisi angka yang tidak dipakai justru mendorong angka sembarang masuk DB.
-  officeLatitude: z.number().min(-90).max(90, "Latitude harus di antara -90 dan 90.").nullable(),
-  officeLongitude: z.number().min(-180).max(180, "Longitude harus di antara -180 dan 180.").nullable(),
-  // `min(0)`, bukan `min(1)`: radius 0 berarti "harus tepat di titik kantor",
-  // dan itu pilihan yang sah. Kode lama memakai `radius_meters || 100` sehingga
-  // 0 diam-diam berubah jadi 100 meter.
-  radiusMeters: z.number().int().min(0, "Radius tidak boleh negatif.").max(100_000),
-}).refine(
-  (value) => !value.allowGeofencing || (value.officeLatitude !== null && value.officeLongitude !== null),
-  {
-    // Inilah yang mencegah keadaan "geofencing aktif tapi koordinat kosong"
-    // tersimpan sejak awal. `resolveGeofence` di actions.ts tetap menolak
-    // keadaan itu saat absensi, sebagai lapis kedua untuk baris yang sudah ada
-    // di DB sebelum validasi ini dipasang.
-    message: "Geofencing aktif tapi koordinat kantor belum diisi.",
-    path: ["officeLatitude"],
-  }
+const clock = z.string().regex(/^\d{1,2}:\d{2}$/, "Jam harus berbentuk HH:MM.").refine(
+  (value) => { const [hour, minute] = value.split(":").map(Number); return hour < 24 && minute < 60; },
+  "Jam tidak valid.",
 );
+
+export const attendanceSettingsSchema = z.object({
+  checkInTime: clock,
+  checkOutTime: clock,
+  lateToleranceMinutes: z.number().int("Toleransi harus bilangan bulat.").min(0, "Toleransi tidak boleh negatif.").max(180, "Toleransi maksimal 180 menit."),
+  monthlyTargetHours: z.number().int().min(0).max(744),
+  allowGeofencing: z.boolean(),
+  officeLatitude: z.number().min(-90, "Latitude minimal -90.").max(90, "Latitude maksimal 90.").nullable(),
+  officeLongitude: z.number().min(-180, "Longitude minimal -180.").max(180, "Longitude maksimal 180.").nullable(),
+  radiusMeters: z.number().int("Radius harus bilangan bulat.").min(0, "Radius tidak boleh negatif.").max(100_000, "Radius maksimal 100.000 meter."),
+}).superRefine((value, context) => {
+  const minutes = (clockValue: string) => { const [hour, minute] = clockValue.split(":").map(Number); return hour * 60 + minute; };
+  if (clock.safeParse(value.checkInTime).success && clock.safeParse(value.checkOutTime).success && minutes(value.checkOutTime) <= minutes(value.checkInTime)) {
+    context.addIssue({ code: "custom", path: ["checkOutTime"], message: "Jam pulang harus setelah jam masuk." });
+  }
+  if (value.allowGeofencing) {
+    if (value.officeLatitude === null) context.addIssue({ code: "custom", path: ["officeLatitude"], message: "Latitude wajib saat GPS aktif." });
+    if (value.officeLongitude === null) context.addIssue({ code: "custom", path: ["officeLongitude"], message: "Longitude wajib saat GPS aktif." });
+  }
+});
 
 export const reviewAttendanceSchema = z.object({
   attendanceId: z.string().uuid("ID absensi tidak valid."),

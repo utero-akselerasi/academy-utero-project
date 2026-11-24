@@ -1,8 +1,9 @@
 import { RouteAuthorizationError, requireRouteAdmin } from "@/features/auth/guards";
 import { buildCsv, csvResponseHeaders, type CsvCell } from "@/lib/csv";
-import { jakartaMinutesOfDay, parseWallClockMinutes } from "@/lib/time";
+import { jakartaDateString, jakartaMinutesOfDay, parseWallClockMinutes } from "@/lib/time";
 import { NextResponse } from "next/server";
 import { localAttendanceExportData } from "@/features/attendance/local";
+import { getElapsedMonthlyAttendanceTarget, getMonthlyAttendanceTarget } from "@/lib/attendance-calendar";
 
 const MAX_RANGE_DAYS = 92;
 
@@ -21,13 +22,39 @@ type InternProfile = {
   email: string | null;
   major: string | null;
   phone: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  internship_start_date?: string | null;
+  internship_end_date?: string | null;
 };
+
+function getPeriodTarget(startDate: string, endDate: string, intern: InternProfile) {
+  const activeStart = intern.internship_start_date ?? intern.start_date;
+  if (!activeStart) return { workdays: 0, hours: 0 };
+  const activeEnd = intern.internship_end_date ?? intern.end_date;
+  const from = [startDate, activeStart].filter((date): date is string => !!date).sort().at(-1)!;
+  const to = [endDate, activeEnd].filter((date): date is string => !!date).sort()[0];
+  if (from > to) return { workdays: 0, hours: 0 };
+
+  let workdays = 0;
+  let hours = 0;
+  let cursor = from.slice(0, 7);
+  const lastMonth = to.slice(0, 7);
+  while (cursor <= lastMonth) {
+    const target = getMonthlyAttendanceTarget(cursor, from, to);
+    workdays += target.workdays;
+    hours += target.hours;
+    const [year, month] = cursor.split("-").map(Number);
+    cursor = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 7);
+  }
+  return { workdays, hours };
+}
 
 function getMonthRange(month: string) {
   if (!/^\d{4}-\d{2}$/.test(month)) return null;
 
   const [year, monthNumber] = month.split("-").map(Number);
-  if (monthNumber < 1 || monthNumber > 12) return null;
+  if (year < 100 || monthNumber < 1 || monthNumber > 12) return null;
 
   const start = new Date(Date.UTC(year, monthNumber - 1, 1));
   const end = new Date(Date.UTC(year, monthNumber, 0));
@@ -80,6 +107,17 @@ function getAttendanceHours(log: AttendanceLog) {
   return Math.max(0, diffMs / (1000 * 60 * 60));
 }
 
+function getCreditedHours(logs: AttendanceLog[], startDate: string, endDate: string) {
+  const dailyHours = new Map<string, number>();
+  for (const log of logs) {
+    if (log.attendance_type !== "present" || (log.status !== "valid" && log.status !== "pending") ||
+      log.attendance_date < startDate || log.attendance_date > endDate ||
+      new Date(`${log.attendance_date}T00:00:00Z`).getUTCDay() === 0) continue;
+    dailyHours.set(log.attendance_date, (dailyHours.get(log.attendance_date) ?? 0) + getAttendanceHours(log));
+  }
+  return [...dailyHours.values()].reduce((total, hours) => total + Math.min(8, hours), 0);
+}
+
 export async function GET(request: Request) {
   try {
     // Export memuat PII peserta; otorisasi mendahului permintaan backend.
@@ -93,13 +131,14 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const mode = url.searchParams.get("mode") === "range" ? "range" : "monthly";
-  const month = url.searchParams.get("month") || new Date().toISOString().slice(0, 7);
+  const today = jakartaDateString();
+  const month = url.searchParams.get("month") || today.slice(0, 7);
   const start = url.searchParams.get("start");
   const end = url.searchParams.get("end");
 
   let period = getMonthRange(month);
   let periodLabel = month;
-  let targetMode = "Target bulanan penuh";
+  let targetMode = "Target sesuai periode magang";
 
   if (mode === "range") {
     const startDate = parseCalendarDate(start);
@@ -116,7 +155,7 @@ export async function GET(request: Request) {
 
     period = { startDate: start!, endDate: end! };
     periodLabel = `${start} s/d ${end}`;
-    targetMode = "Tidak dinilai untuk custom range";
+    targetMode = "Target sesuai rentang tanggal";
   }
 
   if (!period) {
@@ -134,7 +173,6 @@ export async function GET(request: Request) {
   const attendances: AttendanceLog[] = result.attendances;
 
   const lateTolerance = settings?.late_tolerance_minutes ?? 15;
-  const monthlyTargetHours = settings?.monthly_target_hours ?? 120;
 
   // `parseWallClockMinutes` mengembalikan null untuk bentuk yang tidak valid,
   // jadi default 08:00 dipilih secara eksplisit. Sebelumnya `split(":").map(Number)`
@@ -162,9 +200,17 @@ export async function GET(request: Request) {
     "Total Sakit/Tidak Masuk",
     "Pending Review",
     "Invalid",
+    "Jam Diakui (Maks 8/Hari Kerja)",
+    "Target Jam Berjalan",
+    "Progres Target (%)",
   ]];
 
   interns.forEach((intern) => {
+    const target = getPeriodTarget(period.startDate, period.endDate, intern);
+    const activeStart = intern.internship_start_date ?? intern.start_date;
+    const elapsedTarget = mode === "monthly" && month === today.slice(0, 7)
+      ? activeStart ? getElapsedMonthlyAttendanceTarget(month, today, activeStart, intern.internship_end_date ?? intern.end_date) : { workdays: 0, hours: 0 }
+      : target;
     const logs = attendances.filter((attendance) => attendance.intern_id === intern.id);
     const presentCount = logs.filter((log) => log.attendance_type === "present" && (log.status === "valid" || log.status === "pending")).length;
     const permitCount = logs.filter((log) => log.attendance_type === "permit").length;
@@ -172,10 +218,15 @@ export async function GET(request: Request) {
     const pendingCount = logs.filter((log) => log.status === "pending" || log.status === "manual_review").length;
     const invalidCount = logs.filter((log) => log.status === "invalid").length;
     const totalHours = logs.reduce((total, log) => total + getAttendanceHours(log), 0);
+    const creditedHours = activeStart ? getCreditedHours(logs,
+      [period.startDate, activeStart].sort().at(-1)!,
+      [period.endDate, intern.internship_end_date ?? intern.end_date].filter((date): date is string => !!date).sort()[0]) : 0;
     const lateMinutesList = logs.map((log) => getLateMinutes(log, checkInMinutes, lateTolerance)).filter((minutes) => minutes > 0);
-    const targetStatus = mode === "monthly"
-      ? totalHours >= monthlyTargetHours ? "Terpenuhi" : "Belum Terpenuhi"
-      : "-";
+    const progressHours = activeStart ? getCreditedHours(logs,
+      [period.startDate, activeStart].sort().at(-1)!,
+      [period.endDate, intern.internship_end_date ?? intern.end_date, mode === "monthly" && month === today.slice(0, 7) ? today : null]
+        .filter((date): date is string => !!date).sort()[0]) : 0;
+    const targetStatus = !activeStart ? "Periode belum diatur" : target.hours === 0 ? "Belum aktif" : creditedHours >= target.hours ? "Terpenuhi" : "Belum Terpenuhi";
 
     rows.push([
       intern.full_name,
@@ -187,7 +238,7 @@ export async function GET(request: Request) {
       period.endDate,
       presentCount,
       Number(totalHours.toFixed(2)),
-      monthlyTargetHours,
+      target.hours,
       targetMode,
       targetStatus,
       lateMinutesList.length,
@@ -196,6 +247,9 @@ export async function GET(request: Request) {
       sickCount,
       pendingCount,
       invalidCount,
+      Number(creditedHours.toFixed(2)),
+      elapsedTarget.hours,
+      elapsedTarget.hours > 0 ? Math.min(100, Math.round((progressHours / elapsedTarget.hours) * 100)) : 0,
     ]);
   });
 
