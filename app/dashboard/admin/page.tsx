@@ -7,14 +7,14 @@ import { Users, GraduationCap, CheckSquare, BarChart2, ChevronRight, FileText, S
 
 function StatCard({ title, value, description, icon, color = "bg-teal-50 text-teal-700" }: { title: string; value: string | number; description: string; icon: React.ReactNode, color?: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-slate-500">{title}</p>
-          <h3 className="mt-2 text-2xl font-bold text-slate-900">{value}</h3>
-          <p className="mt-1 text-sm text-slate-500">{description}</p>
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+      <div className="flex min-w-0 items-start justify-between gap-2 sm:gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-slate-500 sm:text-sm">{title}</p>
+          <h3 className="mt-2 text-xl font-bold text-slate-900 sm:text-2xl">{value}</h3>
+          <p className="mt-1 break-words text-xs text-slate-500 sm:text-sm">{description}</p>
         </div>
-        <div className={"rounded-xl p-3 " + color}>{icon}</div>
+        <div className={"shrink-0 rounded-xl p-2 sm:p-3 " + color}>{icon}</div>
       </div>
     </div>
   );
@@ -54,7 +54,7 @@ export default async function AdminDashboardPage() {
       </section>
 
       {/* Metrics Cards */}
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatCard title="Peserta Aktif" value={metrics.totalInterns} description="Siswa magang aktif" icon={<Users size={22} />} color="bg-teal-50 text-teal-700" />
         <StatCard title="Instansi Partner" value={metrics.totalSchools} description="Sekolah/kampus terdaftar" icon={<GraduationCap size={22} />} color="bg-blue-50 text-blue-700" />
         <StatCard title="Total Tugas" value={metrics.totalTasks} description={metrics.completedTasks + " tugas selesai"} icon={<CheckSquare size={22} />} color="bg-amber-50 text-amber-700" />
