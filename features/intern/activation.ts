@@ -29,6 +29,21 @@ export function hasApprovedOnboarding(application: ActivationApplication, profil
     application.approved_end_date === profile.end_date;
 }
 
+export function internDashboardAccess(
+  profile: (ActivationProfile & { status: string }) | null,
+  application: ActivationApplication | null,
+  convertedApplication: boolean,
+  today: string,
+): "waiting" | "activate" | "ready" {
+  if (!profile || !profile.start_date || profile.start_date > today ||
+      (profile.end_date && profile.end_date < today) || !["pending", "active"].includes(profile.status)) return "waiting";
+  if (convertedApplication) {
+    if (!application || !hasApprovedOnboarding(application, profile)) return "waiting";
+    return profile.status === "pending" || application.onboarding_status === "waiting_start" ? "activate" : "ready";
+  }
+  return profile.status === "active" ? "ready" : "waiting";
+}
+
 export async function requireActiveInternProfile(userId: string) {
   if (usesLocalBackend()) {
     const response = await backendRequest("/v1/auth/intern-activation");

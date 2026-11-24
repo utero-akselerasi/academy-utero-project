@@ -1,7 +1,7 @@
 import { ProtectedDashboardLayout } from "@/features/auth/ProtectedDashboardLayout";
 import { requireRole } from "@/features/auth/guards";
 import { type InternProfileData, isInternBiodataComplete } from "@/features/auth/profile-schema";
-import { hasApprovedOnboarding } from "@/features/intern/activation";
+import { internDashboardAccess } from "@/features/intern/activation";
 import { userHasAnyRole } from "@/features/auth/roles";
 import { backendRequest, usesLocalBackend } from "@/lib/backend/server";
 import { createUteroAcademyClient } from "@/lib/supabase/server";
@@ -48,17 +48,23 @@ export default async function InternLayout({
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     if (failed) redirect("/dashboard/profile?internAccess=check");
     if (!isInternBiodataComplete(internProfile, fullName, user.email ?? null)) redirect("/dashboard/profile?internAccess=complete");
-    if (convertedApplication) {
+    if (usesLocalBackend()) {
       const activationResponse = await backendRequest("/v1/auth/intern-activation");
       if (!activationResponse.ok) redirect("/dashboard/profile?internAccess=check");
       const activation = await activationResponse.json() as {
-        profile: { id: string; start_date: string | null; end_date: string | null } | null;
+        profile: { id: string; status: string; start_date: string | null; end_date: string | null } | null;
         application: { status: string; onboarding_status: string; converted_intern_id: string | null; approved_start_date: string | null; approved_end_date: string | null } | null;
       };
-      const onboardingApproved = Boolean(activation.profile && activation.application && hasApprovedOnboarding(activation.application, activation.profile));
-      if (!onboardingApproved || !internProfile?.start_date || internProfile.start_date > today) {
+      const access = internDashboardAccess(activation.profile, activation.application, convertedApplication, today);
+      if (access === "waiting") {
         redirect("/dashboard/profile?internAccess=waiting");
       }
+      if (access === "activate") {
+        const activated = await backendRequest("/v1/auth/intern-activation", { method: "POST" });
+        if (!activated.ok) redirect("/dashboard/profile?internAccess=check");
+      }
+    } else if (convertedApplication && (!internProfile?.start_date || internProfile.start_date > today)) {
+      redirect("/dashboard/profile?internAccess=waiting");
     }
   }
   return (
