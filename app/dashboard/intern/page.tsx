@@ -5,6 +5,7 @@ import { requireIntern } from "@/features/auth/guards";
 import { backendRequest } from "@/lib/backend/server";
 import { usesLocalBackend } from "@/lib/backend/mode";
 import { getInternProfileId, getInternDailyReports } from "@/features/daily-reports/queries";
+import { requireActiveInternProfile } from "@/features/intern/activation";
 import { getInternAttendances, getTodayAttendance } from "@/features/attendance/queries";
 import { getInternCards } from "@/features/tasks/queries";
 import { AttendanceStatusBadge } from "@/features/attendance/AttendanceStatusBadge";
@@ -12,6 +13,7 @@ import { ReportStatusBadge } from "@/features/daily-reports/ReportStatusBadge";
 import { StatsVisualization } from "@/features/dashboard/StatsVisualization";
 import { DashboardAttendanceButton } from "@/features/attendance/DashboardAttendanceButton";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { 
   ClipboardList, Clock, FileText, BookOpen, 
   CheckSquare, ChevronRight, BarChart2,
@@ -65,7 +67,16 @@ export default async function InternDashboardPage() {
   // Guard peran di page, bukan hanya di layout.
   const user = await requireIntern();
 
-  const internProfileId = await getInternProfileId(user.id);
+  let internProfileId: string | null;
+  if (usesLocalBackend() && !user.roleCodes?.includes("super_admin")) {
+    try {
+      internProfileId = await requireActiveInternProfile(user.id);
+    } catch {
+      redirect("/dashboard/profile?internAccess=waiting");
+    }
+  } else {
+    internProfileId = await getInternProfileId(user.id);
+  }
 
   if (!internProfileId) {
     return (
