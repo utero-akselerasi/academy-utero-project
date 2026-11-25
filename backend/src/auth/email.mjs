@@ -4,6 +4,7 @@ import { verificationEmailContent } from "./verification-email.mjs";
 
 export const TOKEN_TTL_SECONDS = 60 * 60;
 export const RESEND_INTERVAL_SECONDS = 60;
+export const PASSWORD_RESET_TTL_SECONDS = 60 * 60;
 
 export function smtpTransportOptions(smtp) {
   if (smtp.port !== 465 && smtp.port !== 587) throw new Error("SMTP requires port 465 or 587");
@@ -59,6 +60,36 @@ export async function sendInvitationEmail(config, email, token) {
     const url = new URL("/register/invite", config.publicAppUrl);
     url.searchParams.set("token", token);
     await transport.sendMail({ from: config.smtp.from, to: email, subject: "Undangan Utero Academy", text: `Atur password melalui tautan ini (berlaku 1 jam): ${url.toString()}\nJika tidak mengenali undangan ini, abaikan pesan.`, disableFileAccess: true, disableUrlAccess: true });
+  } finally {
+    transport.close();
+  }
+}
+
+export async function issuePasswordResetToken(client, userId) {
+  const token = randomBytes(32).toString("hex");
+  await client.query("delete from auth.password_reset_tokens where user_id = $1", [userId]);
+  await client.query(
+    "insert into auth.password_reset_tokens (token_hash, user_id, expires_at) values ($1, $2, now() + ($3 * interval '1 second'))",
+    [tokenDigest(token), userId, PASSWORD_RESET_TTL_SECONDS],
+  );
+  return token;
+}
+
+export async function sendPasswordResetEmail(config, email, token) {
+  if (!config.smtp?.host || !config.smtp?.from || !config.publicAppUrl) throw new Error("SMTP reset configuration missing");
+  if (/[\r\n,;<>]/.test(email)) throw new Error("Unsafe recipient address");
+  const transport = nodemailer.createTransport(smtpTransportOptions(config.smtp));
+  try {
+    const url = new URL("/reset-password", config.publicAppUrl);
+    url.hash = token;
+    await transport.sendMail({
+      from: config.smtp.from,
+      to: email,
+      subject: "Atur ulang kata sandi | Utero Academy",
+      text: `Gunakan tautan berikut untuk mengatur ulang kata sandi Utero Academy: ${url.toString()}\n\nTautan berlaku 1 jam dan hanya bisa dipakai satu kali. Jika Anda tidak meminta ini, abaikan email ini.`,
+      disableFileAccess: true,
+      disableUrlAccess: true,
+    });
   } finally {
     transport.close();
   }

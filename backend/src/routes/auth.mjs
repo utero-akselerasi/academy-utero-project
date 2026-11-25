@@ -1,8 +1,8 @@
 import { hashPassword, needsPasswordRehash, verifyPassword } from "../auth/password.mjs";
 import { createSession, expiredSessionCookie, revokeSession, sessionCookie } from "../auth/session.mjs";
 import { requireIdentity } from "../auth/identity.mjs";
-import { issueVerificationToken, RESEND_INTERVAL_SECONDS, sendVerificationEmail, tokenDigest } from "../auth/email.mjs";
-import { parseResendEmail, parseSignup, parseVerificationToken } from "../auth/signup.mjs";
+import { issuePasswordResetToken, issueVerificationToken, RESEND_INTERVAL_SECONDS, sendPasswordResetEmail, sendVerificationEmail, tokenDigest } from "../auth/email.mjs";
+import { parsePasswordReset, parseResendEmail, parseSignup, parseVerificationToken } from "../auth/signup.mjs";
 
 const ACTIVE_ROLES = ["super_admin", "admin", "school", "intern", "applicant"];
 
@@ -137,6 +137,57 @@ export async function authRoutes(app, options) {
     if (outcome === "delivery_failed") return reply.code(503).send({ error: "verification_email_unavailable" });
     if (outcome === "limited") return { ok: true };
     return { ok: true };
+  });
+
+  app.post("/v1/auth/request-password-reset", { config: { rateLimit: { max: 3, timeWindow: "15 minutes" } } }, async (request, reply) => {
+    const parsed = parseResendEmail(request.body);
+    if (parsed.error) return reply.code(400).send({ error: parsed.error });
+    try {
+      await db.apiTransaction(async (client) => {
+        const result = await client.query(
+          `select id, email from auth.users where lower(email) = $1 and email_confirmed_at is not null
+             and deleted_at is null and (banned_until is null or banned_until < now()) for update`,
+          [parsed.value],
+        );
+        const user = result.rows[0];
+        if (!user) return;
+        const token = await issuePasswordResetToken(client, user.id);
+        try {
+          await sendPasswordResetEmail(config, user.email, token);
+        } catch (error) {
+          request.log.error({ err: error }, "password reset delivery failed");
+          throw Object.assign(new Error("password reset delivery failed"), { code: "password_reset_delivery_failed" });
+        }
+      });
+    } catch (error) {
+      if (error?.code !== "password_reset_delivery_failed") throw error;
+    }
+    return { ok: true };
+  });
+
+  app.post("/v1/auth/reset-password", { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } }, async (request, reply) => {
+    const parsed = parsePasswordReset(request.body);
+    if (parsed.error) return reply.code(400).send({ error: parsed.error });
+    const passwordHash = await hashPassword(parsed.value.password);
+    const changed = await db.apiTransaction(async (client) => {
+      const digest = tokenDigest(parsed.value.token);
+      const result = await client.query(
+        `select token.user_id from auth.password_reset_tokens token
+         join auth.users users on users.id = token.user_id
+         where token.token_hash = $1 and token.consumed_at is null and token.expires_at > now()
+           and users.deleted_at is null and users.email_confirmed_at is not null
+           and (users.banned_until is null or users.banned_until < now())
+         for update of token, users`,
+        [digest],
+      );
+      const user = result.rows[0];
+      if (!user) return false;
+      await client.query("update auth.users set encrypted_password = $2, updated_at = now() where id = $1", [user.user_id, passwordHash]);
+      await client.query("update auth.sessions set revoked_at = now() where user_id = $1 and revoked_at is null", [user.user_id]);
+      await client.query("update auth.password_reset_tokens set consumed_at = now() where token_hash = $1", [digest]);
+      return true;
+    });
+    return changed ? { ok: true } : reply.code(400).send({ error: "invalid_or_expired_token" });
   });
 
   app.post("/v1/auth/login", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {

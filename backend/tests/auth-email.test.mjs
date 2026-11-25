@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import Fastify from "fastify";
-import { tokenDigest, sendVerificationEmail, smtpTransportOptions } from "../src/auth/email.mjs";
+import { issuePasswordResetToken, tokenDigest, sendVerificationEmail, smtpTransportOptions } from "../src/auth/email.mjs";
 import { verificationEmailContent } from "../src/auth/verification-email.mjs";
+import { parsePasswordReset } from "../src/auth/signup.mjs";
 import { authRoutes } from "../src/routes/auth.mjs";
 
 function verificationDatabase() {
@@ -52,6 +53,82 @@ test("token disimpan sebagai digest dan format buruk ditolak", async () => {
   await app.register(authRoutes, { db, config: {} });
   const response = await app.inject({ method: "POST", url: "/v1/auth/verify-email", payload: { token: "bad" } });
   assert.equal(response.statusCode, 400);
+  await app.close();
+});
+
+test("password reset validates token and minimum password length", () => {
+  assert.deepEqual(parsePasswordReset({ token: "a".repeat(64), password: "password-kuat-123" }), {
+    value: { token: "a".repeat(64), password: "password-kuat-123" },
+  });
+  assert.equal(parsePasswordReset({ token: "invalid", password: "password-kuat-123" }).error, "invalid_or_expired_token");
+  assert.equal(parsePasswordReset({ token: "a".repeat(64), password: "short" }).error, "invalid_password");
+});
+
+test("password reset token is stored only as a one-hour digest", async () => {
+  const calls = [];
+  const token = await issuePasswordResetToken({ async query(sql, params) { calls.push({ sql, params }); } }, "user-id");
+  assert.match(token, /^[a-f0-9]{64}$/);
+  assert.notEqual(calls[1].params[0], token);
+  assert.equal(calls[1].params[0], tokenDigest(token));
+  assert.equal(calls[1].params[2], 3600);
+});
+
+test("password reset request returns same response for unknown accounts", async () => {
+  const db = { async apiTransaction(callback) { return callback({ async query() { return { rows: [] }; } }); } };
+  const app = Fastify();
+  await app.register(authRoutes, { db, config: {} });
+  const response = await app.inject({ method: "POST", url: "/v1/auth/request-password-reset", payload: { email: "unknown@example.com" } });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), { ok: true });
+  await app.close();
+});
+
+test("password reset request does not reveal existing accounts when email delivery fails", async () => {
+  const db = { async apiTransaction(callback) {
+    return callback({ async query(sql) {
+      if (sql.includes("select id, email from auth.users")) return { rows: [{ id: "user-id", email: "known@example.com" }] };
+      return { rows: [] };
+    } });
+  } };
+  const app = Fastify();
+  await app.register(authRoutes, { db, config: { smtp: {}, publicAppUrl: "https://academy.example.com" } });
+  const response = await app.inject({ method: "POST", url: "/v1/auth/request-password-reset", payload: { email: "known@example.com" } });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), { ok: true });
+  await app.close();
+});
+
+test("password reset does not claim delivery after database errors", async () => {
+  const db = { async apiTransaction() { throw new Error("database unavailable"); } };
+  const app = Fastify();
+  await app.register(authRoutes, { db, config: {} });
+  const response = await app.inject({ method: "POST", url: "/v1/auth/request-password-reset", payload: { email: "known@example.com" } });
+  assert.equal(response.statusCode, 500);
+  await app.close();
+});
+
+test("password reset consumes token and revokes active sessions", async () => {
+  const state = { consumed: false, changed: false, revoked: false };
+  const userId = "00000000-0000-4000-8000-000000000001";
+  const db = {
+    async apiTransaction(callback) {
+      return callback({ async query(sql) {
+        if (sql.includes("select token.user_id")) return { rows: state.consumed ? [] : [{ user_id: userId }] };
+        if (sql.includes("update auth.users")) state.changed = true;
+        if (sql.includes("update auth.sessions")) state.revoked = true;
+        if (sql.includes("update auth.password_reset_tokens")) state.consumed = true;
+        return { rows: [] };
+      } });
+    },
+  };
+  const app = Fastify();
+  await app.register(authRoutes, { db, config: {} });
+  const payload = { token: "b".repeat(64), password: "password-baru-kuat-123" };
+  const first = await app.inject({ method: "POST", url: "/v1/auth/reset-password", payload });
+  const reused = await app.inject({ method: "POST", url: "/v1/auth/reset-password", payload });
+  assert.equal(first.statusCode, 200);
+  assert.equal(reused.statusCode, 400);
+  assert.deepEqual(state, { consumed: true, changed: true, revoked: true });
   await app.close();
 });
 

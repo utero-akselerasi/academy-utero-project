@@ -22,3 +22,11 @@ export function parseResendEmail(body) {
   if (email.length > 320 || !EMAIL_PATTERN.test(email)) return { error: "invalid_email" };
   return { value: email };
 }
+
+export function parsePasswordReset(body) {
+  const token = String(body?.token || "").trim();
+  const password = String(body?.password || "");
+  if (!/^[a-f0-9]{64}$/.test(token)) return { error: "invalid_or_expired_token" };
+  if (password.length < 12 || password.length > 128) return { error: "invalid_password" };
+  return { value: { token, password } };
+}

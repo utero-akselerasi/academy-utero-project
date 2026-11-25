@@ -2,6 +2,7 @@
 
 import { loginAction } from "@/features/auth/actions";
 import { LogIn } from "lucide-react";
+import Link from "next/link";
 import { useActionState } from "react";
 
 const initialState = {
@@ -40,18 +41,21 @@ export function LoginForm() {
 
       <label className="form-field">
         <span className="form-label">Email</span>
-        <input className="form-input" name="email" placeholder="admin@utero.academy" type="email" required />
+        <input className="form-input" name="email" placeholder="nama@email.com" type="email" autoComplete="email" required />
       </label>
 
       <label className="form-field">
         <span className="form-label">Password</span>
-        <input className="form-input" name="password" placeholder="Password" type="password" required />
+        <input className="form-input" name="password" placeholder="Password" type="password" autoComplete="current-password" required />
       </label>
+
+      <Link href="/forgot-password" className="w-fit justify-self-end text-sm font-semibold text-red-700 underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700">Lupa password?</Link>
 
       <button className="button-primary" disabled={pending} type="submit">
         <LogIn size={18} />
         {pending ? "Memproses..." : "Masuk"}
       </button>
+      <p className="border-t border-slate-200 pt-4 text-center text-sm text-slate-600">Belum punya akun? <Link href="/register" className="font-bold text-red-700 underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700">Daftar sebagai calon peserta</Link></p>
     </form>
   );
 }
