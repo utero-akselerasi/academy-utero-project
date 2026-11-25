@@ -15,7 +15,7 @@ const NAV_LINKS = [
 
 const MOBILE_MENU_ID = "mobile-nav";
 
-export function Header() {
+export function Header({ dashboardHref }: { dashboardHref: string | null }) {
   const [isOpen, setIsOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLElement>(null);
@@ -73,8 +73,14 @@ export function Header() {
 
           <div className="h-4 w-px bg-slate-200 mx-1" aria-hidden="true" />
 
-          <Link className="rounded-lg px-3 py-1.5 bg-teal-50 border border-teal-200 text-teal-700 hover:bg-teal-100 transition-all" href="/daftar">Daftar</Link>
-          <Link className="rounded-lg px-3 py-1.5 bg-[#CE181E] text-white hover:bg-[#B61016] transition-all shadow-sm" href="/login">Login</Link>
+          {dashboardHref ? (
+            <Link className="rounded-lg px-3 py-1.5 bg-[#CE181E] text-white hover:bg-[#B61016] transition-all shadow-sm" href={dashboardHref}>Dashboard</Link>
+          ) : (
+            <>
+              <Link className="rounded-lg px-3 py-1.5 bg-teal-50 border border-teal-200 text-teal-700 hover:bg-teal-100 transition-all" href="/daftar">Daftar</Link>
+              <Link className="rounded-lg px-3 py-1.5 bg-[#CE181E] text-white hover:bg-[#B61016] transition-all shadow-sm" href="/login">Login</Link>
+            </>
+          )}
         </nav>
 
         {/*
@@ -136,8 +142,14 @@ export function Header() {
             </Link>
           ))}
           <div className="flex gap-3 mt-4">
-            <Link onClick={() => setIsOpen(false)} className="flex-1 text-center rounded-lg px-4 py-3 bg-teal-50 border border-teal-200 text-teal-700 font-bold" href="/daftar">Daftar</Link>
-            <Link onClick={() => setIsOpen(false)} className="flex-1 text-center rounded-lg px-4 py-3 bg-[#CE181E] text-white font-bold hover:bg-[#B61016] transition-all" href="/login">Login</Link>
+            {dashboardHref ? (
+              <Link onClick={() => setIsOpen(false)} className="flex-1 text-center rounded-lg px-4 py-3 bg-[#CE181E] text-white font-bold hover:bg-[#B61016] transition-all" href={dashboardHref}>Dashboard</Link>
+            ) : (
+              <>
+                <Link onClick={() => setIsOpen(false)} className="flex-1 text-center rounded-lg px-4 py-3 bg-teal-50 border border-teal-200 text-teal-700 font-bold" href="/daftar">Daftar</Link>
+                <Link onClick={() => setIsOpen(false)} className="flex-1 text-center rounded-lg px-4 py-3 bg-[#CE181E] text-white font-bold hover:bg-[#B61016] transition-all" href="/login">Login</Link>
+              </>
+            )}
           </div>
         </nav>
       </div>

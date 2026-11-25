@@ -1,12 +1,26 @@
 import Link from "next/link";
-import { GraduationCap } from "lucide-react";
+import { cookies } from "next/headers";
 import { Header } from "@/features/public/Header";
+import { getPrimaryDashboardPathForRoles, isActiveRoleCode } from "@/features/auth/roles";
+import { getBackendIdentity } from "@/lib/backend/server";
 
-export default function PublicLayout({
+export default async function PublicLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  let dashboardHref: string | null = null;
+  if ((await cookies()).has("utero_session")) {
+    try {
+      const identity = await getBackendIdentity();
+      if (identity) {
+        dashboardHref = getPrimaryDashboardPathForRoles(identity.roles.filter(isActiveRoleCode)) ?? "/dashboard/profile";
+      }
+    } catch {
+      dashboardHref = null;
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
       {/*
@@ -31,7 +45,7 @@ export default function PublicLayout({
       <a href="#main-content" className="skip-link">
         Lewati ke konten utama
       </a>
-      <Header />
+      <Header dashboardHref={dashboardHref} />
       <div id="main-content" tabIndex={-1} className="flex-1 outline-none">
         {children}
       </div>
